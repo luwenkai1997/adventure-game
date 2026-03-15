@@ -523,7 +523,7 @@
             border-bottom: 1px solid rgba(0, 255, 136, 0.2);
         }
 
-        .log-entry {
+        .ending-select-container {
             font-size: 0.85rem;
             color: rgba(0, 255, 136, 0.7);
             padding: 8px 0;
@@ -695,9 +695,6 @@
         let worldSetting = "";
         let selectedEndingType = "";
         let customChoiceInput = null;
-        let novelContent = "";
-        let isFirstChapter = true;
-        let novelTimestamp = "";
 
         function showScreen(screenId) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -758,9 +755,6 @@
             currentChoices = null;
             endingTriggered = false;
             endingCountdown = 0;
-            novelContent = "";
-            isFirstChapter = true;
-            novelTimestamp = "";
             document.getElementById('chapter-num').textContent = chapter;
             document.getElementById('log-container').innerHTML = '';
             document.getElementById('custom-choice-container').style.display = 'flex';
@@ -785,14 +779,21 @@
         }
 
         async function makeChoice(choice) {
-            if (currentScene && currentChoices) {
-                const lastLog = logs.length > 0 ? (typeof logs[logs.length - 1] === 'object' ? logs[logs.length - 1].log : logs[logs.length - 1]) : '';
-                logs[logs.length - 1] = {
-                    scene: currentScene,
-                    choices: currentChoices,
-                    selectedChoice: choice,
-                    log: lastLog
-                };
+            if (logs.length > 0) {
+                logs[logs.length - 1].selectedChoice = choice;
+            }
+            
+            if (logs.length > 0) {
+                fetch('/api/update-memory', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        scene: logs[logs.length - 1].scene,
+                        selectedChoice: choice,
+                        logSummary: logs[logs.length - 1].log,
+                        endingType: ''
+                    })
+                }).catch(e => console.error('更新memory失败:', e));
             }
             
             chapter++;
@@ -960,58 +961,6 @@
                 entry.innerHTML = `<span class="log-chapter-num">【第${chapter}轮】</span> ${data.log}`;
                 container.appendChild(entry);
                 container.scrollTop = container.scrollHeight;
-
-                fetch('/api/update-memory', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        scene: data.scene,
-                        selectedChoice: logs[logs.length - 1].selectedChoice || '（待选择）',
-                        logSummary: data.log,
-                        endingType: data.ending || ''
-                    })
-                }).catch(e => console.error('更新memory失败:', e));
-
-                const currentChapterInfo = {
-                    scene: data.scene,
-                    selectedChoice: logs[logs.length - 1].selectedChoice || '',
-                    log: data.log,
-                    previousEnding: novelContent.length > 0 ? '（续写）' : ''
-                };
-
-                fetch('/api/generate-chapter', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        worldSetting: worldSetting,
-                        chapterInfo: currentChapterInfo,
-                        existingNovel: novelContent,
-                        isFirstChapter: isFirstChapter,
-                        isEnding: data.ending ? true : false,
-                        endingType: data.ending || ''
-                    })
-                })
-                .then(res => res.json())
-                .then(result => {
-                    if (result.chapter_content) {
-                        if (isFirstChapter) {
-                            novelTimestamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
-                            isFirstChapter = false;
-                        }
-                        novelContent += result.chapter_content + '\n\n';
-                        
-                        const novelsDir = `novels/novel-${novelTimestamp}`;
-                        fetch('/api/save-chapter', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                content: novelContent,
-                                folder: novelsDir
-                            })
-                        }).catch(e => console.error('保存章节失败:', e));
-                    }
-                })
-                .catch(e => console.error('生成章节失败:', e));
             }
 
             if (data.ending) {
@@ -1054,6 +1003,17 @@
                 entry.textContent = `【终章】${data.ending}`;
                 container.appendChild(entry);
                 container.scrollTop = container.scrollHeight;
+
+                fetch('/api/update-memory', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        scene: data.scene,
+                        selectedChoice: '',
+                        logSummary: `【终章】${data.ending}`,
+                        endingType: data.ending
+                    })
+                }).catch(e => console.error('更新memory失败:', e));
             }
 
             const generateBtn = document.getElementById('generate-novel-btn');
@@ -1152,11 +1112,6 @@
         });
 
         async function generateNovel() {
-            if (logs.length === 0) {
-                alert('没有游戏日志可生成小说');
-                return;
-            }
-
             const loading = document.getElementById('novel-loading');
             const resultContainer = document.getElementById('novel-result');
             const generateBtn = document.getElementById('generate-novel-btn');
@@ -1170,8 +1125,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ logs: logs })
+                    }
                 });
 
                 const data = await response.json();
@@ -1180,8 +1134,17 @@
                     throw new Error(data.error);
                 }
 
-                resultContainer.innerHTML = data.novel_path ? 
-                    `小说已生成并保存到: ${data.novel_path}` : '小说生成成功';
+                if (data.novel_content) {
+                    resultContainer.innerHTML = `
+                        <div class="novel-content">
+                            <h3>小说已生成</h3>
+                            <p>保存路径: ${data.novel_path}</p>
+                            <div class="novel-text">${data.novel_content.replace(/\n/g, '<br>')}</div>
+                        </div>
+                    `;
+                } else {
+                    resultContainer.innerHTML = '小说生成成功';
+                }
                 generateBtn.style.display = 'none';
 
             } catch (error) {

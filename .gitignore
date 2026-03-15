@@ -13,3 +13,6 @@ env/
 .DS_Store
 .uv/
 uv.lock
+memory/
+novels/
+.trae/

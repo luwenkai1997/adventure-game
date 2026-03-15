@@ -236,6 +236,26 @@
             border-radius: 8px;
         }
 
+        .game-content {
+            display: flex;
+            gap: 20px;
+        }
+
+        .game-main {
+            flex: 1;
+        }
+
+        .log-box {
+            width: 280px;
+            min-width: 280px;
+            background: rgba(0, 10, 5, 0.8);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            border-radius: 4px;
+            padding: 15px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
         .chapter-display {
             font-size: 1.2rem;
             color: #00ccff;
@@ -322,6 +342,136 @@
             margin-bottom: 20px;
         }
 
+        .custom-choice-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 5px;
+        }
+
+        .custom-choice-input {
+            flex: 1;
+            padding: 15px;
+            background: rgba(0, 20, 10, 0.6);
+            border: 1px solid rgba(0, 200, 255, 0.4);
+            border-radius: 4px;
+            color: #00ff88;
+            font-family: inherit;
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .custom-choice-input:focus {
+            border-color: #00ccff;
+            box-shadow: 0 0 10px rgba(0, 200, 255, 0.3);
+        }
+
+        .custom-choice-input::placeholder {
+            color: rgba(0, 255, 136, 0.4);
+        }
+
+        .custom-choice-btn {
+            padding: 15px 20px;
+            background: linear-gradient(135deg, rgba(0, 255, 136, 0.2) 0%, rgba(0, 200, 100, 0.2) 100%);
+            border: 1px solid #00ff88;
+            color: #00ff88;
+            font-family: inherit;
+            font-size: 1.2rem;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .custom-choice-btn:hover {
+            background: linear-gradient(135deg, rgba(0, 255, 136, 0.4) 0%, rgba(0, 200, 100, 0.4) 100%);
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.4);
+        }
+
+        .custom-choice-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .ending-select-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .ending-select-box {
+            background: rgba(0, 20, 10, 0.95);
+            border: 2px solid rgba(0, 255, 136, 0.5);
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            max-width: 400px;
+        }
+
+        .ending-select-title {
+            font-size: 1.3rem;
+            color: #00ff88;
+            margin-bottom: 20px;
+        }
+
+        .ending-select-box select {
+            width: 100%;
+            padding: 12px;
+            background: rgba(0, 10, 5, 0.8);
+            border: 1px solid rgba(0, 255, 136, 0.4);
+            border-radius: 4px;
+            color: #00ff88;
+            font-family: inherit;
+            font-size: 1rem;
+            margin-bottom: 20px;
+            cursor: pointer;
+        }
+
+        .ending-select-box select option {
+            background: rgba(0, 20, 10, 0.95);
+            color: #00ff88;
+        }
+
+        .ending-confirm-btn {
+            padding: 12px 40px;
+            background: linear-gradient(135deg, rgba(0, 255, 136, 0.2) 0%, rgba(0, 200, 100, 0.2) 100%);
+            border: 1px solid #00ff88;
+            color: #00ff88;
+            font-family: inherit;
+            font-size: 1rem;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+            margin-right: 10px;
+        }
+
+        .ending-confirm-btn:hover {
+            background: linear-gradient(135deg, rgba(0, 255, 136, 0.4) 0%, rgba(0, 200, 100, 0.4) 100%);
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.4);
+        }
+
+        .ending-cancel-btn {
+            padding: 12px 30px;
+            background: transparent;
+            border: 1px solid rgba(0, 255, 136, 0.4);
+            color: rgba(0, 255, 136, 0.6);
+            font-family: inherit;
+            font-size: 1rem;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .ending-cancel-btn:hover {
+            background: rgba(0, 255, 136, 0.1);
+        }
+
         .choice-btn {
             padding: 18px 25px;
             background: rgba(0, 20, 10, 0.6);
@@ -365,15 +515,6 @@
             cursor: not-allowed;
         }
 
-        .log-box {
-            background: rgba(0, 10, 5, 0.8);
-            border: 1px solid rgba(0, 255, 136, 0.2);
-            border-radius: 4px;
-            padding: 15px;
-            max-height: 150px;
-            overflow-y: auto;
-        }
-
         .log-title {
             color: #00ccff;
             font-size: 0.9rem;
@@ -385,16 +526,24 @@
         .log-entry {
             font-size: 0.85rem;
             color: rgba(0, 255, 136, 0.7);
-            padding: 5px 0;
+            padding: 8px 0;
             padding-left: 15px;
             position: relative;
+            border-bottom: 1px solid rgba(0, 255, 136, 0.1);
+            line-height: 1.5;
         }
 
         .log-entry::before {
-            content: '·';
+            content: '';
             position: absolute;
             left: 0;
             color: #00ff88;
+        }
+
+        .log-chapter-num {
+            color: #00ccff;
+            font-weight: bold;
+            margin-right: 5px;
         }
 
         .ending-box {
@@ -485,13 +634,21 @@
                 </div>
                 <button class="end-game-btn" id="end-game-btn" onclick="triggerEnding()">结束游戏</button>
             </div>
-            <div class="scene-box">
-                <div class="scene-text" id="scene-text"></div>
-            </div>
-            <div class="choices-container" id="choices-container"></div>
-            <div class="log-box">
-                <div class="log-title">冒险日志</div>
-                <div id="log-container"></div>
+            <div class="game-content">
+                <div class="game-main">
+                    <div class="scene-box">
+                        <div class="scene-text" id="scene-text"></div>
+                    </div>
+                    <div class="choices-container" id="choices-container"></div>
+                    <div class="custom-choice-container" id="custom-choice-container">
+                        <input type="text" class="custom-choice-input" id="custom-choice-input" placeholder="输入自定义选项..." />
+                        <button class="custom-choice-btn" id="custom-choice-btn" onclick="submitCustomChoice()">✓</button>
+                    </div>
+                </div>
+                <div class="log-box">
+                    <div class="log-title">冒险日志</div>
+                    <div id="log-container"></div>
+                </div>
             </div>
         </div>
 
@@ -513,6 +670,18 @@
                 <div class="novel-result" id="novel-result"></div>
             </div>
         </div>
+
+        <div class="ending-select-container" id="ending-select-container" style="display: none;">
+            <div class="ending-select-box">
+                <div class="ending-select-title">选择结局类型</div>
+                <select id="ending-type-select">
+                    <option value="好结局">好结局</option>
+                    <option value="坏结局">坏结局</option>
+                </select>
+                <button class="ending-confirm-btn" onclick="confirmEnding()">确认</button>
+                <button class="ending-cancel-btn" onclick="cancelEnding()">取消</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -523,6 +692,12 @@
         let currentChoices = null;
         let endingTriggered = false;
         let endingCountdown = 0;
+        let worldSetting = "";
+        let selectedEndingType = "";
+        let customChoiceInput = null;
+        let novelContent = "";
+        let isFirstChapter = true;
+        let novelTimestamp = "";
 
         function showScreen(screenId) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -570,7 +745,7 @@
         }
 
         async function startGame() {
-            const worldSetting = document.getElementById('world-setting').value.trim();
+            worldSetting = document.getElementById('world-setting').value.trim();
             if (!worldSetting) {
                 alert('请输入世界观描述');
                 return;
@@ -583,8 +758,12 @@
             currentChoices = null;
             endingTriggered = false;
             endingCountdown = 0;
+            novelContent = "";
+            isFirstChapter = true;
+            novelTimestamp = "";
             document.getElementById('chapter-num').textContent = chapter;
             document.getElementById('log-container').innerHTML = '';
+            document.getElementById('custom-choice-container').style.display = 'flex';
 
             try {
                 await fetch('/api/save-memory', {
@@ -644,9 +823,9 @@
             if (endingTriggered && endingCountdown > 0) {
                 endingCountdown--;
                 if (endingCountdown === 0) {
-                    extraPrompt = '（系统提示：这是最后一轮，请生成结局，必须返回ending字段）';
+                    extraPrompt = `（系统提示：请生成${selectedEndingType}，必须返回ending字段，ending字段值必须与用户选择的结局类型一致）`;
                 } else {
-                    extraPrompt = `（系统提示：请在${endingCountdown + 1}轮内收尾并生成结局）`;
+                    extraPrompt = `（系统提示：请在${endingCountdown + 1}轮内收尾并生成${selectedEndingType}）`;
                 }
             }
 
@@ -658,7 +837,8 @@
                     },
                     body: JSON.stringify({ 
                         messages: messages,
-                        extraPrompt: extraPrompt
+                        extraPrompt: extraPrompt,
+                        endingType: selectedEndingType
                     })
                 });
 
@@ -777,9 +957,61 @@
                 const container = document.getElementById('log-container');
                 const entry = document.createElement('div');
                 entry.className = 'log-entry';
-                entry.textContent = data.log;
+                entry.innerHTML = `<span class="log-chapter-num">【第${chapter}轮】</span> ${data.log}`;
                 container.appendChild(entry);
                 container.scrollTop = container.scrollHeight;
+
+                fetch('/api/update-memory', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        scene: data.scene,
+                        selectedChoice: logs[logs.length - 1].selectedChoice || '（待选择）',
+                        logSummary: data.log,
+                        endingType: data.ending || ''
+                    })
+                }).catch(e => console.error('更新memory失败:', e));
+
+                const currentChapterInfo = {
+                    scene: data.scene,
+                    selectedChoice: logs[logs.length - 1].selectedChoice || '',
+                    log: data.log,
+                    previousEnding: novelContent.length > 0 ? '（续写）' : ''
+                };
+
+                fetch('/api/generate-chapter', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        worldSetting: worldSetting,
+                        chapterInfo: currentChapterInfo,
+                        existingNovel: novelContent,
+                        isFirstChapter: isFirstChapter,
+                        isEnding: data.ending ? true : false,
+                        endingType: data.ending || ''
+                    })
+                })
+                .then(res => res.json())
+                .then(result => {
+                    if (result.chapter_content) {
+                        if (isFirstChapter) {
+                            novelTimestamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
+                            isFirstChapter = false;
+                        }
+                        novelContent += result.chapter_content + '\n\n';
+                        
+                        const novelsDir = `novels/novel-${novelTimestamp}`;
+                        fetch('/api/save-chapter', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                content: novelContent,
+                                folder: novelsDir
+                            })
+                        }).catch(e => console.error('保存章节失败:', e));
+                    }
+                })
+                .catch(e => console.error('生成章节失败:', e));
             }
 
             if (data.ending) {
@@ -855,17 +1087,69 @@
             currentChoices = null;
             endingTriggered = false;
             endingCountdown = 0;
+            selectedEndingType = "";
             document.getElementById('world-setting').value = '';
             document.getElementById('scene-text').textContent = '';
             document.getElementById('choices-container').innerHTML = '';
             document.getElementById('log-container').innerHTML = '';
             document.getElementById('novel-result').innerHTML = '';
             document.getElementById('generate-novel-btn').style.display = 'inline-block';
+            document.getElementById('ending-select-container').style.display = 'none';
+            document.getElementById('custom-choice-container').style.display = 'flex';
             const endBtn = document.getElementById('end-game-btn');
             endBtn.disabled = false;
             endBtn.textContent = '结束游戏';
             showScreen('start-screen');
         }
+
+        function triggerEnding() {
+            document.getElementById('ending-select-container').style.display = 'flex';
+        }
+
+        function confirmEnding() {
+            const select = document.getElementById('ending-type-select');
+            selectedEndingType = select.value;
+            document.getElementById('ending-select-container').style.display = 'none';
+            
+            endingTriggered = true;
+            endingCountdown = 1;
+            document.getElementById('end-game-btn').disabled = true;
+            document.getElementById('end-game-btn').textContent = '收尾中...';
+            document.getElementById('custom-choice-container').style.display = 'none';
+            
+            messages.push({
+                role: 'user',
+                content: `请生成${selectedEndingType}。`
+            });
+            
+            sendMessage();
+        }
+
+        function cancelEnding() {
+            document.getElementById('ending-select-container').style.display = 'none';
+        }
+
+        function submitCustomChoice() {
+            const input = document.getElementById('custom-choice-input');
+            const choice = input.value.trim();
+            if (!choice) {
+                alert('请输入自定义选项');
+                return;
+            }
+            
+            if (logs.length > 0 && typeof logs[logs.length - 1] === 'object') {
+                logs[logs.length - 1].selectedChoice = choice;
+            }
+            
+            input.value = '';
+            makeChoice(choice);
+        }
+
+        document.getElementById('custom-choice-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                submitCustomChoice();
+            }
+        });
 
         async function generateNovel() {
             if (logs.length === 0) {

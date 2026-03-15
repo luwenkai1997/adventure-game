@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文字冒险游戏</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        @font-face {
+            font-family: 'LocalMono';
+            src: local('SF Mono'), local('Monaco'), local('Consolas'), local('Liberation Mono'), local('Courier New');
+        }
+
+        body {
+            font-family: 'LocalMono', 'Courier New', monospace;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0f0f1a 100%);
+            min-height: 100vh;
+            color: #00ff88;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(ellipse at 20% 80%, rgba(0, 255, 136, 0.03) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(0, 200, 255, 0.03) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        body::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            opacity: 0.02;
+            pointer-events: none;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            position: relative;
+            z-index: 1;
+        }
+
+        .screen {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .title {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .title h1 {
+            font-size: 2.5rem;
+            text-shadow: 
+                0 0 10px rgba(0, 255, 136, 0.5),
+                0 0 20px rgba(0, 255, 136, 0.3),
+                0 0 40px rgba(0, 255, 136, 0.2);
+            letter-spacing: 4px;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from { text-shadow: 0 0 10px rgba(0, 255, 136, 0.5), 0 0 20px rgba(0, 255, 136, 0.3); }
+            to { text-shadow: 0 0 15px rgba(0, 255, 136, 0.8), 0 0 30px rgba(0, 255, 136, 0.5); }
+        }
+
+        .subtitle {
+            color: #00ccff;
+            font-size: 0.9rem;
+            margin-top: 10px;
+            opacity: 0.8;
+        }
+
+        .input-section {
+            background: rgba(0, 20, 10, 0.6);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 8px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            box-shadow: 
+                0 0 20px rgba(0, 255, 136, 0.1),
+                inset 0 0 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .input-section label {
+            display: block;
+            margin-bottom: 15px;
+            font-size: 1rem;
+            color: #00ff88;
+        }
+
+        .input-section textarea {
+            width: 100%;
+            height: 120px;
+            background: rgba(0, 10, 5, 0.8);
+            border: 1px solid rgba(0, 255, 136, 0.4);
+            border-radius: 4px;
+            color: #00ff88;
+            font-family: inherit;
+            font-size: 1rem;
+            padding: 15px;
+            resize: none;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .input-section textarea:focus {
+            border-color: #00ff88;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
+        }
+
+        .input-section textarea::placeholder {
+            color: rgba(0, 255, 136, 0.4);
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 15px 40px;
+            margin-top: 20px;
+            background: linear-gradient(135deg, rgba(0, 255, 136, 0.2) 0%, rgba(0, 200, 100, 0.2) 100%);
+            border: 1px solid #00ff88;
+            color: #00ff88;
+            font-family: inherit;
+            font-size: 1rem;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .btn:hover {
+            background: linear-gradient(135deg, rgba(0, 255, 136, 0.4) 0%, rgba(0, 200, 100, 0.4) 100%);
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, rgba(0, 200, 255, 0.2) 0%, rgba(0, 100, 200, 0.2) 100%);
+            border-color: #00ccff;
+            color: #00ccff;
+        }
+
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, rgba(0, 200, 255, 0.4) 0%, rgba(0, 100, 200, 0.4) 100%);
+            box-shadow: 0 0 20px rgba(0, 200, 255, 0.4);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .novel-result {
+            margin-top: 30px;
+            text-align: left;
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 20px;
+            background: rgba(0, 10, 5, 0.8);
+            border: 1px solid rgba(0, 200, 255, 0.3);
+            border-radius: 8px;
+            color: #e0e0e0;
+            line-height: 1.8;
+            white-space: pre-wrap;
+        }
+
+        .novel-result h1, .novel-result h2 {
+            color: #00ff88;
+            margin: 20px 0 10px 0;
+        }
+
+        .novel-result h1 {
+            font-size: 1.8rem;
+            text-align: center;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+        }
+
+        .novel-result h2 {
+            font-size: 1.3rem;
+            border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+            padding-bottom: 5px;
+        }
+
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 15px 20px;
+            background: rgba(0, 20, 10, 0.6);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 8px;
+        }
+
+        .chapter-display {
+            font-size: 1.2rem;
+            color: #00ccff;
+        }
+
+        .chapter-display span {
+            color: #00ff88;
+            font-weight: bold;
+        }
+
+        .end-game-btn {
+            padding: 8px 20px;
+            background: linear-gradient(135deg, rgba(255, 100, 100, 0.3) 0%, rgba(200, 50, 50, 0.3) 100%);
+            border: 1px solid #ff6464;
+            color: #ff6464;
+            font-family: inherit;
+            font-size: 0.9rem;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .end-game-btn:hover {
+            background: linear-gradient(135deg, rgba(255, 100, 100, 0.5) 0%, rgba(200, 50, 50, 0.5) 100%);
+            box-shadow: 0 0 15px rgba(255, 100, 100, 0.4);
+        }
+
+        .end-game-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .scene-box {
+            background: rgba(0, 20, 10, 0.6);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 8px;
+            padding: 30px;
+            margin-bottom: 20px;
+            min-height: 150px;
+            line-height: 1.8;
+            font-size: 1.1rem;
+            position: relative;
+        }
+
+        .scene-box::before {
+            content: '>';
+            position: absolute;
+            left: 15px;
+            top: 30px;
+            color: #00ff88;
+            opacity: 0.6;
+        }
+
+        .scene-text {
+            padding-left: 20px;
+        }
+
+        .loading {
+            display: none;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .loading.active {
+            display: flex;
+        }
+
+        .cursor {
+            width: 10px;
+            height: 20px;
+            background: #00ff88;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        .choices-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .choice-btn {
+            padding: 18px 25px;
+            background: rgba(0, 20, 10, 0.6);
+            border: 1px solid rgba(0, 255, 136, 0.4);
+            color: #00ff88;
+            font-family: inherit;
+            font-size: 1rem;
+            cursor: pointer;
+            border-radius: 4px;
+            text-align: left;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .choice-btn::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 3px;
+            height: 100%;
+            background: #00ff88;
+            transform: scaleY(0);
+            transition: transform 0.3s ease;
+        }
+
+        .choice-btn:hover {
+            background: rgba(0, 255, 136, 0.15);
+            border-color: #00ff88;
+            padding-left: 30px;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.2);
+        }
+
+        .choice-btn:hover::before {
+            transform: scaleY(1);
+        }
+
+        .choice-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .log-box {
+            background: rgba(0, 10, 5, 0.8);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            border-radius: 4px;
+            padding: 15px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .log-title {
+            color: #00ccff;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+        }
+
+        .log-entry {
+            font-size: 0.85rem;
+            color: rgba(0, 255, 136, 0.7);
+            padding: 5px 0;
+            padding-left: 15px;
+            position: relative;
+        }
+
+        .log-entry::before {
+            content: '·';
+            position: absolute;
+            left: 0;
+            color: #00ff88;
+        }
+
+        .ending-box {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .ending-type {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            padding: 15px 30px;
+            border-radius: 8px;
+            display: inline-block;
+        }
+
+        .ending-type.good {
+            background: rgba(0, 255, 136, 0.2);
+            border: 2px solid #00ff88;
+            color: #00ff88;
+        }
+
+        .ending-type.neutral {
+            background: rgba(0, 200, 255, 0.2);
+            border: 2px solid #00ccff;
+            color: #00ccff;
+        }
+
+        .ending-type.bad {
+            background: rgba(255, 100, 100, 0.2);
+            border: 2px solid #ff6464;
+            color: #ff6464;
+        }
+
+        .ending-scene {
+            font-size: 1.1rem;
+            line-height: 1.8;
+            margin-bottom: 30px;
+        }
+
+        .error-message {
+            background: rgba(255, 100, 100, 0.2);
+            border: 1px solid #ff6464;
+            color: #ff6464;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 15px;
+            text-align: center;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 10, 5, 0.5);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 136, 0.3);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 255, 136, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="start-screen" class="screen active">
+            <div class="title">
+                <h1>文字冒险</h1>
+                <p class="subtitle">选择你的命运，书写你的传奇</p>
+            </div>
+            <div class="input-section">
+                <label for="world-setting">设定你的世界观</label>
+                <textarea id="world-setting" placeholder="例如：赛博朋克新加坡、古代江湖、深海科研站遭遇变异体、末日后的废土世界..."></textarea>
+                <button class="btn" onclick="startGame()">开始冒险</button>
+            </div>
+        </div>
+
+        <div id="game-screen" class="screen">
+            <div class="game-header">
+                <div class="chapter-display">第 <span id="chapter-num">1</span> 章</div>
+                <div class="loading" id="loading">
+                    <div class="cursor"></div>
+                    <span style="margin-left: 10px; color: rgba(0, 255, 136, 0.6);">生成中...</span>
+                </div>
+                <button class="end-game-btn" id="end-game-btn" onclick="triggerEnding()">结束游戏</button>
+            </div>
+            <div class="scene-box">
+                <div class="scene-text" id="scene-text"></div>
+            </div>
+            <div class="choices-container" id="choices-container"></div>
+            <div class="log-box">
+                <div class="log-title">冒险日志</div>
+                <div id="log-container"></div>
+            </div>
+        </div>
+
+        <div id="ending-screen" class="screen">
+            <div class="title">
+                <h1>冒险终章</h1>
+            </div>
+            <div class="ending-box">
+                <div class="ending-type" id="ending-type"></div>
+                <div class="scene-box ending-scene" id="ending-scene"></div>
+                <div class="button-group">
+                    <button class="btn" id="generate-novel-btn" onclick="generateNovel()">生成小说</button>
+                    <button class="btn btn-secondary" onclick="resetGame()">重新开始</button>
+                </div>
+                <div class="loading" id="novel-loading">
+                    <div class="cursor"></div>
+                    <span style="margin-left: 10px; color: rgba(0, 200, 255, 0.6);">小说生成中，请稍候...</span>
+                </div>
+                <div class="novel-result" id="novel-result"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let messages = [];
+        let chapter = 0;
+        let logs = [];
+        let currentScene = null;
+        let currentChoices = null;
+        let endingTriggered = false;
+        let endingCountdown = 0;
+
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        function setLoading(isLoading) {
+            const loading = document.getElementById('loading');
+            const choices = document.querySelectorAll('.choice-btn');
+            
+            if (isLoading) {
+                loading.classList.add('active');
+                choices.forEach(btn => btn.disabled = true);
+            } else {
+                loading.classList.remove('active');
+                choices.forEach(btn => btn.disabled = false);
+            }
+        }
+
+        function updateLog(logText) {
+            logs.push(logText);
+            const container = document.getElementById('log-container');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = logText;
+            container.appendChild(entry);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function addChapterLog(scene, choices, selectedChoice, log) {
+            const chapterLog = {
+                scene: scene,
+                choices: choices,
+                selectedChoice: selectedChoice,
+                log: log
+            };
+            logs.push(chapterLog);
+            
+            const container = document.getElementById('log-container');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = log;
+            container.appendChild(entry);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        async function startGame() {
+            const worldSetting = document.getElementById('world-setting').value.trim();
+            if (!worldSetting) {
+                alert('请输入世界观描述');
+                return;
+            }
+
+            messages = [];
+            chapter = 1;
+            logs = [];
+            currentScene = null;
+            currentChoices = null;
+            endingTriggered = false;
+            endingCountdown = 0;
+            document.getElementById('chapter-num').textContent = chapter;
+            document.getElementById('log-container').innerHTML = '';
+
+            try {
+                await fetch('/api/save-memory', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ worldSetting: worldSetting })
+                });
+            } catch (e) {
+                console.error('保存世界观失败:', e);
+            }
+
+            messages.push({
+                role: 'user',
+                content: `开始游戏。世界观设定：${worldSetting}`
+            });
+
+            showScreen('game-screen');
+            await sendMessage();
+        }
+
+        async function makeChoice(choice) {
+            if (currentScene && currentChoices) {
+                const lastLog = logs.length > 0 ? (typeof logs[logs.length - 1] === 'object' ? logs[logs.length - 1].log : logs[logs.length - 1]) : '';
+                logs[logs.length - 1] = {
+                    scene: currentScene,
+                    choices: currentChoices,
+                    selectedChoice: choice,
+                    log: lastLog
+                };
+            }
+            
+            chapter++;
+            document.getElementById('chapter-num').textContent = chapter;
+            
+            messages.push({
+                role: 'user',
+                content: choice
+            });
+
+            await sendMessage();
+        }
+
+        function triggerEnding() {
+            if (endingTriggered) return;
+            endingTriggered = true;
+            endingCountdown = 3;
+            document.getElementById('end-game-btn').disabled = true;
+            document.getElementById('end-game-btn').textContent = '收尾中...';
+        }
+
+        async function sendMessage() {
+            setLoading(true);
+            document.getElementById('scene-text').innerHTML = '';
+            document.getElementById('choices-container').innerHTML = '';
+
+            let extraPrompt = '';
+            if (endingTriggered && endingCountdown > 0) {
+                endingCountdown--;
+                if (endingCountdown === 0) {
+                    extraPrompt = '（系统提示：这是最后一轮，请生成结局，必须返回ending字段）';
+                } else {
+                    extraPrompt = `（系统提示：请在${endingCountdown + 1}轮内收尾并生成结局）`;
+                }
+            }
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        messages: messages,
+                        extraPrompt: extraPrompt
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                const content = data.content;
+                if (!content) {
+                    throw new Error('API返回内容为空');
+                }
+                
+                messages.push({
+                    role: 'assistant',
+                    content: content
+                });
+
+                let parsed;
+                try {
+                    let jsonStr = content;
+                    const braceStart = jsonStr.indexOf('{');
+                    const braceEnd = jsonStr.lastIndexOf('}');
+                    if (braceStart !== -1 && braceEnd !== -1 && braceEnd > braceStart) {
+                        jsonStr = jsonStr.substring(braceStart, braceEnd + 1);
+                    }
+                    
+                    const sceneMatch = jsonStr.match(/"scene"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
+                    const logMatch = jsonStr.match(/"log"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
+                    const endingMatch = jsonStr.match(/"ending"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
+                    const choicesMatch = jsonStr.match(/"choices"\s*:\s*\[((?:[^\[\]\\]|\\.)*)\]/s);
+                    
+                    parsed = {};
+                    
+                    if (sceneMatch) {
+                        parsed.scene = sceneMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                    }
+                    
+                    if (logMatch) {
+                        parsed.log = logMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                    }
+                    
+                    if (endingMatch) {
+                        parsed.ending = endingMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                    }
+                    
+                    if (choicesMatch) {
+                        const choicesStr = choicesMatch[1];
+                        const choices = [];
+                        let current = '';
+                        let inQuote = false;
+                        let escape = false;
+                        for (let i = 0; i < choicesStr.length; i++) {
+                            const char = choicesStr[i];
+                            if (escape) {
+                                current += char;
+                                escape = false;
+                            } else if (char === '\\') {
+                                current += char;
+                                escape = true;
+                            } else if (char === '"') {
+                                inQuote = !inQuote;
+                                current += char;
+                            } else if (char === ',' && !inQuote) {
+                                if (current.trim()) {
+                                    choices.push(current.trim());
+                                }
+                                current = '';
+                            } else {
+                                current += char;
+                            }
+                        }
+                        if (current.trim()) {
+                            choices.push(current.trim());
+                        }
+                        parsed.choices = choices.map(c => {
+                            return c.replace(/^["']|["']$/g, '').replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                        });
+                    }
+                    
+                    if (!parsed.scene && !parsed.log && !parsed.ending && !parsed.choices) {
+                        throw new Error('无法解析任何有效字段');
+                    }
+                } catch (e) {
+                    console.error('JSON解析错误:', e);
+                    console.error('原始内容:', content.substring(0, 500));
+                    throw new Error('AI返回格式错误: ' + e.message);
+                }
+
+                renderScene(parsed);
+
+            } catch (error) {
+                document.getElementById('scene-text').innerHTML = 
+                    `<div class="error-message">错误: ${error.message}</div>`;
+                setLoading(false);
+            }
+        }
+
+        function renderScene(data) {
+            const sceneText = document.getElementById('scene-text');
+            const choicesContainer = document.getElementById('choices-container');
+
+            sceneText.textContent = data.scene;
+            currentScene = data.scene;
+            currentChoices = data.choices || null;
+
+            if (data.log) {
+                logs.push({
+                    scene: data.scene,
+                    choices: data.choices || null,
+                    selectedChoice: null,
+                    log: data.log
+                });
+                
+                const container = document.getElementById('log-container');
+                const entry = document.createElement('div');
+                entry.className = 'log-entry';
+                entry.textContent = data.log;
+                container.appendChild(entry);
+                container.scrollTop = container.scrollHeight;
+            }
+
+            if (data.ending) {
+                setTimeout(() => {
+                    showEnding(data);
+                }, 2000);
+                setLoading(false);
+                return;
+            }
+
+            if (data.choices && data.choices.length > 0) {
+                data.choices.forEach((choice, index) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'choice-btn';
+                    btn.textContent = `${index + 1}. ${choice}`;
+                    btn.onclick = () => makeChoice(choice);
+                    choicesContainer.appendChild(btn);
+                });
+            }
+
+            setLoading(false);
+        }
+
+        function showEnding(data) {
+            const endingType = document.getElementById('ending-type');
+            const endingScene = document.getElementById('ending-scene');
+
+            if (data.scene) {
+                logs.push({
+                    scene: data.scene,
+                    choices: null,
+                    selectedChoice: null,
+                    log: `【终章】${data.ending}`,
+                    ending: data.ending
+                });
+                
+                const container = document.getElementById('log-container');
+                const entry = document.createElement('div');
+                entry.className = 'log-entry';
+                entry.textContent = `【终章】${data.ending}`;
+                container.appendChild(entry);
+                container.scrollTop = container.scrollHeight;
+            }
+
+            const generateBtn = document.getElementById('generate-novel-btn');
+            generateBtn.disabled = false;
+            generateBtn.style.display = 'inline-block';
+            document.getElementById('novel-result').innerHTML = '';
+
+            let typeClass = 'neutral';
+            let typeText = '中立结局';
+            
+            if (data.ending.includes('好')) {
+                typeClass = 'good';
+                typeText = '好结局';
+            } else if (data.ending.includes('坏')) {
+                typeClass = 'bad';
+                typeText = '坏结局';
+            }
+
+            endingType.className = `ending-type ${typeClass}`;
+            endingType.textContent = typeText;
+            endingScene.textContent = data.scene;
+
+            showScreen('ending-screen');
+        }
+
+        function resetGame() {
+            messages = [];
+            chapter = 0;
+            logs = [];
+            currentScene = null;
+            currentChoices = null;
+            endingTriggered = false;
+            endingCountdown = 0;
+            document.getElementById('world-setting').value = '';
+            document.getElementById('scene-text').textContent = '';
+            document.getElementById('choices-container').innerHTML = '';
+            document.getElementById('log-container').innerHTML = '';
+            document.getElementById('novel-result').innerHTML = '';
+            document.getElementById('generate-novel-btn').style.display = 'inline-block';
+            const endBtn = document.getElementById('end-game-btn');
+            endBtn.disabled = false;
+            endBtn.textContent = '结束游戏';
+            showScreen('start-screen');
+        }
+
+        async function generateNovel() {
+            if (logs.length === 0) {
+                alert('没有游戏日志可生成小说');
+                return;
+            }
+
+            const loading = document.getElementById('novel-loading');
+            const resultContainer = document.getElementById('novel-result');
+            const generateBtn = document.getElementById('generate-novel-btn');
+
+            loading.classList.add('active');
+            resultContainer.innerHTML = '';
+            generateBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/generate-novel', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ logs: logs })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                resultContainer.innerHTML = data.novel_path ? 
+                    `小说已生成并保存到: ${data.novel_path}` : '小说生成成功';
+                generateBtn.style.display = 'none';
+
+            } catch (error) {
+                resultContainer.innerHTML = `<div class="error-message">生成失败: ${error.message}</div>`;
+                generateBtn.disabled = false;
+            } finally {
+                loading.classList.remove('active');
+            }
+        }
+    </script>
+</body>
+</html>

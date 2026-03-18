@@ -1990,14 +1990,14 @@
             progressContainer.className = 'progress-container';
             progressContainer.innerHTML = `
                 <div class="progress-header">
-                    <span class="progress-title">小说生成中...</span>
+                    <span class="progress-title">正在规划小说结构...</span>
                     <span class="progress-percent">0%</span>
                 </div>
                 <div class="progress-bar">
                     <div class="progress-fill" style="width: 0%"></div>
                 </div>
                 <div class="progress-info">
-                    <span class="progress-status">正在初始化...</span>
+                    <span class="progress-status">分析游戏记忆...</span>
                     <span class="progress-time">预计剩余时间: --</span>
                 </div>
             `;
@@ -2007,85 +2007,100 @@
             const progressPercent = progressContainer.querySelector('.progress-percent');
             const progressStatus = progressContainer.querySelector('.progress-status');
             const progressTime = progressContainer.querySelector('.progress-time');
-
-            const startTime = Date.now();
-            const estimatedTime = 180000;
-            
-            const progressInterval = setInterval(() => {
-                const elapsed = Date.now() - startTime;
-                let progress = Math.min((elapsed / estimatedTime) * 100, 95);
-                
-                if (progress < 20) {
-                    progressStatus.textContent = '正在分析游戏记忆...';
-                } else if (progress < 40) {
-                    progressStatus.textContent = '正在规划小说结构...';
-                } else if (progress < 60) {
-                    progressStatus.textContent = '正在生成章节内容...';
-                } else if (progress < 80) {
-                    progressStatus.textContent = '正在完善细节描写...';
-                } else if (progress < 95) {
-                    progressStatus.textContent = '正在润色和校对...';
-                }
-                
-                const remaining = Math.max(estimatedTime - elapsed, 0);
-                const remainingSeconds = Math.ceil(remaining / 1000);
-                const minutes = Math.floor(remainingSeconds / 60);
-                const seconds = remainingSeconds % 60;
-                progressTime.textContent = `预计剩余时间: ${minutes}分${seconds}秒`;
-                
-                progressFill.style.width = `${progress}%`;
-                progressPercent.textContent = `${Math.round(progress)}%`;
-            }, 500);
+            const progressTitle = progressContainer.querySelector('.progress-title');
 
             try {
-                const response = await fetch('/api/generate-novel', {
+                progressStatus.textContent = '正在规划小说结构...';
+                
+                const planResponse = await fetch('/api/novel/plan', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
+                    headers: { 'Content-Type': 'application/json' }
                 });
-
-                const data = await response.json();
-
-                if (data.error) {
-                    throw new Error(data.error);
+                const planData = await planResponse.json();
+                
+                if (planData.error) {
+                    throw new Error(planData.error);
                 }
 
-                clearInterval(progressInterval);
+                const novelFolder = planData.novel_folder;
+                const plan = planData.plan;
+                const totalChapters = plan.total_chapters || plan.chapters.length;
+
+                progressTitle.textContent = `《${plan.title}》`;
+                progressStatus.textContent = `规划完成，共 ${totalChapters} 章`;
+
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                for (let i = 0; i < plan.chapters.length; i++) {
+                    const chapter = plan.chapters[i];
+                    const progress = ((i + 1) / totalChapters) * 100;
+                    
+                    progressFill.style.width = `${progress}%`;
+                    progressPercent.textContent = `${Math.round(progress)}%`;
+                    progressStatus.textContent = `正在生成第 ${chapter.chapter_num} 章: ${chapter.title}`;
+                    
+                    const remainingChapters = totalChapters - i;
+                    const estimatedSeconds = remainingChapters * 30;
+                    const minutes = Math.floor(estimatedSeconds / 60);
+                    const seconds = estimatedSeconds % 60;
+                    progressTime.textContent = `预计剩余时间: ${minutes}分${seconds}秒`;
+
+                    const chapterResponse = await fetch('/api/novel/chapter', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            novel_folder: novelFolder,
+                            chapter_num: chapter.chapter_num,
+                            chapter_title: chapter.title,
+                            chapter_summary: chapter.summary
+                        })
+                    });
+                    
+                    const chapterResult = await chapterResponse.json();
+                    if (chapterResult.error) {
+                        console.error(`第 ${chapter.chapter_num} 章生成失败:`, chapterResult.error);
+                    }
+
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+
+                progressStatus.textContent = '正在合并章节...';
+                
+                const mergeResponse = await fetch(`/api/novel/merge?novel_folder=${novelFolder}`, {
+                    method: 'POST'
+                });
+                const mergeData = await mergeResponse.json();
+                
+                if (mergeData.error) {
+                    throw new Error(mergeData.error);
+                }
+
                 progressFill.style.width = '100%';
                 progressPercent.textContent = '100%';
                 progressStatus.textContent = '生成完成！';
-                progressTime.textContent = '预计剩余时间: 0秒';
+                progressTime.textContent = `共 ${mergeData.total_chapters} 章`;
 
                 setTimeout(() => {
-                    if (data.novel_content) {
-                        resultContainer.innerHTML = `
-                            <div class="novel-content">
-                                <h3>小说已生成</h3>
-                                <p>保存路径: ${data.novel_path}</p>
-                                <div class="novel-text">${data.novel_content.replace(/\n/g, '<br>')}</div>
-                            </div>
-                        `;
-                    } else {
-                        resultContainer.innerHTML = '小说生成成功';
-                    }
+                    resultContainer.innerHTML = `
+                        <div class="novel-content">
+                            <h3>《${plan.title}》生成完成</h3>
+                            <p>共 ${mergeData.total_chapters} 章 | 保存路径: ${mergeData.novel_path}</p>
+                            <div class="novel-text">${mergeData.novel_content.replace(/\n/g, '<br>')}</div>
+                        </div>
+                    `;
                     generateBtn.style.display = 'none';
                 }, 500);
 
             } catch (error) {
-                clearInterval(progressInterval);
-                
                 let errorDetail = '';
                 if (error.message.includes('504')) {
-                    errorDetail = '小说生成超时，请稍后重试。如果问题持续，请尝试减少故事长度。';
+                    errorDetail = '小说生成超时，请稍后重试。';
                 } else if (error.message.includes('502') || error.message.includes('网络请求错误')) {
                     errorDetail = '网络连接失败，请检查您的网络设置后重试。';
-                } else if (error.message.includes('API请求失败')) {
-                    errorDetail = 'AI服务暂时不可用，请稍后重试。';
                 } else if (error.message.includes('memory.md不存在')) {
                     errorDetail = '游戏记忆文档不存在，请先开始一局游戏。';
                 } else {
-                    errorDetail = '生成失败: ' + error.message + '。请刷新页面重试。';
+                    errorDetail = '生成失败: ' + error.message;
                 }
                 
                 showError('小说生成失败', errorDetail);

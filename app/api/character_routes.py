@@ -1,0 +1,247 @@
+import os
+import json
+from fastapi import APIRouter
+from fastapi.responses import JSONResponse
+from app.models.character import (
+    CharacterCreate,
+    CharacterUpdate,
+    RelationCreate,
+    RelationUpdate,
+    GenerateCharactersRequest,
+    CharacterGenerationConfig,
+    BatchUpdateRequest,
+)
+from app.services.character_service import CharacterService
+from app.utils.file_storage import (
+    load_characters,
+    load_character,
+    delete_character,
+    save_character,
+    save_characters_batch,
+    load_relations,
+    add_relation,
+    update_relation,
+    delete_relation,
+)
+from app.config import RELATION_TYPES
+
+
+router = APIRouter()
+character_service = CharacterService()
+
+
+@router.get("/api/characters")
+async def get_characters():
+    try:
+        characters = load_characters()
+        return JSONResponse(content={'characters': characters})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'获取角色列表失败: {str(e)}'})
+
+
+@router.get("/api/characters/{char_id}")
+async def get_character(char_id: str):
+    try:
+        character = load_character(char_id)
+        if not character:
+            return JSONResponse(status_code=404, content={'error': '角色不存在'})
+        return JSONResponse(content={'character': character})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'获取角色失败: {str(e)}'})
+
+
+@router.post("/api/characters")
+async def create_character(request: CharacterCreate):
+    try:
+        character = request.dict()
+        char_id = save_character(character)
+        return JSONResponse(content={'success': True, 'id': char_id, 'character': character})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'创建角色失败: {str(e)}'})
+
+
+@router.put("/api/characters/{char_id}")
+async def update_character(char_id: str, request: CharacterUpdate):
+    try:
+        character = load_character(char_id)
+        if not character:
+            return JSONResponse(status_code=404, content={'error': '角色不存在'})
+
+        updates = request.dict(exclude_none=True)
+        character.update(updates)
+        save_character(character)
+
+        return JSONResponse(content={'success': True, 'character': character})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'更新角色失败: {str(e)}'})
+
+
+@router.delete("/api/characters/{char_id}")
+async def del_character(char_id: str):
+    try:
+        if delete_character(char_id):
+            relations = load_relations()
+            relations = [r for r in relations if r['source_id'] != char_id and r['target_id'] != char_id]
+            from app.utils.file_storage import save_relations
+            save_relations(relations)
+            return JSONResponse(content={'success': True})
+        return JSONResponse(status_code=404, content={'error': '角色不存在'})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'删除角色失败: {str(e)}'})
+
+
+@router.get("/api/characters/graph")
+async def get_character_graph():
+    try:
+        graph_data = character_service.get_character_graph()
+        return JSONResponse(content=graph_data)
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'获取关系图数据失败: {str(e)}'})
+
+
+@router.get("/api/characters/by-role/{role_type}")
+async def get_characters_by_role(role_type: str):
+    try:
+        characters = load_characters()
+        filtered = [c for c in characters if c.get('role_type', 'npc') == role_type]
+        return JSONResponse(content={'characters': filtered, 'count': len(filtered)})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'获取角色失败: {str(e)}'})
+
+
+@router.get("/api/characters/protagonist")
+async def get_protagonist():
+    try:
+        characters = load_characters()
+        protagonists = [c for c in characters if c.get('role_type') == 'protagonist']
+        return JSONResponse(content={'characters': protagonists})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'获取主角失败: {str(e)}'})
+
+
+@router.get("/api/characters/antagonists")
+async def get_antagonists():
+    try:
+        characters = load_characters()
+        antagonists = [c for c in characters if c.get('role_type') == 'antagonist']
+        return JSONResponse(content={'characters': antagonists})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'获取反派失败: {str(e)}'})
+
+
+@router.post("/api/characters/generate")
+async def api_generate_characters(request: GenerateCharactersRequest):
+    try:
+        config = request.config or CharacterGenerationConfig(
+            world_setting=request.world_setting
+        )
+
+        all_characters = character_service.generate_all_characters(config)
+        saved_count = save_characters_batch(all_characters)
+        relations = character_service.generate_relations(all_characters, config.world_setting)
+
+        for rel in relations:
+            add_relation(rel)
+
+        return JSONResponse(content={
+            'success': True,
+            'characters_count': saved_count,
+            'relations_count': len(relations),
+            'characters': all_characters[:5],
+            'message': f'成功生成 {saved_count} 个角色和 {len(relations)} 个关系'
+        })
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'生成角色失败: {str(e)}'})
+
+
+@router.post("/api/characters/batch-update")
+async def api_batch_update_characters(request: BatchUpdateRequest):
+    try:
+        updated_count = character_service.batch_update(request.updates)
+        return JSONResponse(content={'success': True, 'updated_count': updated_count})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'批量更新失败: {str(e)}'})
+
+
+@router.post("/api/characters/snapshot/{chapter}")
+async def create_character_snapshot(chapter: int):
+    try:
+        snapshot_path = character_service.create_snapshot(chapter)
+        return JSONResponse(content={'success': True, 'snapshot_path': snapshot_path})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'创建快照失败: {str(e)}'})
+
+
+from app.config import SNAPSHOTS_DIR
+
+@router.get("/api/characters/snapshot/{chapter}")
+async def get_character_snapshot(chapter: int):
+    try:
+        snapshot_path = os.path.join(SNAPSHOTS_DIR, f'chapter_{chapter:03d}.json')
+        if os.path.exists(snapshot_path):
+            with open(snapshot_path, 'r', encoding='utf-8') as f:
+                snapshot = json.load(f)
+            return JSONResponse(content={'snapshot': snapshot})
+        return JSONResponse(status_code=404, content={'error': '快照不存在'})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'获取快照失败: {str(e)}'})
+
+
+@router.get("/api/characters/inject-context")
+async def inject_character_context(character_ids: str = ""):
+    try:
+        ids = [id.strip() for id in character_ids.split(",") if id.strip()]
+        context = character_service.get_character_context(ids)
+        return JSONResponse(content={'context': context})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'注入上下文失败: {str(e)}'})
+
+
+@router.get("/api/relations")
+async def get_relations():
+    try:
+        relations = load_relations()
+        return JSONResponse(content={'relations': relations})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'获取关系列表失败: {str(e)}'})
+
+
+@router.post("/api/relations")
+async def create_relation(request: RelationCreate):
+    try:
+        source = load_character(request.source_id)
+        target = load_character(request.target_id)
+        if not source or not target:
+            return JSONResponse(status_code=404, content={'error': '源角色或目标角色不存在'})
+
+        relation = request.dict()
+        new_rel = add_relation(relation)
+        return JSONResponse(content={'success': True, 'relation': new_rel})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'创建关系失败: {str(e)}'})
+
+
+@router.put("/api/relations/{rel_id}")
+async def update_rel(rel_id: str, request: RelationUpdate):
+    try:
+        relation = update_relation(rel_id, request.dict(exclude_none=True))
+        if not relation:
+            return JSONResponse(status_code=404, content={'error': '关系不存在'})
+        return JSONResponse(content={'success': True, 'relation': relation})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'更新关系失败: {str(e)}'})
+
+
+@router.delete("/api/relations/{rel_id}")
+async def del_relation(rel_id: str):
+    try:
+        if delete_relation(rel_id):
+            return JSONResponse(content={'success': True})
+        return JSONResponse(status_code=404, content={'error': '关系不存在'})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'删除关系失败: {str(e)}'})
+
+
+@router.get("/api/relation-types")
+async def get_relation_types():
+    return JSONResponse(content={'types': RELATION_TYPES})

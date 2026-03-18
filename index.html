@@ -1608,6 +1608,18 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ worldSetting: worldSetting })
                 });
+                
+                // 自动生成20个角色卡片
+                const charResponse = await fetch('/api/characters/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ world_setting: worldSetting })
+                });
+                const charData = await charResponse.json();
+                console.log('角色生成结果:', charData.message || '生成成功');
+                
+                // 刷新角色列表
+                await loadCharactersList();
             } catch (e) {
                 console.error('保存世界观失败:', e);
                 showError('保存世界观失败', '无法连接到服务器，请检查网络连接后重试。');

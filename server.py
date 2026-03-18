@@ -1,12 +1,15 @@
 import os
 import time
+import json
+import uuid
 from datetime import datetime
+from typing import Optional, List, Dict
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import requests
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 load_dotenv()
 
@@ -87,8 +90,206 @@ class MemoryRequest(BaseModel):
     worldSetting: str
     storySummary: str = ""
 
+RELATION_TYPES = {
+    "ally": {"name": "盟友", "color": "#00ff88", "icon": "🤝"},
+    "enemy": {"name": "敌对", "color": "#ff4444", "icon": "⚔️"},
+    "friend": {"name": "朋友", "color": "#4488ff", "icon": "💚"},
+    "family": {"name": "家人", "color": "#ff88ff", "icon": "👨‍👩‍👧"},
+    "lover": {"name": "恋人", "color": "#ff6688", "icon": "❤️"},
+    "master": {"name": "师徒", "color": "#ffaa00", "icon": "📚"},
+    "rival": {"name": "对手", "color": "#ff8800", "icon": "⚡"},
+    "neutral": {"name": "中立", "color": "#888888", "icon": "⚪"},
+    "subordinate": {"name": "下属", "color": "#88aaff", "icon": "📋"},
+    "superior": {"name": "上级", "color": "#aa88ff", "icon": "👑"}
+}
+
+class SkillModel(BaseModel):
+    name: str
+    level: int = 1
+    description: str = ""
+
+class AttributesModel(BaseModel):
+    health: int = 100
+    mana: int = 100
+    strength: int = 10
+    intelligence: int = 10
+    charisma: int = 10
+
+class CharacterCard(BaseModel):
+    id: str = ""
+    name: str
+    title: str = ""
+    description: str = ""
+    personality: str = ""
+    background: str = ""
+    avatar: str = ""
+    attributes: AttributesModel = AttributesModel()
+    skills: List[SkillModel] = []
+    tags: List[str] = []
+    dialogue_style: str = ""
+    first_appearance: int = 0
+    status: str = "active"
+    created_at: str = ""
+    updated_at: str = ""
+
+class CharacterCreate(BaseModel):
+    name: str
+    title: str = ""
+    description: str = ""
+    personality: str = ""
+    background: str = ""
+    avatar: str = ""
+    attributes: AttributesModel = AttributesModel()
+    skills: List[SkillModel] = []
+    tags: List[str] = []
+    dialogue_style: str = ""
+    first_appearance: int = 0
+    status: str = "active"
+
+class CharacterUpdate(BaseModel):
+    name: Optional[str] = None
+    title: Optional[str] = None
+    description: Optional[str] = None
+    personality: Optional[str] = None
+    background: Optional[str] = None
+    avatar: Optional[str] = None
+    attributes: Optional[AttributesModel] = None
+    skills: Optional[List[SkillModel]] = None
+    tags: Optional[List[str]] = None
+    dialogue_style: Optional[str] = None
+    status: Optional[str] = None
+
+class RelationEvent(BaseModel):
+    chapter: int
+    event: str
+
+class CharacterRelation(BaseModel):
+    id: str = ""
+    source_id: str
+    target_id: str
+    relation_type: str = "neutral"
+    strength: int = 50
+    description: str = ""
+    since_chapter: int = 1
+    events: List[RelationEvent] = []
+
+class RelationCreate(BaseModel):
+    source_id: str
+    target_id: str
+    relation_type: str = "neutral"
+    strength: int = 50
+    description: str = ""
+    since_chapter: int = 1
+
+class RelationUpdate(BaseModel):
+    relation_type: Optional[str] = None
+    strength: Optional[int] = None
+    description: Optional[str] = None
+    events: Optional[List[RelationEvent]] = None
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MEMORY_DIR = os.path.join(BASE_DIR, 'memory')
+CHARACTERS_DIR = os.path.join(BASE_DIR, 'data', 'characters')
+RELATIONS_FILE = os.path.join(CHARACTERS_DIR, 'relations.json')
+
+RELATION_TYPES = {
+    "ally": {"name": "盟友", "color": "#00ff88", "icon": "🤝"},
+    "enemy": {"name": "敌对", "color": "#ff4444", "icon": "⚔️"},
+    "friend": {"name": "朋友", "color": "#4488ff", "icon": "💚"},
+    "family": {"name": "家人", "color": "#ff88ff", "icon": "👨‍👩‍👧"},
+    "lover": {"name": "恋人", "color": "#ff6688", "icon": "❤️"},
+    "master": {"name": "师徒", "color": "#ffaa00", "icon": "📚"},
+    "rival": {"name": "对手", "color": "#ff8800", "icon": "⚡"},
+    "neutral": {"name": "中立", "color": "#888888", "icon": "⚪"},
+    "subordinate": {"name": "下属", "color": "#88aaff", "icon": "📋"},
+    "superior": {"name": "上级", "color": "#aa88ff", "icon": "👑"}
+}
+
+def get_or_create_characters_dir():
+    if not os.path.exists(CHARACTERS_DIR):
+        os.makedirs(CHARACTERS_DIR)
+    return CHARACTERS_DIR
+
+def load_characters() -> List[dict]:
+    get_or_create_characters_dir()
+    characters = []
+    for filename in os.listdir(CHARACTERS_DIR):
+        if filename.endswith('.json') and filename != 'relations.json':
+            filepath = os.path.join(CHARACTERS_DIR, filename)
+            with open(filepath, 'r', encoding='utf-8') as f:
+                characters.append(json.load(f))
+    return characters
+
+def save_character(character: dict) -> str:
+    get_or_create_characters_dir()
+    if not character.get('id'):
+        character['id'] = f"char_{uuid.uuid4().hex[:8]}"
+    character['updated_at'] = datetime.now().isoformat()
+    if 'created_at' not in character:
+        character['created_at'] = character['updated_at']
+    
+    filepath = os.path.join(CHARACTERS_DIR, f"{character['id']}.json")
+    with open(filepath, 'w', encoding='utf-8') as f:
+        json.dump(character, f, ensure_ascii=False, indent=2)
+    return character['id']
+
+def load_character(char_id: str) -> Optional[dict]:
+    get_or_create_characters_dir()
+    filepath = os.path.join(CHARACTERS_DIR, f"{char_id}.json")
+    if os.path.exists(filepath):
+        with open(filepath, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return None
+
+def delete_character(char_id: str) -> bool:
+    get_or_create_characters_dir()
+    filepath = os.path.join(CHARACTERS_DIR, f"{char_id}.json")
+    if os.path.exists(filepath):
+        os.remove(filepath)
+        return True
+    return False
+
+def load_relations() -> List[dict]:
+    get_or_create_characters_dir()
+    if os.path.exists(RELATIONS_FILE):
+        with open(RELATIONS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return []
+
+def save_relations(relations: List[dict]):
+    get_or_create_characters_dir()
+    with open(RELATIONS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(relations, f, ensure_ascii=False, indent=2)
+
+def add_relation(relation: dict) -> dict:
+    relations = load_relations()
+    if not relation.get('id'):
+        relation['id'] = f"rel_{uuid.uuid4().hex[:8]}"
+    relation['updated_at'] = datetime.now().isoformat()
+    if 'created_at' not in relation:
+        relation['created_at'] = relation['updated_at']
+    relations.append(relation)
+    save_relations(relations)
+    return relation
+
+def update_relation(rel_id: str, updates: dict) -> Optional[dict]:
+    relations = load_relations()
+    for i, rel in enumerate(relations):
+        if rel['id'] == rel_id:
+            relations[i].update(updates)
+            relations[i]['updated_at'] = datetime.now().isoformat()
+            save_relations(relations)
+            return relations[i]
+    return None
+
+def delete_relation(rel_id: str) -> bool:
+    relations = load_relations()
+    for i, rel in enumerate(relations):
+        if rel['id'] == rel_id:
+            relations.pop(i)
+            save_relations(relations)
+            return True
+    return False
 
 def get_or_create_memory_dir():
     if not os.path.exists(MEMORY_DIR):
@@ -294,3 +495,138 @@ async def generate_novel():
         return JSONResponse(status_code=502, content={'error': f'网络请求错误: {str(e)}'})
     except Exception as e:
         return JSONResponse(status_code=500, content={'error': f'服务器错误: {str(e)}'})
+
+@app.get("/api/characters")
+async def get_characters():
+    try:
+        characters = load_characters()
+        return JSONResponse(content={'characters': characters})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'获取角色列表失败: {str(e)}'})
+
+@app.get("/api/characters/{char_id}")
+async def get_character(char_id: str):
+    try:
+        character = load_character(char_id)
+        if not character:
+            return JSONResponse(status_code=404, content={'error': '角色不存在'})
+        return JSONResponse(content={'character': character})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'获取角色失败: {str(e)}'})
+
+@app.post("/api/characters")
+async def create_character(request: CharacterCreate):
+    try:
+        character = request.dict()
+        char_id = save_character(character)
+        return JSONResponse(content={'success': True, 'id': char_id, 'character': character})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'创建角色失败: {str(e)}'})
+
+@app.put("/api/characters/{char_id}")
+async def update_character(char_id: str, request: CharacterUpdate):
+    try:
+        character = load_character(char_id)
+        if not character:
+            return JSONResponse(status_code=404, content={'error': '角色不存在'})
+        
+        updates = request.dict(exclude_none=True)
+        character.update(updates)
+        save_character(character)
+        
+        return JSONResponse(content={'success': True, 'character': character})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'更新角色失败: {str(e)}'})
+
+@app.delete("/api/characters/{char_id}")
+async def del_character(char_id: str):
+    try:
+        if delete_character(char_id):
+            relations = load_relations()
+            relations = [r for r in relations if r['source_id'] != char_id and r['target_id'] != char_id]
+            save_relations(relations)
+            return JSONResponse(content={'success': True})
+        return JSONResponse(status_code=404, content={'error': '角色不存在'})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'删除角色失败: {str(e)}'})
+
+@app.get("/api/relations")
+async def get_relations():
+    try:
+        relations = load_relations()
+        return JSONResponse(content={'relations': relations})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'获取关系列表失败: {str(e)}'})
+
+@app.post("/api/relations")
+async def create_relation(request: RelationCreate):
+    try:
+        source = load_character(request.source_id)
+        target = load_character(request.target_id)
+        if not source or not target:
+            return JSONResponse(status_code=404, content={'error': '源角色或目标角色不存在'})
+        
+        relation = request.dict()
+        new_rel = add_relation(relation)
+        return JSONResponse(content={'success': True, 'relation': new_rel})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'创建关系失败: {str(e)}'})
+
+@app.put("/api/relations/{rel_id}")
+async def update_rel(rel_id: str, request: RelationUpdate):
+    try:
+        updates = request.dict(exclude_none=True)
+        relation = update_relation(rel_id, updates)
+        if not relation:
+            return JSONResponse(status_code=404, content={'error': '关系不存在'})
+        return JSONResponse(content={'success': True, 'relation': relation})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'更新关系失败: {str(e)}'})
+
+@app.delete("/api/relations/{rel_id}")
+async def del_relation(rel_id: str):
+    try:
+        if delete_relation(rel_id):
+            return JSONResponse(content={'success': True})
+        return JSONResponse(status_code=404, content={'error': '关系不存在'})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'删除关系失败: {str(e)}'})
+
+@app.get("/api/characters/graph")
+async def get_character_graph():
+    try:
+        characters = load_characters()
+        relations = load_relations()
+        
+        nodes = []
+        for char in characters:
+            nodes.append({
+                'id': char['id'],
+                'name': char['name'],
+                'title': char.get('title', ''),
+                'avatar': char.get('avatar', ''),
+                'status': char.get('status', 'active')
+            })
+        
+        edges = []
+        for rel in relations:
+            rel_type = RELATION_TYPES.get(rel['relation_type'], RELATION_TYPES['neutral'])
+            edges.append({
+                'id': rel['id'],
+                'source': rel['source_id'],
+                'target': rel['target_id'],
+                'type': rel['relation_type'],
+                'typeName': rel_type['name'],
+                'color': rel_type['color'],
+                'icon': rel_type['icon'],
+                'strength': rel.get('strength', 50),
+                'description': rel.get('description', '')
+            })
+        
+        return JSONResponse(content={'nodes': nodes, 'edges': edges, 'relationTypes': RELATION_TYPES})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'获取关系图数据失败: {str(e)}'})
+
+@app.get("/api/relation-types")
+async def get_relation_types():
+    return JSONResponse(content={'types': RELATION_TYPES})

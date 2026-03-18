@@ -16,3 +16,4 @@ uv.lock
 memory/
 novels/
 .trae/
+data/characters/*.json

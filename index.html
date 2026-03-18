@@ -609,6 +609,554 @@
         ::-webkit-scrollbar-thumb:hover {
             background: rgba(0, 255, 136, 0.5);
         }
+
+        .progress-container {
+            background: rgba(0, 20, 10, 0.8);
+            border: 1px solid rgba(0, 200, 255, 0.3);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .progress-title {
+            color: #00ff88;
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+
+        .progress-percent {
+            color: #00ccff;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(0, 20, 10, 0.8);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88 0%, #00ccff 100%);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+        }
+
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .progress-status {
+            color: rgba(0, 255, 136, 0.8);
+            font-size: 0.9rem;
+        }
+
+        .progress-time {
+            color: rgba(0, 200, 255, 0.8);
+            font-size: 0.9rem;
+        }
+
+        .characters-btn {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            color: #00ff88;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .characters-btn:hover {
+            background: rgba(0, 255, 136, 0.2);
+            border-color: rgba(0, 255, 136, 0.5);
+        }
+
+        .character-panel {
+            position: fixed;
+            top: 0;
+            right: -400px;
+            width: 380px;
+            height: 100vh;
+            background: rgba(10, 10, 20, 0.98);
+            border-left: 1px solid rgba(0, 255, 136, 0.2);
+            z-index: 1000;
+            transition: right 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .character-panel.open {
+            right: 0;
+        }
+
+        .character-panel-header {
+            padding: 20px;
+            border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .character-panel-header h3 {
+            color: #00ff88;
+            font-size: 1.2rem;
+        }
+
+        .character-panel-close {
+            background: none;
+            border: none;
+            color: #00ff88;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .character-panel-tabs {
+            display: flex;
+            border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+        }
+
+        .character-panel-tab {
+            flex: 1;
+            padding: 12px;
+            background: none;
+            border: none;
+            color: rgba(0, 255, 136, 0.5);
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.3s ease;
+        }
+
+        .character-panel-tab.active {
+            color: #00ff88;
+            border-bottom: 2px solid #00ff88;
+        }
+
+        .character-panel-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+        }
+
+        .character-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .character-card-mini {
+            background: rgba(0, 255, 136, 0.05);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            border-radius: 8px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .character-card-mini:hover {
+            background: rgba(0, 255, 136, 0.1);
+            border-color: rgba(0, 255, 136, 0.4);
+        }
+
+        .character-card-mini-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .character-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(0, 255, 136, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            color: #00ff88;
+        }
+
+        .character-info h4 {
+            color: #00ff88;
+            margin: 0;
+            font-size: 1rem;
+        }
+
+        .character-info .title {
+            color: rgba(0, 200, 255, 0.8);
+            font-size: 0.8rem;
+            margin: 2px 0 0 0;
+        }
+
+        .character-status {
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-left: auto;
+        }
+
+        .character-status.active {
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+        }
+
+        .character-status.inactive {
+            background: rgba(136, 136, 136, 0.2);
+            color: #888;
+        }
+
+        .character-status.deceased {
+            background: rgba(255, 68, 68, 0.2);
+            color: #ff4444;
+        }
+
+        .character-detail-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .character-detail-modal.open {
+            display: flex;
+        }
+
+        .character-detail-content {
+            background: rgba(10, 10, 20, 0.98);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .character-detail-header {
+            padding: 20px;
+            border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .character-detail-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: rgba(0, 255, 136, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+        }
+
+        .character-detail-info h2 {
+            color: #00ff88;
+            margin: 0;
+        }
+
+        .character-detail-info .title {
+            color: rgba(0, 200, 255, 0.8);
+            margin: 5px 0 0 0;
+        }
+
+        .character-detail-body {
+            padding: 20px;
+        }
+
+        .character-section {
+            margin-bottom: 20px;
+        }
+
+        .character-section h4 {
+            color: rgba(0, 200, 255, 0.8);
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+        }
+
+        .character-section p {
+            color: rgba(0, 255, 136, 0.8);
+            line-height: 1.6;
+        }
+
+        .attribute-bars {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .attribute-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .attribute-label {
+            width: 60px;
+            color: rgba(0, 255, 136, 0.6);
+            font-size: 0.85rem;
+        }
+
+        .attribute-track {
+            flex: 1;
+            height: 8px;
+            background: rgba(0, 255, 136, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .attribute-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #00ccff);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .attribute-value {
+            width: 40px;
+            text-align: right;
+            color: #00ff88;
+            font-size: 0.85rem;
+        }
+
+        .skills-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .skill-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            background: rgba(0, 255, 136, 0.05);
+            border-radius: 6px;
+        }
+
+        .skill-name {
+            color: #00ff88;
+            flex: 1;
+        }
+
+        .skill-level {
+            color: rgba(0, 200, 255, 0.8);
+            font-size: 0.85rem;
+        }
+
+        .character-detail-actions {
+            padding: 15px 20px;
+            border-top: 1px solid rgba(0, 255, 136, 0.2);
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .graph-container {
+            width: 100%;
+            height: 400px;
+            background: rgba(0, 20, 10, 0.5);
+            border-radius: 8px;
+            position: relative;
+        }
+
+        .graph-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        .graph-legend {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin-bottom: 4px;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+
+        .add-character-btn {
+            width: 100%;
+            padding: 12px;
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px dashed rgba(0, 255, 136, 0.3);
+            border-radius: 8px;
+            color: #00ff88;
+            cursor: pointer;
+            font-family: inherit;
+            margin-top: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .add-character-btn:hover {
+            background: rgba(0, 255, 136, 0.2);
+            border-color: rgba(0, 255, 136, 0.5);
+        }
+
+        .character-form-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .character-form-modal.open {
+            display: flex;
+        }
+
+        .character-form-content {
+            background: rgba(10, 10, 20, 0.98);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .character-form-content h3 {
+            color: #00ff88;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            color: rgba(0, 200, 255, 0.8);
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            background: rgba(0, 255, 136, 0.05);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            border-radius: 6px;
+            padding: 10px;
+            color: #00ff88;
+            font-family: inherit;
+            font-size: 0.9rem;
+        }
+
+        .form-group textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: rgba(0, 255, 136, 0.5);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        .relation-form {
+            padding: 15px;
+            background: rgba(0, 255, 136, 0.05);
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .relation-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: rgba(0, 255, 136, 0.05);
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+
+        .relation-icon {
+            font-size: 1.2rem;
+        }
+
+        .relation-info {
+            flex: 1;
+        }
+
+        .relation-type-name {
+            color: #00ff88;
+            font-size: 0.9rem;
+        }
+
+        .relation-desc {
+            color: rgba(0, 255, 136, 0.6);
+            font-size: 0.8rem;
+        }
+
+        .relation-strength {
+            width: 60px;
+            height: 4px;
+            background: rgba(0, 255, 136, 0.2);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .relation-strength-fill {
+            height: 100%;
+            background: #00ff88;
+        }
     </style>
 </head>
 <body>
@@ -621,7 +1169,10 @@
             <div class="input-section">
                 <label for="world-setting">设定你的世界观</label>
                 <textarea id="world-setting" placeholder="例如：赛博朋克新加坡、古代江湖、深海科研站遭遇变异体、末日后的废土世界..."></textarea>
-                <button class="btn" onclick="startGame()">开始冒险</button>
+                <div class="button-group">
+                    <button class="btn" onclick="startGame()">开始冒险</button>
+                    <button class="btn btn-secondary" id="continue-btn" onclick="continueGame()" style="display: none;">继续游戏</button>
+                </div>
             </div>
         </div>
 
@@ -632,6 +1183,7 @@
                     <div class="cursor"></div>
                     <span style="margin-left: 10px; color: rgba(0, 255, 136, 0.6);">生成中...</span>
                 </div>
+                <button class="characters-btn" onclick="toggleCharacterPanel()">👥 角色</button>
                 <button class="end-game-btn" id="end-game-btn" onclick="triggerEnding()">结束游戏</button>
             </div>
             <div class="game-content">
@@ -682,9 +1234,172 @@
                 <button class="ending-cancel-btn" onclick="cancelEnding()">取消</button>
             </div>
         </div>
+
+        <div class="character-panel" id="character-panel">
+            <div class="character-panel-header">
+                <h3>角色管理</h3>
+                <button class="character-panel-close" onclick="toggleCharacterPanel()">×</button>
+            </div>
+            <div class="character-panel-tabs">
+                <button class="character-panel-tab active" onclick="switchCharacterTab('list')">角色列表</button>
+                <button class="character-panel-tab" onclick="switchCharacterTab('graph')">关系图</button>
+            </div>
+            <div class="character-panel-content">
+                <div id="character-list-tab">
+                    <div class="character-list" id="character-list"></div>
+                    <button class="add-character-btn" onclick="showCharacterForm()">+ 添加角色</button>
+                </div>
+                <div id="character-graph-tab" style="display: none;">
+                    <div class="graph-container">
+                        <canvas id="graph-canvas" class="graph-canvas"></canvas>
+                        <div class="graph-legend" id="graph-legend"></div>
+                    </div>
+                    <button class="add-character-btn" onclick="showRelationForm()">+ 添加关系</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="character-detail-modal" id="character-detail-modal">
+            <div class="character-detail-content">
+                <div class="character-detail-header">
+                    <div class="character-detail-avatar" id="detail-avatar">👤</div>
+                    <div class="character-detail-info">
+                        <h2 id="detail-name"></h2>
+                        <p class="title" id="detail-title"></p>
+                    </div>
+                </div>
+                <div class="character-detail-body">
+                    <div class="character-section">
+                        <h4>描述</h4>
+                        <p id="detail-description"></p>
+                    </div>
+                    <div class="character-section">
+                        <h4>性格</h4>
+                        <p id="detail-personality"></p>
+                    </div>
+                    <div class="character-section">
+                        <h4>属性</h4>
+                        <div class="attribute-bars" id="detail-attributes"></div>
+                    </div>
+                    <div class="character-section">
+                        <h4>技能</h4>
+                        <div class="skills-list" id="detail-skills"></div>
+                    </div>
+                    <div class="character-section">
+                        <h4>关系</h4>
+                        <div id="detail-relations"></div>
+                    </div>
+                </div>
+                <div class="character-detail-actions">
+                    <button class="btn btn-secondary" onclick="closeCharacterDetail()">关闭</button>
+                    <button class="btn" onclick="editCharacter()">编辑</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="character-form-modal" id="character-form-modal">
+            <div class="character-form-content">
+                <h3 id="form-title">添加角色</h3>
+                <form id="character-form" onsubmit="saveCharacter(event)">
+                    <input type="hidden" id="form-char-id">
+                    <div class="form-group">
+                        <label>角色名称 *</label>
+                        <input type="text" id="form-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>称号/职业</label>
+                        <input type="text" id="form-title-input">
+                    </div>
+                    <div class="form-group">
+                        <label>描述</label>
+                        <textarea id="form-description"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>性格</label>
+                        <input type="text" id="form-personality">
+                    </div>
+                    <div class="form-group">
+                        <label>背景故事</label>
+                        <textarea id="form-background"></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>生命值</label>
+                            <input type="number" id="form-health" value="100" min="0" max="200">
+                        </div>
+                        <div class="form-group">
+                            <label>魔力值</label>
+                            <input type="number" id="form-mana" value="100" min="0" max="200">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>力量</label>
+                            <input type="number" id="form-strength" value="10" min="1" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label>智力</label>
+                            <input type="number" id="form-intelligence" value="10" min="1" max="100">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>魅力</label>
+                            <input type="number" id="form-charisma" value="10" min="1" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label>状态</label>
+                            <select id="form-status">
+                                <option value="active">活跃</option>
+                                <option value="inactive">非活跃</option>
+                                <option value="deceased">已故</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeCharacterForm()">取消</button>
+                        <button type="submit" class="btn">保存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="character-form-modal" id="relation-form-modal">
+            <div class="character-form-content">
+                <h3>添加角色关系</h3>
+                <form id="relation-form" onsubmit="saveRelation(event)">
+                    <div class="form-group">
+                        <label>源角色</label>
+                        <select id="relation-source" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label>目标角色</label>
+                        <select id="relation-target" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label>关系类型</label>
+                        <select id="relation-type"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>关系强度 (0-100)</label>
+                        <input type="number" id="relation-strength" value="50" min="0" max="100">
+                    </div>
+                    <div class="form-group">
+                        <label>描述</label>
+                        <input type="text" id="relation-description">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeRelationForm()">取消</button>
+                        <button type="submit" class="btn">保存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 
     <script>
+        const STORAGE_KEY = 'adventure_game_save';
+        
         let messages = [];
         let chapter = 0;
         let logs = [];
@@ -696,9 +1411,137 @@
         let selectedEndingType = "";
         let customChoiceInput = null;
 
+        function saveGameState() {
+            try {
+                const gameState = {
+                    messages: messages,
+                    chapter: chapter,
+                    logs: logs,
+                    currentScene: currentScene,
+                    currentChoices: currentChoices,
+                    endingTriggered: endingTriggered,
+                    endingCountdown: endingCountdown,
+                    worldSetting: worldSetting,
+                    selectedEndingType: selectedEndingType,
+                    timestamp: Date.now()
+                };
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
+                console.log('游戏状态已保存');
+            } catch (e) {
+                console.error('保存游戏状态失败:', e);
+                if (e.name === 'QuotaExceededError') {
+                    console.error('存储空间不足，无法保存游戏状态');
+                }
+            }
+        }
+
+        function loadGameState() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    const gameState = JSON.parse(saved);
+                    const hoursSinceSave = (Date.now() - gameState.timestamp) / (1000 * 60 * 60);
+                    
+                    if (hoursSinceSave > 24) {
+                        console.log('存档已超过24小时，清除旧存档');
+                        clearGameState();
+                        return null;
+                    }
+                    
+                    return gameState;
+                }
+            } catch (e) {
+                console.error('加载游戏状态失败:', e);
+                clearGameState();
+            }
+            return null;
+        }
+
+        function clearGameState() {
+            try {
+                localStorage.removeItem(STORAGE_KEY);
+                console.log('游戏状态已清除');
+            } catch (e) {
+                console.error('清除游戏状态失败:', e);
+            }
+        }
+
+        function restoreGameState(gameState) {
+            if (!gameState) return;
+            
+            messages = gameState.messages || [];
+            chapter = gameState.chapter || 0;
+            logs = gameState.logs || [];
+            currentScene = gameState.currentScene;
+            currentChoices = gameState.currentChoices;
+            endingTriggered = gameState.endingTriggered || false;
+            endingCountdown = gameState.endingCountdown || 0;
+            worldSetting = gameState.worldSetting || "";
+            selectedEndingType = gameState.selectedEndingType || "";
+
+            document.getElementById('chapter-num').textContent = chapter;
+            
+            const logContainer = document.getElementById('log-container');
+            logContainer.innerHTML = '';
+            logs.forEach(log => {
+                const entry = document.createElement('div');
+                entry.className = 'log-entry';
+                if (log.log) {
+                    const chapterNum = logs.indexOf(log) + 1;
+                    entry.innerHTML = `<span class="log-chapter-num">【第${chapterNum}轮】</span> ${log.log}`;
+                } else {
+                    entry.textContent = log;
+                }
+                logContainer.appendChild(entry);
+            });
+            logContainer.scrollTop = logContainer.scrollHeight;
+
+            if (currentScene) {
+                document.getElementById('scene-text').textContent = currentScene;
+            }
+
+            if (currentChoices && currentChoices.length > 0) {
+                const choicesContainer = document.getElementById('choices-container');
+                choicesContainer.innerHTML = '';
+                currentChoices.forEach((choice, index) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'choice-btn';
+                    btn.textContent = `${index + 1}. ${choice}`;
+                    btn.onclick = () => makeChoice(choice);
+                    choicesContainer.appendChild(btn);
+                });
+            }
+
+            if (endingTriggered) {
+                document.getElementById('end-game-btn').disabled = true;
+                document.getElementById('end-game-btn').textContent = '收尾中...';
+                document.getElementById('custom-choice-container').style.display = 'none';
+            }
+
+            console.log('游戏状态已恢复');
+        }
+
         function showScreen(screenId) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             document.getElementById(screenId).classList.add('active');
+        }
+
+        function showError(title, message) {
+            const sceneText = document.getElementById('scene-text');
+            const resultContainer = document.getElementById('novel-result');
+            
+            const errorHtml = `
+                <div class="error-message" style="text-align: left;">
+                    <div style="font-weight: bold; margin-bottom: 10px;">${title}</div>
+                    <div style="font-size: 0.9rem; opacity: 0.9;">${message}</div>
+                </div>
+            `;
+            
+            if (sceneText && document.getElementById('game-screen').classList.contains('active')) {
+                sceneText.innerHTML = errorHtml;
+            } else if (resultContainer) {
+                resultContainer.innerHTML = errorHtml;
+            }
         }
 
         function setLoading(isLoading) {
@@ -744,7 +1587,7 @@
         async function startGame() {
             worldSetting = document.getElementById('world-setting').value.trim();
             if (!worldSetting) {
-                alert('请输入世界观描述');
+                showError('请输入世界观描述', '请在文本框中输入你想要探索的世界观设定，例如：赛博朋克新加坡、古代江湖等。');
                 return;
             }
 
@@ -767,6 +1610,8 @@
                 });
             } catch (e) {
                 console.error('保存世界观失败:', e);
+                showError('保存世界观失败', '无法连接到服务器，请检查网络连接后重试。');
+                return;
             }
 
             messages.push({
@@ -774,6 +1619,7 @@
                 content: `开始游戏。世界观设定：${worldSetting}`
             });
 
+            saveGameState();
             showScreen('game-screen');
             await sendMessage();
         }
@@ -804,6 +1650,7 @@
                 content: choice
             });
 
+            saveGameState();
             await sendMessage();
         }
 
@@ -933,8 +1780,24 @@
                 renderScene(parsed);
 
             } catch (error) {
-                document.getElementById('scene-text').innerHTML = 
-                    `<div class="error-message">错误: ${error.message}</div>`;
+                let errorMessage = error.message;
+                let errorDetail = '';
+                
+                if (errorMessage.includes('504')) {
+                    errorDetail = '服务器响应超时，请稍后重试。如果问题持续，请检查网络连接。';
+                } else if (errorMessage.includes('502') || errorMessage.includes('网络请求错误')) {
+                    errorDetail = '网络连接失败，请检查您的网络设置后重试。';
+                } else if (errorMessage.includes('API请求失败')) {
+                    errorDetail = 'AI服务暂时不可用，请稍后重试。';
+                } else if (errorMessage.includes('AI返回格式错误')) {
+                    errorDetail = 'AI返回的数据格式不正确，系统已自动重试。如果问题持续，请联系开发者。';
+                } else if (errorMessage.includes('无法解析任何有效字段')) {
+                    errorDetail = 'AI返回的内容不完整，请重试。';
+                } else {
+                    errorDetail = '发生了未知错误，请刷新页面重试。如果问题持续，请联系开发者。';
+                }
+                
+                showError('发生错误', errorDetail);
                 setLoading(false);
             }
         }
@@ -962,6 +1825,8 @@
                 container.appendChild(entry);
                 container.scrollTop = container.scrollHeight;
             }
+
+            saveGameState();
 
             if (data.ending) {
                 setTimeout(() => {
@@ -1059,6 +1924,7 @@
             const endBtn = document.getElementById('end-game-btn');
             endBtn.disabled = false;
             endBtn.textContent = '结束游戏';
+            clearGameState();
             showScreen('start-screen');
         }
 
@@ -1093,7 +1959,7 @@
             const input = document.getElementById('custom-choice-input');
             const choice = input.value.trim();
             if (!choice) {
-                alert('请输入自定义选项');
+                showError('输入为空', '请在文本框中输入你想要执行的自定义选项。');
                 return;
             }
             
@@ -1120,6 +1986,57 @@
             resultContainer.innerHTML = '';
             generateBtn.disabled = true;
 
+            const progressContainer = document.createElement('div');
+            progressContainer.className = 'progress-container';
+            progressContainer.innerHTML = `
+                <div class="progress-header">
+                    <span class="progress-title">小说生成中...</span>
+                    <span class="progress-percent">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: 0%"></div>
+                </div>
+                <div class="progress-info">
+                    <span class="progress-status">正在初始化...</span>
+                    <span class="progress-time">预计剩余时间: --</span>
+                </div>
+            `;
+            resultContainer.appendChild(progressContainer);
+
+            const progressFill = progressContainer.querySelector('.progress-fill');
+            const progressPercent = progressContainer.querySelector('.progress-percent');
+            const progressStatus = progressContainer.querySelector('.progress-status');
+            const progressTime = progressContainer.querySelector('.progress-time');
+
+            const startTime = Date.now();
+            const estimatedTime = 180000;
+            
+            const progressInterval = setInterval(() => {
+                const elapsed = Date.now() - startTime;
+                let progress = Math.min((elapsed / estimatedTime) * 100, 95);
+                
+                if (progress < 20) {
+                    progressStatus.textContent = '正在分析游戏记忆...';
+                } else if (progress < 40) {
+                    progressStatus.textContent = '正在规划小说结构...';
+                } else if (progress < 60) {
+                    progressStatus.textContent = '正在生成章节内容...';
+                } else if (progress < 80) {
+                    progressStatus.textContent = '正在完善细节描写...';
+                } else if (progress < 95) {
+                    progressStatus.textContent = '正在润色和校对...';
+                }
+                
+                const remaining = Math.max(estimatedTime - elapsed, 0);
+                const remainingSeconds = Math.ceil(remaining / 1000);
+                const minutes = Math.floor(remainingSeconds / 60);
+                const seconds = remainingSeconds % 60;
+                progressTime.textContent = `预计剩余时间: ${minutes}分${seconds}秒`;
+                
+                progressFill.style.width = `${progress}%`;
+                progressPercent.textContent = `${Math.round(progress)}%`;
+            }, 500);
+
             try {
                 const response = await fetch('/api/generate-novel', {
                     method: 'POST',
@@ -1134,24 +2051,526 @@
                     throw new Error(data.error);
                 }
 
-                if (data.novel_content) {
-                    resultContainer.innerHTML = `
-                        <div class="novel-content">
-                            <h3>小说已生成</h3>
-                            <p>保存路径: ${data.novel_path}</p>
-                            <div class="novel-text">${data.novel_content.replace(/\n/g, '<br>')}</div>
-                        </div>
-                    `;
-                } else {
-                    resultContainer.innerHTML = '小说生成成功';
-                }
-                generateBtn.style.display = 'none';
+                clearInterval(progressInterval);
+                progressFill.style.width = '100%';
+                progressPercent.textContent = '100%';
+                progressStatus.textContent = '生成完成！';
+                progressTime.textContent = '预计剩余时间: 0秒';
+
+                setTimeout(() => {
+                    if (data.novel_content) {
+                        resultContainer.innerHTML = `
+                            <div class="novel-content">
+                                <h3>小说已生成</h3>
+                                <p>保存路径: ${data.novel_path}</p>
+                                <div class="novel-text">${data.novel_content.replace(/\n/g, '<br>')}</div>
+                            </div>
+                        `;
+                    } else {
+                        resultContainer.innerHTML = '小说生成成功';
+                    }
+                    generateBtn.style.display = 'none';
+                }, 500);
 
             } catch (error) {
-                resultContainer.innerHTML = `<div class="error-message">生成失败: ${error.message}</div>`;
+                clearInterval(progressInterval);
+                
+                let errorDetail = '';
+                if (error.message.includes('504')) {
+                    errorDetail = '小说生成超时，请稍后重试。如果问题持续，请尝试减少故事长度。';
+                } else if (error.message.includes('502') || error.message.includes('网络请求错误')) {
+                    errorDetail = '网络连接失败，请检查您的网络设置后重试。';
+                } else if (error.message.includes('API请求失败')) {
+                    errorDetail = 'AI服务暂时不可用，请稍后重试。';
+                } else if (error.message.includes('memory.md不存在')) {
+                    errorDetail = '游戏记忆文档不存在，请先开始一局游戏。';
+                } else {
+                    errorDetail = '生成失败: ' + error.message + '。请刷新页面重试。';
+                }
+                
+                showError('小说生成失败', errorDetail);
                 generateBtn.disabled = false;
             } finally {
                 loading.classList.remove('active');
+            }
+        }
+
+        function continueGame() {
+            const gameState = loadGameState();
+            if (!gameState) {
+                showError('无法加载存档', '没有找到有效的游戏存档，请开始新游戏。');
+                return;
+            }
+            
+            restoreGameState(gameState);
+            showScreen('game-screen');
+        }
+
+        window.addEventListener('DOMContentLoaded', function() {
+            const gameState = loadGameState();
+            if (gameState) {
+                const continueBtn = document.getElementById('continue-btn');
+                if (continueBtn) {
+                    continueBtn.style.display = 'inline-block';
+                    console.log('检测到存档，显示继续游戏按钮');
+                }
+            }
+            loadCharactersList();
+        });
+
+        let charactersData = [];
+        let relationsData = [];
+        let relationTypes = {};
+        let currentCharacterId = null;
+
+        async function loadCharactersList() {
+            try {
+                const response = await fetch('/api/characters');
+                const data = await response.json();
+                charactersData = data.characters || [];
+                
+                const relResponse = await fetch('/api/relations');
+                const relData = await relResponse.json();
+                relationsData = relData.relations || [];
+                
+                const typesResponse = await fetch('/api/relation-types');
+                const typesData = await typesResponse.json();
+                relationTypes = typesData.types || {};
+                
+                renderCharacterList();
+                renderGraphLegend();
+            } catch (e) {
+                console.error('加载角色数据失败:', e);
+            }
+        }
+
+        function toggleCharacterPanel() {
+            const panel = document.getElementById('character-panel');
+            panel.classList.toggle('open');
+            if (panel.classList.contains('open')) {
+                loadCharactersList();
+            }
+        }
+
+        function switchCharacterTab(tab) {
+            document.querySelectorAll('.character-panel-tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            if (tab === 'list') {
+                document.getElementById('character-list-tab').style.display = 'block';
+                document.getElementById('character-graph-tab').style.display = 'none';
+            } else {
+                document.getElementById('character-list-tab').style.display = 'none';
+                document.getElementById('character-graph-tab').style.display = 'block';
+                renderRelationshipGraph();
+            }
+        }
+
+        function renderCharacterList() {
+            const container = document.getElementById('character-list');
+            container.innerHTML = '';
+            
+            if (charactersData.length === 0) {
+                container.innerHTML = '<p style="color: rgba(0, 255, 136, 0.5); text-align: center; padding: 20px;">暂无角色，点击下方按钮添加</p>';
+                return;
+            }
+            
+            charactersData.forEach(char => {
+                const card = document.createElement('div');
+                card.className = 'character-card-mini';
+                card.onclick = () => showCharacterDetail(char.id);
+                
+                const statusClass = char.status || 'active';
+                const statusText = statusClass === 'active' ? '活跃' : statusClass === 'inactive' ? '非活跃' : '已故';
+                
+                card.innerHTML = `
+                    <div class="character-card-mini-header">
+                        <div class="character-avatar">${char.avatar ? '' : '👤'}</div>
+                        <div class="character-info">
+                            <h4>${char.name}</h4>
+                            <p class="title">${char.title || ''}</p>
+                        </div>
+                        <span class="character-status ${statusClass}">${statusText}</span>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        async function showCharacterDetail(charId) {
+            currentCharacterId = charId;
+            const char = charactersData.find(c => c.id === charId);
+            if (!char) return;
+            
+            document.getElementById('detail-avatar').textContent = char.avatar ? '' : '👤';
+            document.getElementById('detail-name').textContent = char.name;
+            document.getElementById('detail-title').textContent = char.title || '无称号';
+            document.getElementById('detail-description').textContent = char.description || '暂无描述';
+            document.getElementById('detail-personality').textContent = char.personality || '暂无性格描述';
+            
+            const attrs = char.attributes || { health: 100, mana: 100, strength: 10, intelligence: 10, charisma: 10 };
+            const attrsContainer = document.getElementById('detail-attributes');
+            attrsContainer.innerHTML = `
+                <div class="attribute-bar">
+                    <span class="attribute-label">HP</span>
+                    <div class="attribute-track"><div class="attribute-fill" style="width: ${Math.min(attrs.health, 200) / 2}%"></div></div>
+                    <span class="attribute-value">${attrs.health}</span>
+                </div>
+                <div class="attribute-bar">
+                    <span class="attribute-label">MP</span>
+                    <div class="attribute-track"><div class="attribute-fill" style="width: ${Math.min(attrs.mana, 200) / 2}%"></div></div>
+                    <span class="attribute-value">${attrs.mana}</span>
+                </div>
+                <div class="attribute-bar">
+                    <span class="attribute-label">力量</span>
+                    <div class="attribute-track"><div class="attribute-fill" style="width: ${attrs.strength}%"></div></div>
+                    <span class="attribute-value">${attrs.strength}</span>
+                </div>
+                <div class="attribute-bar">
+                    <span class="attribute-label">智力</span>
+                    <div class="attribute-track"><div class="attribute-fill" style="width: ${attrs.intelligence}%"></div></div>
+                    <span class="attribute-value">${attrs.intelligence}</span>
+                </div>
+                <div class="attribute-bar">
+                    <span class="attribute-label">魅力</span>
+                    <div class="attribute-track"><div class="attribute-fill" style="width: ${attrs.charisma}%"></div></div>
+                    <span class="attribute-value">${attrs.charisma}</span>
+                </div>
+            `;
+            
+            const skills = char.skills || [];
+            const skillsContainer = document.getElementById('detail-skills');
+            if (skills.length === 0) {
+                skillsContainer.innerHTML = '<p style="color: rgba(0, 255, 136, 0.5);">暂无技能</p>';
+            } else {
+                skillsContainer.innerHTML = skills.map(s => `
+                    <div class="skill-item">
+                        <span class="skill-name">${s.name}</span>
+                        <span class="skill-level">Lv.${s.level}</span>
+                    </div>
+                `).join('');
+            }
+            
+            const charRelations = relationsData.filter(r => r.source_id === charId || r.target_id === charId);
+            const relationsContainer = document.getElementById('detail-relations');
+            if (charRelations.length === 0) {
+                relationsContainer.innerHTML = '<p style="color: rgba(0, 255, 136, 0.5);">暂无关系</p>';
+            } else {
+                relationsContainer.innerHTML = charRelations.map(r => {
+                    const typeInfo = relationTypes[r.relation_type] || relationTypes.neutral;
+                    const otherChar = charactersData.find(c => c.id === (r.source_id === charId ? r.target_id : r.source_id));
+                    return `
+                        <div class="relation-item">
+                            <span class="relation-icon">${typeInfo.icon}</span>
+                            <div class="relation-info">
+                                <span class="relation-type-name">${otherChar ? otherChar.name : '未知'} - ${typeInfo.name}</span>
+                                <span class="relation-desc">${r.description || ''}</span>
+                            </div>
+                            <div class="relation-strength">
+                                <div class="relation-strength-fill" style="width: ${r.strength}%"></div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+            
+            document.getElementById('character-detail-modal').classList.add('open');
+        }
+
+        function closeCharacterDetail() {
+            document.getElementById('character-detail-modal').classList.remove('open');
+            currentCharacterId = null;
+        }
+
+        function showCharacterForm(charId = null) {
+            document.getElementById('form-title').textContent = charId ? '编辑角色' : '添加角色';
+            document.getElementById('form-char-id').value = charId || '';
+            
+            if (charId) {
+                const char = charactersData.find(c => c.id === charId);
+                if (char) {
+                    document.getElementById('form-name').value = char.name;
+                    document.getElementById('form-title-input').value = char.title || '';
+                    document.getElementById('form-description').value = char.description || '';
+                    document.getElementById('form-personality').value = char.personality || '';
+                    document.getElementById('form-background').value = char.background || '';
+                    const attrs = char.attributes || {};
+                    document.getElementById('form-health').value = attrs.health || 100;
+                    document.getElementById('form-mana').value = attrs.mana || 100;
+                    document.getElementById('form-strength').value = attrs.strength || 10;
+                    document.getElementById('form-intelligence').value = attrs.intelligence || 10;
+                    document.getElementById('form-charisma').value = attrs.charisma || 10;
+                    document.getElementById('form-status').value = char.status || 'active';
+                }
+            } else {
+                document.getElementById('character-form').reset();
+            }
+            
+            document.getElementById('character-form-modal').classList.add('open');
+        }
+
+        function closeCharacterForm() {
+            document.getElementById('character-form-modal').classList.remove('open');
+        }
+
+        async function saveCharacter(event) {
+            event.preventDefault();
+            
+            const charId = document.getElementById('form-char-id').value;
+            const character = {
+                name: document.getElementById('form-name').value,
+                title: document.getElementById('form-title-input').value,
+                description: document.getElementById('form-description').value,
+                personality: document.getElementById('form-personality').value,
+                background: document.getElementById('form-background').value,
+                attributes: {
+                    health: parseInt(document.getElementById('form-health').value) || 100,
+                    mana: parseInt(document.getElementById('form-mana').value) || 100,
+                    strength: parseInt(document.getElementById('form-strength').value) || 10,
+                    intelligence: parseInt(document.getElementById('form-intelligence').value) || 10,
+                    charisma: parseInt(document.getElementById('form-charisma').value) || 10
+                },
+                status: document.getElementById('form-status').value
+            };
+            
+            try {
+                let response;
+                if (charId) {
+                    response = await fetch(`/api/characters/${charId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(character)
+                    });
+                } else {
+                    response = await fetch('/api/characters', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(character)
+                    });
+                }
+                
+                const data = await response.json();
+                if (data.success || data.character) {
+                    closeCharacterForm();
+                    await loadCharactersList();
+                } else {
+                    showError('保存失败', data.error || '未知错误');
+                }
+            } catch (e) {
+                showError('保存失败', '网络错误: ' + e.message);
+            }
+        }
+
+        function editCharacter() {
+            if (currentCharacterId) {
+                closeCharacterDetail();
+                showCharacterForm(currentCharacterId);
+            }
+        }
+
+        async function deleteCharacter() {
+            if (!currentCharacterId) return;
+            if (!confirm('确定要删除这个角色吗？相关的所有关系也会被删除。')) return;
+            
+            try {
+                const response = await fetch(`/api/characters/${currentCharacterId}`, { method: 'DELETE' });
+                const data = await response.json();
+                if (data.success) {
+                    closeCharacterDetail();
+                    await loadCharactersList();
+                } else {
+                    showError('删除失败', data.error || '未知错误');
+                }
+            } catch (e) {
+                showError('删除失败', '网络错误: ' + e.message);
+            }
+        }
+
+        function showRelationForm() {
+            const sourceSelect = document.getElementById('relation-source');
+            const targetSelect = document.getElementById('relation-target');
+            const typeSelect = document.getElementById('relation-type');
+            
+            const options = charactersData.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+            sourceSelect.innerHTML = options;
+            targetSelect.innerHTML = options;
+            
+            const typeOptions = Object.entries(relationTypes).map(([key, val]) => 
+                `<option value="${key}">${val.icon} ${val.name}</option>`
+            ).join('');
+            typeSelect.innerHTML = typeOptions;
+            
+            document.getElementById('relation-form').reset();
+            document.getElementById('relation-form-modal').classList.add('open');
+        }
+
+        function closeRelationForm() {
+            document.getElementById('relation-form-modal').classList.remove('open');
+        }
+
+        async function saveRelation(event) {
+            event.preventDefault();
+            
+            const relation = {
+                source_id: document.getElementById('relation-source').value,
+                target_id: document.getElementById('relation-target').value,
+                relation_type: document.getElementById('relation-type').value,
+                strength: parseInt(document.getElementById('relation-strength').value) || 50,
+                description: document.getElementById('relation-description').value
+            };
+            
+            if (relation.source_id === relation.target_id) {
+                showError('错误', '源角色和目标角色不能相同');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/relations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(relation)
+                });
+                const data = await response.json();
+                if (data.success) {
+                    closeRelationForm();
+                    await loadCharactersList();
+                    renderRelationshipGraph();
+                } else {
+                    showError('保存失败', data.error || '未知错误');
+                }
+            } catch (e) {
+                showError('保存失败', '网络错误: ' + e.message);
+            }
+        }
+
+        function renderGraphLegend() {
+            const container = document.getElementById('graph-legend');
+            container.innerHTML = Object.entries(relationTypes).slice(0, 6).map(([key, val]) => `
+                <div class="legend-item">
+                    <div class="legend-color" style="background: ${val.color}"></div>
+                    <span>${val.name}</span>
+                </div>
+            `).join('');
+        }
+
+        async function renderRelationshipGraph() {
+            try {
+                const response = await fetch('/api/characters/graph');
+                const data = await response.json();
+                const { nodes, edges } = data;
+                
+                const canvas = document.getElementById('graph-canvas');
+                const ctx = canvas.getContext('2d');
+                
+                canvas.width = canvas.offsetWidth;
+                canvas.height = canvas.offsetHeight;
+                
+                if (nodes.length === 0) {
+                    ctx.fillStyle = 'rgba(0, 255, 136, 0.5)';
+                    ctx.font = '14px monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('暂无角色数据', canvas.width / 2, canvas.height / 2);
+                    return;
+                }
+                
+                const graphNodes = nodes.map((n, i) => ({
+                    ...n,
+                    x: canvas.width / 2 + Math.cos(2 * Math.PI * i / nodes.length) * 120,
+                    y: canvas.height / 2 + Math.sin(2 * Math.PI * i / nodes.length) * 120,
+                    vx: 0,
+                    vy: 0
+                }));
+                
+                const iterations = 100;
+                const repulsion = 3000;
+                const attraction = 0.005;
+                const damping = 0.85;
+                
+                for (let iter = 0; iter < iterations; iter++) {
+                    for (let j = 0; j < graphNodes.length; j++) {
+                        for (let k = j + 1; k < graphNodes.length; k++) {
+                            const dx = graphNodes[k].x - graphNodes[j].x;
+                            const dy = graphNodes[k].y - graphNodes[j].y;
+                            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                            const force = repulsion / (dist * dist);
+                            graphNodes[j].vx -= dx / dist * force;
+                            graphNodes[j].vy -= dy / dist * force;
+                            graphNodes[k].vx += dx / dist * force;
+                            graphNodes[k].vy += dy / dist * force;
+                        }
+                    }
+                    
+                    for (const edge of edges) {
+                        const source = graphNodes.find(n => n.id === edge.source);
+                        const target = graphNodes.find(n => n.id === edge.target);
+                        if (source && target) {
+                            const dx = target.x - source.x;
+                            const dy = target.y - source.y;
+                            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                            const force = dist * attraction;
+                            source.vx += dx * force;
+                            source.vy += dy * force;
+                            target.vx -= dx * force;
+                            target.vy -= dy * force;
+                        }
+                    }
+                    
+                    for (const node of graphNodes) {
+                        node.vx *= damping;
+                        node.vy *= damping;
+                        node.x += node.vx;
+                        node.y += node.vy;
+                        node.x = Math.max(40, Math.min(canvas.width - 40, node.x));
+                        node.y = Math.max(40, Math.min(canvas.height - 40, node.y));
+                    }
+                }
+                
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                for (const edge of edges) {
+                    const source = graphNodes.find(n => n.id === edge.source);
+                    const target = graphNodes.find(n => n.id === edge.target);
+                    if (source && target) {
+                        ctx.beginPath();
+                        ctx.moveTo(source.x, source.y);
+                        ctx.lineTo(target.x, target.y);
+                        ctx.strokeStyle = edge.color || '#00ff88';
+                        ctx.lineWidth = Math.max(1, edge.strength / 30);
+                        ctx.stroke();
+                        
+                        const angle = Math.atan2(target.y - source.y, target.x - source.x);
+                        const arrowLen = 10;
+                        const arrowX = target.x - Math.cos(angle) * 25;
+                        const arrowY = target.y - Math.sin(angle) * 25;
+                        ctx.beginPath();
+                        ctx.moveTo(arrowX, arrowY);
+                        ctx.lineTo(arrowX - arrowLen * Math.cos(angle - 0.5), arrowY - arrowLen * Math.sin(angle - 0.5));
+                        ctx.lineTo(arrowX - arrowLen * Math.cos(angle + 0.5), arrowY - arrowLen * Math.sin(angle + 0.5));
+                        ctx.closePath();
+                        ctx.fillStyle = edge.color || '#00ff88';
+                        ctx.fill();
+                    }
+                }
+                
+                for (const node of graphNodes) {
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, 20, 0, Math.PI * 2);
+                    ctx.fillStyle = node.status === 'active' ? 'rgba(0, 255, 136, 0.3)' : 
+                                   node.status === 'deceased' ? 'rgba(255, 68, 68, 0.3)' : 'rgba(136, 136, 136, 0.3)';
+                    ctx.fill();
+                    ctx.strokeStyle = node.status === 'active' ? '#00ff88' : 
+                                     node.status === 'deceased' ? '#ff4444' : '#888888';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    
+                    ctx.fillStyle = '#00ff88';
+                    ctx.font = '12px monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(node.name.substring(0, 4), node.x, node.y + 35);
+                }
+                
+            } catch (e) {
+                console.error('渲染关系图失败:', e);
             }
         }
     </script>

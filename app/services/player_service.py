@@ -331,7 +331,7 @@ class PlayerService:
         return "\n".join(summary_parts)
 
     def generate_player_with_llm(self, world_setting: str = "") -> Optional[PlayerCharacter]:
-        """使用LLM根据世界观生成主角"""
+        """使用LLM根据故事设定生成主角"""
         from app.config import PLAYER_GENERATION_PROMPT
         from app.utils.llm_client import call_llm, parse_json_response
         from uuid import uuid4
@@ -341,9 +341,9 @@ class PlayerService:
             
             response = call_llm(
                 prompt, 
-                "你是一个专业的角色设计师，擅长创造符合世界观的有趣角色。请严格按照JSON格式返回。",
-                timeout=60,
-                max_tokens=2000
+                "你是一个专业的角色设计师，擅长创造符合故事设定的有趣角色。请严格按照JSON格式返回。",
+                timeout=90,
+                max_tokens=2500
             )
             
             player_data = parse_json_response(response)
@@ -352,14 +352,12 @@ class PlayerService:
                 print("LLM返回格式错误，无法解析角色数据")
                 return None
             
-            # 验证必要字段
             required_fields = ['name', 'age', 'gender', 'race']
             for field in required_fields:
                 if field not in player_data:
                     print(f"LLM返回数据缺少必要字段: {field}")
                     return None
             
-            # 处理技能
             skills = []
             if 'skills' in player_data and isinstance(player_data['skills'], list):
                 for skill_data in player_data['skills']:
@@ -373,19 +371,24 @@ class PlayerService:
                             related_attribute=skill_data.get('related_attribute', 'strength')
                         ))
             
-            # 计算HP
             constitution = player_data.get('constitution', 10)
             max_hp = self.calculate_max_hp(constitution)
             
-            # 创建角色
+            background = player_data.get('background', '一位神秘的冒险者')
+            motivation = player_data.get('motivation', '')
+            if motivation:
+                background = f"{background}\n\n核心动机：{motivation}"
+            
             player = PlayerCharacter(
                 id="player",
                 name=player_data.get('name', '冒险者'),
                 age=player_data.get('age', 20),
                 gender=player_data.get('gender', '其他'),
                 race=player_data.get('race', '人类'),
-                background=player_data.get('background', '一位神秘的冒险者'),
+                title=player_data.get('title', ''),
+                background=background,
                 appearance=player_data.get('appearance', '看起来充满决心'),
+                personality=player_data.get('personality', ''),
                 strength=player_data.get('strength', 10),
                 dexterity=player_data.get('dexterity', 10),
                 constitution=constitution,
@@ -399,8 +402,8 @@ class PlayerService:
                 updated_at=datetime.now().isoformat()
             )
             
-            # 保存角色
             save_player(player.model_dump())
+            print(f"主角生成成功: {player.name}")
             return player
             
         except Exception as e:

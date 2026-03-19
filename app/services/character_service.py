@@ -42,6 +42,96 @@ class CharacterService:
     def __init__(self):
         pass
 
+    def generate_npcs_with_llm(
+        self, 
+        world_setting: str, 
+        protagonist_info: dict,
+        count: int = 10
+    ) -> List[dict]:
+        """使用LLM生成NPC，包含主角信息"""
+        from app.config import NPC_GENERATION_PROMPT
+        from app.utils.llm_client import call_llm, parse_json_response
+        
+        protagonist_summary = f"""
+姓名: {protagonist_info.get('name', '未知')}
+种族: {protagonist_info.get('race', '未知')}
+称号: {protagonist_info.get('title', '无')}
+背景: {protagonist_info.get('background', '未知')[:200]}...
+性格: {protagonist_info.get('personality', '未知')}
+""".strip()
+        
+        prompt = NPC_GENERATION_PROMPT.format(
+            world_setting=world_setting,
+            protagonist_info=protagonist_summary
+        )
+        
+        system_prompt = "你是一个专业的角色设计师，擅长创造与主角和故事设定相契合的NPC角色。请严格按照JSON数组格式返回结果。"
+        
+        response = call_llm(prompt, system_prompt, timeout=180, max_tokens=6000)
+        npcs_data = parse_json_response(response)
+        
+        if not npcs_data:
+            print("LLM返回格式错误，无法解析NPC数据")
+            return []
+        
+        if not isinstance(npcs_data, list):
+            npcs_data = [npcs_data]
+        
+        npcs = []
+        for npc_data in npcs_data[:count]:
+            if not isinstance(npc_data, dict):
+                continue
+            
+            attributes = npc_data.get('attributes', {})
+            
+            npc = {
+                'id': f"char_{uuid.uuid4().hex[:8]}",
+                'name': npc_data.get('name', '未知NPC'),
+                'age': npc_data.get('age', 25),
+                'gender': npc_data.get('gender', '其他'),
+                'race': npc_data.get('race', '人类'),
+                'role_type': npc_data.get('role_type', 'npc'),
+                'importance': 3 if npc_data.get('role_type') == 'antagonist' else 2,
+                'title': npc_data.get('title', ''),
+                'description': npc_data.get('background', '')[:100],
+                'appearance': {
+                    'full_description': npc_data.get('appearance', '外貌普通')
+                },
+                'background': {
+                    'backstory': npc_data.get('background', ''),
+                    'occupation': npc_data.get('title', '')
+                },
+                'personality': {
+                    'traits': npc_data.get('personality', '').split('、') if npc_data.get('personality') else []
+                },
+                'attributes': {
+                    'health': 100,
+                    'mana': 100,
+                    'strength': attributes.get('strength', 10),
+                    'agility': attributes.get('agility', 10),
+                    'intelligence': attributes.get('intelligence', 10),
+                    'charisma': attributes.get('charisma', 10),
+                    'luck': 10
+                },
+                'status': {
+                    'current_state': 'active',
+                    'mood': 'neutral',
+                    'conditions': []
+                },
+                'skills': npc_data.get('skills', []),
+                'tags': [],
+                'relation_to_protagonist': npc_data.get('relation_to_protagonist', ''),
+                'story_role': npc_data.get('story_role', ''),
+                'plot_connection': npc_data.get('plot_connection', ''),
+                'generated_by': 'auto',
+                'created_at': datetime.now().isoformat(),
+                'updated_at': datetime.now().isoformat()
+            }
+            npcs.append(npc)
+        
+        print(f"成功生成 {len(npcs)} 个NPC")
+        return npcs
+
     def generate_characters_batch(
         self,
         world_setting: str,

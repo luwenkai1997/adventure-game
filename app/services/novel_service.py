@@ -10,13 +10,29 @@ from app.config import (
     BASE_DIR,
     NOVELS_DIR,
 )
-from app.utils.file_storage import load_memory
+from app.utils.file_storage import load_memory, load_history
 from app.utils.llm_client import call_llm, parse_json_response
 
 
 class NovelService:
     def __init__(self):
         pass
+
+    def calculate_chapter_range(self) -> tuple:
+        """根据游戏轮次计算章节数量范围（35%-50%）"""
+        history = load_history()
+        game_rounds = len(history)
+        
+        if game_rounds == 0:
+            game_rounds = 10
+        
+        min_chapters = max(3, int(game_rounds * 0.35))
+        max_chapters = max(min_chapters + 1, int(game_rounds * 0.50))
+        
+        min_chapters = min(min_chapters, 15)
+        max_chapters = min(max_chapters, 20)
+        
+        return min_chapters, max_chapters, game_rounds
 
     def generate_full_novel(self) -> dict:
         memory_content = load_memory()
@@ -49,7 +65,13 @@ class NovelService:
         if not memory_content:
             raise Exception("memory.md不存在，请先开始游戏")
 
-        prompt = NOVEL_TITLE_PROMPT.format(memory_content=memory_content)
+        min_chapters, max_chapters, game_rounds = self.calculate_chapter_range()
+        
+        prompt = NOVEL_TITLE_PROMPT.format(
+            memory_content=memory_content,
+            min_chapters=min_chapters,
+            max_chapters=max_chapters
+        )
 
         response = call_llm(prompt, "你是一个专业的小说策划师。", timeout=120)
         plan_data = parse_json_response(response)
@@ -69,6 +91,9 @@ class NovelService:
         if 'title' not in plan_data['chapters'][0]:
             raise Exception(f"LLM返回数据第一章缺少title字段")
 
+        plan_data['game_rounds'] = game_rounds
+        plan_data['chapter_range'] = {'min': min_chapters, 'max': max_chapters}
+
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         novel_folder = f"novel-{timestamp}"
         novels_dir = os.path.join(BASE_DIR, 'novels', novel_folder)
@@ -82,7 +107,9 @@ class NovelService:
 
         return {
             'novel_folder': novel_folder,
-            'plan': plan_data
+            'plan': plan_data,
+            'game_rounds': game_rounds,
+            'chapter_range': {'min': min_chapters, 'max': max_chapters}
         }
 
     def generate_chapter(

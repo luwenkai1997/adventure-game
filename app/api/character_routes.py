@@ -1,6 +1,6 @@
 import os
 import json
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from app.models.character import (
     CharacterCreate,
@@ -215,6 +215,78 @@ async def api_generate_characters(request: GenerateCharactersRequest):
         print(f"生成角色时出错: {str(e)}")
         print(traceback.format_exc())
         return JSONResponse(status_code=500, content={'error': f'生成角色失败: {str(e)}'})
+
+
+@router.post("/api/npcs/generate")
+async def api_generate_npcs(request: Request):
+    """生成NPC - 在主角确认后调用"""
+    import asyncio
+    
+    try:
+        data = await request.json()
+        world_setting = data.get('world_setting', '')
+        protagonist_info = data.get('protagonist_info', {})
+        npc_count = data.get('npc_count', 10)
+        
+        if not world_setting:
+            return JSONResponse(status_code=400, content={'error': '缺少故事设定'})
+        
+        if not protagonist_info:
+            return JSONResponse(status_code=400, content={'error': '缺少主角信息'})
+        
+        async def generate_with_timeout():
+            return await asyncio.get_event_loop().run_in_executor(
+                None,
+                character_service.generate_npcs_with_llm,
+                world_setting,
+                protagonist_info,
+                npc_count
+            )
+        
+        try:
+            npcs = await asyncio.wait_for(generate_with_timeout(), timeout=180.0)
+        except asyncio.TimeoutError:
+            return JSONResponse(
+                status_code=504,
+                content={'error': 'NPC生成超时，请稍后重试'}
+            )
+        
+        if not npcs:
+            return JSONResponse(
+                status_code=500,
+                content={'error': '未能生成任何NPC'}
+            )
+        
+        saved_count = save_characters_batch(npcs)
+        
+        try:
+            relations = await asyncio.wait_for(
+                asyncio.get_event_loop().run_in_executor(
+                    None,
+                    character_service.generate_relations,
+                    npcs,
+                    world_setting
+                ),
+                timeout=60.0
+            )
+            for rel in relations:
+                add_relation(rel)
+        except asyncio.TimeoutError:
+            relations = []
+            print("关系生成超时，继续返回已生成的NPC")
+        
+        return JSONResponse(content={
+            'success': True,
+            'npcs_count': saved_count,
+            'relations_count': len(relations),
+            'npcs': npcs[:5],
+            'message': f'成功生成 {saved_count} 个NPC和 {len(relations)} 个关系'
+        })
+    except Exception as e:
+        import traceback
+        print(f"生成NPC时出错: {str(e)}")
+        print(traceback.format_exc())
+        return JSONResponse(status_code=500, content={'error': f'生成NPC失败: {str(e)}'})
 
 
 @router.post("/api/characters/batch-update")

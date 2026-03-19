@@ -5,7 +5,9 @@ from typing import Any
 from app.config import API_BASE_URL, API_MODEL, API_KEY
 
 
-def call_llm(prompt: str, system_prompt: str = None, timeout: int = 120) -> str:
+def call_llm(
+    prompt: str, system_prompt: str = None, timeout: int = 120, max_tokens: int = 4000
+) -> str:
     if system_prompt is None:
         system_prompt = "你是一个AI助手。"
 
@@ -16,7 +18,7 @@ def call_llm(prompt: str, system_prompt: str = None, timeout: int = 120) -> str:
 
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {API_KEY}"}
 
-    payload = {"model": API_MODEL, "messages": messages}
+    payload = {"model": API_MODEL, "messages": messages, "max_tokens": max_tokens}
 
     response = requests.post(
         f"{API_BASE_URL}/chat/completions",
@@ -80,6 +82,18 @@ def parse_json_response(content: str) -> Any:
     def repair_json(s: str) -> str:
         s = re.sub(r",\s*([\]}])", r"\1", s)
 
+        last_comma = s.rfind(",")
+        last_quote_close = s.rfind('"')
+
+        if last_comma > 0 and (last_quote_close < last_comma or last_quote_close == -1):
+            s = s[:last_comma]
+
+        if s.rstrip().endswith(":"):
+            s = s.rstrip()[:-1]
+
+        if s.rstrip().endswith('"') and s.count('"') % 2 != 0:
+            s = s.rstrip()[:-1]
+
         open_braces = s.count("{")
         close_braces = s.count("}")
         if open_braces > close_braces:
@@ -91,6 +105,9 @@ def parse_json_response(content: str) -> Any:
             s += "]" * (open_brackets - close_brackets)
 
         s = re.sub(r",\s*([\]}])", r"\1", s)
+
+        while s and s[-1] in [",", ":", " "]:
+            s = s[:-1]
 
         return s
 

@@ -42,6 +42,24 @@ class PlayerCharacter(BaseModel):
         return (value - 10) // 2
 
 
+class PlayerUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    age: Optional[int] = None
+    gender: Optional[str] = None
+    race: Optional[str] = None
+    title: Optional[str] = None
+    background: Optional[str] = None
+    appearance: Optional[str] = None
+    personality: Optional[str] = None
+    strength: Optional[int] = None
+    dexterity: Optional[int] = None
+    constitution: Optional[int] = None
+    intelligence: Optional[int] = None
+    wisdom: Optional[int] = None
+    charisma: Optional[int] = None
+    skills: Optional[List[Dict]] = None
+
+
 class PlayerCreateRequest(BaseModel):
     name: str
     age: Optional[int] = None

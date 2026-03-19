@@ -4,12 +4,12 @@ from typing import Optional
 from app.models.player import (
     PlayerCreateRequest,
     PlayerRandomRequest,
+    PlayerUpdateRequest,
     PRESET_SKILLS,
     ATTRIBUTE_NAMES_CN,
     ATTRIBUTE_NAMES_EN,
 )
 from app.services.player_service import PlayerService
-from app.models.character import CharacterUpdate
 from app.utils.file_storage import delete_player as delete_player_file
 
 
@@ -67,7 +67,7 @@ async def get_player():
 
 
 @router.put("/api/player")
-async def update_player(request: CharacterUpdate):
+async def update_player(request: PlayerUpdateRequest):
     try:
         updates = request.model_dump(exclude_none=True)
         player = player_service.update_player(updates)

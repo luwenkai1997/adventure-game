@@ -4159,46 +4159,47 @@
             return prompt;
         }
 
-        <div class="check-modal" id="check-modal">
-            <div class="check-modal-content">
-                <h2 class="check-title">🎲 骰子检定</h2>
-                <div class="dice-container">
-                    <div class="dice" id="dice-display">?</div>
-                </div>
-                <div class="check-info">
-                    <div class="check-info-item">
-                        <span class="check-info-label">D20</span>
-                        <span class="check-info-value" id="dice-roll">-</span>
-                    </div>
-                    <div class="check-info-item">
-                        <span class="check-info-label">修正值</span>
-                        <span class="check-info-value" id="dice-modifier">+0</span>
-                    </div>
-                    <div class="check-info-item">
-                        <span class="check-info-label">总计</span>
-                        <span class="check-info-value" id="dice-total">-</span>
-                    </div>
-                </div>
-                <div class="check-vs">VS 难度等级 (DC) <span id="dice-dc">12</span></div>
-                <div class="check-result" id="check-result-text"></div>
-            </div>
-        </div>
-
-        <div class="save-modal" id="save-modal">
-            <div class="save-modal-content">
-                <div class="save-modal-header">
-                    <h2>📁 游戏存档</h2>
-                    <button class="save-modal-close" onclick="closeSaveModal()">×</button>
-                </div>
-                <div class="save-slots" id="save-slots"></div>
-            </div>
-        </div>
-
-        <button class="undo-btn" id="undo-btn" onclick="undoMove()" disabled>
-            ↩️ 回退 <span class="undo-count" id="undo-count">0</span>
-        </button>
 
         initApp();
     </script>
+
+    <div class="check-modal" id="check-modal">
+        <div class="check-modal-content">
+            <h2 class="check-title">🎲 骰子检定</h2>
+            <div class="dice-container">
+                <div class="dice" id="dice-display">?</div>
+            </div>
+            <div class="check-info">
+                <div class="check-info-item">
+                    <span class="check-info-label">D20</span>
+                    <span class="check-info-value" id="dice-roll">-</span>
+                </div>
+                <div class="check-info-item">
+                    <span class="check-info-label">修正值</span>
+                    <span class="check-info-value" id="dice-modifier">+0</span>
+                </div>
+                <div class="check-info-item">
+                    <span class="check-info-label">总计</span>
+                    <span class="check-info-value" id="dice-total">-</span>
+                </div>
+            </div>
+            <div class="check-vs">VS 难度等级 (DC) <span id="dice-dc">12</span></div>
+            <div class="check-result" id="check-result-text"></div>
+        </div>
+    </div>
+
+    <div class="save-modal" id="save-modal">
+        <div class="save-modal-content">
+            <div class="save-modal-header">
+                <h2>📁 游戏存档</h2>
+                <button class="save-modal-close" onclick="closeSaveModal()">×</button>
+            </div>
+            <div class="save-slots" id="save-slots"></div>
+        </div>
+    </div>
+
+    <button class="undo-btn" id="undo-btn" onclick="undoMove()" disabled>
+        ↩️ 回退 <span class="undo-count" id="undo-count">0</span>
+    </button>
 </body>
 </html>

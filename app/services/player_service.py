@@ -173,6 +173,44 @@ class PlayerService:
         if not player_data:
             return None
 
+        if "skills" in updates and isinstance(updates["skills"], list):
+            from app.models.player import PRESET_SKILLS
+            from uuid import uuid4
+
+            processed_skills = []
+            for skill_update in updates["skills"]:
+                if isinstance(skill_update, dict):
+                    skill_name = skill_update.get("name", "")
+                    skill_level = skill_update.get("level", 1)
+
+                    skill_info = self._find_skill_info(skill_name)
+                    if skill_info:
+                        processed_skill = {
+                            "id": skill_update.get("id", f"skill_{uuid4().hex[:6]}"),
+                            "name": skill_name,
+                            "category": skill_info["category"],
+                            "level": skill_level,
+                            "description": skill_info["description"],
+                            "related_attribute": skill_info["related_attribute"],
+                        }
+                        processed_skills.append(processed_skill)
+                    else:
+                        processed_skill = {
+                            "id": skill_update.get("id", f"skill_{uuid4().hex[:6]}"),
+                            "name": skill_name,
+                            "category": skill_update.get("category", "general"),
+                            "level": skill_level,
+                            "description": skill_update.get("description", ""),
+                            "related_attribute": skill_update.get(
+                                "related_attribute", "strength"
+                            ),
+                        }
+                        processed_skills.append(processed_skill)
+                else:
+                    processed_skills.append(skill_update)
+
+            updates["skills"] = processed_skills
+
         player_data.update(updates)
         player_data["updated_at"] = datetime.now().isoformat()
 
@@ -230,6 +268,17 @@ class PlayerService:
                         description=skill_data["description"],
                         related_attribute=skill_data["related_attribute"],
                     )
+        return None
+
+    def _find_skill_info(self, name: str) -> Optional[dict]:
+        for category, skills in PRESET_SKILLS.items():
+            for skill_data in skills:
+                if skill_data["name"] == name:
+                    return {
+                        "category": category,
+                        "description": skill_data["description"],
+                        "related_attribute": skill_data["related_attribute"],
+                    }
         return None
 
     def get_skill_modifier(self, skill_name: str) -> int:

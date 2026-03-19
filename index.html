@@ -1176,6 +1176,147 @@
             max-width: 900px;
         }
 
+        .review-container {
+            max-width: 900px;
+            background: rgba(0, 20, 40, 0.8);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 8px;
+            padding: 30px;
+        }
+
+        .review-section {
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(0, 255, 136, 0.1);
+        }
+
+        .review-section:last-of-type {
+            border-bottom: none;
+            margin-bottom: 15px;
+        }
+
+        .review-section h3 {
+            color: #00ff88;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .points-info {
+            font-size: 0.9rem;
+            color: #00ccff;
+        }
+
+        .review-container .form-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+
+        .review-container .form-group {
+            margin-bottom: 15px;
+        }
+
+        .review-container label {
+            display: block;
+            color: #aaffcc;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+        }
+
+        .review-container input[type="text"],
+        .review-container input[type="number"],
+        .review-container textarea,
+        .review-container select {
+            width: 100%;
+            padding: 10px 12px;
+            background: rgba(0, 255, 136, 0.05);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            border-radius: 4px;
+            color: #fff;
+            font-size: 0.95rem;
+            font-family: inherit;
+        }
+
+        .review-container input:focus,
+        .review-container textarea:focus,
+        .review-container select:focus {
+            outline: none;
+            border-color: #00ff88;
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.2);
+        }
+
+        .review-container textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        .attribute-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+        }
+
+        .attribute-grid .attribute-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .attribute-grid input {
+            width: 100%;
+            padding: 8px 10px;
+            background: rgba(0, 255, 136, 0.05);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            border-radius: 4px;
+            color: #00ff88;
+            font-size: 1.1rem;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        #review-skills-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            min-height: 40px;
+            padding: 10px;
+            background: rgba(0, 255, 136, 0.03);
+            border-radius: 4px;
+        }
+
+        #review-skills-container .skill-tag {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
+
+        #review-skills-container .skill-tag .skill-name {
+            color: #00ff88;
+        }
+
+        #review-skills-container .skill-tag .skill-level {
+            color: #00ccff;
+            font-size: 0.85rem;
+        }
+
+        #review-skills-container .skill-tag .remove-skill {
+            background: none;
+            border: none;
+            color: #ff4444;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 0;
+            margin-left: 5px;
+        }
+
         .character-creation-container {
             background: rgba(0, 20, 40, 0.8);
             border: 1px solid rgba(0, 255, 136, 0.3);
@@ -1875,6 +2016,102 @@
             </div>
         </div>
 
+        <div id="character-review-screen" class="screen">
+            <div class="title">
+                <h1>确认主角信息</h1>
+                <p class="subtitle">根据世界观生成的角色，你可以修改以下信息</p>
+            </div>
+            <div class="review-container">
+                <div class="review-section">
+                    <h3>基本信息</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>角色名称 *</label>
+                            <input type="text" id="review-name" required>
+                        </div>
+                        <div class="form-group">
+                            <label>年龄</label>
+                            <input type="number" id="review-age" min="16" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label>性别</label>
+                            <select id="review-gender">
+                                <option value="">选择性别</option>
+                                <option value="男">男</option>
+                                <option value="女">女</option>
+                                <option value="其他">其他</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>种族</label>
+                            <input type="text" id="review-race" placeholder="如：人类、精灵等">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>称号</label>
+                        <input type="text" id="review-title" placeholder="角色的称号或职业">
+                    </div>
+                </div>
+
+                <div class="review-section">
+                    <h3>外貌与背景</h3>
+                    <div class="form-group">
+                        <label>外貌描述</label>
+                        <textarea id="review-appearance" rows="3" placeholder="描述角色的外貌特征"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>背景故事</label>
+                        <textarea id="review-background" rows="4" placeholder="描述角色的过去经历和来历"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>性格特点</label>
+                        <textarea id="review-personality" rows="2" placeholder="描述角色的性格特征"></textarea>
+                    </div>
+                </div>
+
+                <div class="review-section">
+                    <h3>属性值 <span class="points-info" id="review-points-info">总点数: 0</span></h3>
+                    <div class="attribute-grid">
+                        <div class="attribute-item">
+                            <label>力量</label>
+                            <input type="number" id="review-strength" min="1" max="30" value="10" onchange="updateReviewPoints()">
+                        </div>
+                        <div class="attribute-item">
+                            <label>敏捷</label>
+                            <input type="number" id="review-dexterity" min="1" max="30" value="10" onchange="updateReviewPoints()">
+                        </div>
+                        <div class="attribute-item">
+                            <label>体质</label>
+                            <input type="number" id="review-constitution" min="1" max="30" value="10" onchange="updateReviewPoints()">
+                        </div>
+                        <div class="attribute-item">
+                            <label>智力</label>
+                            <input type="number" id="review-intelligence" min="1" max="30" value="10" onchange="updateReviewPoints()">
+                        </div>
+                        <div class="attribute-item">
+                            <label>感知</label>
+                            <input type="number" id="review-wisdom" min="1" max="30" value="10" onchange="updateReviewPoints()">
+                        </div>
+                        <div class="attribute-item">
+                            <label>魅力</label>
+                            <input type="number" id="review-charisma" min="1" max="30" value="10" onchange="updateReviewPoints()">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="review-section">
+                    <h3>技能</h3>
+                    <div id="review-skills-container"></div>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn" onclick="confirmCharacterReview()">确认并开始冒险</button>
+                    <button class="btn btn-secondary" onclick="regenerateCharacter()">重新生成</button>
+                    <button class="btn btn-secondary" onclick="showStartScreen()">返回</button>
+                </div>
+            </div>
+        </div>
+
         <div id="start-screen" class="screen active">
             <div class="title">
                 <h1>文字冒险</h1>
@@ -2413,6 +2650,159 @@
             document.getElementById('start-screen').classList.add('active');
         }
 
+        function showCharacterReviewScreen() {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById('character-review-screen').classList.add('active');
+            loadCharacterForReview();
+        }
+
+        async function loadCharacterForReview() {
+            try {
+                const response = await fetch('/api/player');
+                const data = await response.json();
+                
+                if (data.exists && data.player) {
+                    const player = data.player;
+                    
+                    document.getElementById('review-name').value = player.name || '';
+                    document.getElementById('review-age').value = player.age || '';
+                    document.getElementById('review-gender').value = player.gender || '';
+                    document.getElementById('review-race').value = player.race || '';
+                    document.getElementById('review-title').value = player.title || '';
+                    document.getElementById('review-appearance').value = player.appearance || '';
+                    document.getElementById('review-background').value = player.background || '';
+                    document.getElementById('review-personality').value = player.personality || '';
+                    
+                    document.getElementById('review-strength').value = player.strength || 10;
+                    document.getElementById('review-dexterity').value = player.dexterity || 10;
+                    document.getElementById('review-constitution').value = player.constitution || 10;
+                    document.getElementById('review-intelligence').value = player.intelligence || 10;
+                    document.getElementById('review-wisdom').value = player.wisdom || 10;
+                    document.getElementById('review-charisma').value = player.charisma || 10;
+                    
+                    updateReviewPoints();
+                    
+                    const skillsContainer = document.getElementById('review-skills-container');
+                    skillsContainer.innerHTML = '';
+                    
+                    if (player.skills && player.skills.length > 0) {
+                        player.skills.forEach((skill, index) => {
+                            const skillTag = document.createElement('div');
+                            skillTag.className = 'skill-tag';
+                            skillTag.innerHTML = `
+                                <span class="skill-name">${skill.name}</span>
+                                <span class="skill-level">Lv.${skill.level || 1}</span>
+                                <button class="remove-skill" onclick="removeReviewSkill(${index})">×</button>
+                            `;
+                            skillsContainer.appendChild(skillTag);
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('加载主角信息失败:', error);
+            }
+        }
+
+        function updateReviewPoints() {
+            const str = parseInt(document.getElementById('review-strength').value) || 0;
+            const dex = parseInt(document.getElementById('review-dexterity').value) || 0;
+            const con = parseInt(document.getElementById('review-constitution').value) || 0;
+            const int = parseInt(document.getElementById('review-intelligence').value) || 0;
+            const wis = parseInt(document.getElementById('review-wisdom').value) || 0;
+            const cha = parseInt(document.getElementById('review-charisma').value) || 0;
+            
+            const total = str + dex + con + int + wis + cha;
+            document.getElementById('review-points-info').textContent = `总点数: ${total}`;
+        }
+
+        function removeReviewSkill(index) {
+            const skillsContainer = document.getElementById('review-skills-container');
+            const skillTags = skillsContainer.querySelectorAll('.skill-tag');
+            if (skillTags[index]) {
+                skillTags[index].remove();
+            }
+        }
+
+        async function confirmCharacterReview() {
+            const name = document.getElementById('review-name').value.trim();
+            if (!name) {
+                alert('请输入角色名称');
+                return;
+            }
+            
+            const skills = [];
+            document.querySelectorAll('#review-skills-container .skill-tag').forEach(tag => {
+                const skillName = tag.querySelector('.skill-name').textContent;
+                const levelText = tag.querySelector('.skill-level').textContent;
+                const level = parseInt(levelText.replace('Lv.', '')) || 1;
+                skills.push({ name: skillName, level: level });
+            });
+            
+            const playerData = {
+                name: name,
+                age: parseInt(document.getElementById('review-age').value) || null,
+                gender: document.getElementById('review-gender').value || null,
+                race: document.getElementById('review-race').value || null,
+                title: document.getElementById('review-title').value || '',
+                appearance: document.getElementById('review-appearance').value || '',
+                background: document.getElementById('review-background').value || '',
+                personality: document.getElementById('review-personality').value || '',
+                strength: parseInt(document.getElementById('review-strength').value) || 10,
+                dexterity: parseInt(document.getElementById('review-dexterity').value) || 10,
+                constitution: parseInt(document.getElementById('review-constitution').value) || 10,
+                intelligence: parseInt(document.getElementById('review-intelligence').value) || 10,
+                wisdom: parseInt(document.getElementById('review-wisdom').value) || 10,
+                charisma: parseInt(document.getElementById('review-charisma').value) || 10,
+                skills: skills
+            };
+            
+            try {
+                const response = await fetch('/api/player', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(playerData)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    playerCharacter = result.player;
+                    await startGameWithCharacter();
+                } else {
+                    alert('保存失败: ' + (result.error || '未知错误'));
+                }
+            } catch (error) {
+                console.error('保存主角信息失败:', error);
+                alert('保存失败');
+            }
+        }
+
+        async function regenerateCharacter() {
+            const worldSetting = document.getElementById('world-setting').value.trim();
+            if (!worldSetting) {
+                alert('请先输入世界观设定');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/player/random', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ world_setting: worldSetting })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    playerCharacter = data.player;
+                    loadCharacterForReview();
+                } else {
+                    alert('重新生成失败: ' + (data.error || '未知错误'));
+                }
+            } catch (error) {
+                console.error('重新生成角色失败:', error);
+                alert('重新生成失败');
+            }
+        }
+
         function togglePlayerPanel() {
             const panel = document.getElementById('player-panel');
             panel.classList.toggle('open');
@@ -2834,6 +3224,56 @@
                 return;
             }
 
+            document.getElementById('loading-overlay')?.remove();
+            const overlay = document.createElement('div');
+            overlay.id = 'loading-overlay';
+            overlay.innerHTML = '<div class="loading-spinner"></div><div>正在生成角色，请稍候...</div>';
+            overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);color:#00ff88;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:monospace;';
+            document.body.appendChild(overlay);
+
+            try {
+                await fetch('/api/save-memory', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ worldSetting: worldSetting })
+                });
+                
+                const charResponse = await fetch('/api/characters/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ world_setting: worldSetting })
+                });
+                const charData = await charResponse.json();
+                console.log('NPC生成结果:', charData.message || (charData.error ? '生成失败: ' + charData.error : '生成成功'));
+                
+                await loadCharactersList();
+                
+                const playerResponse = await fetch('/api/player');
+                const playerData = await playerResponse.json();
+                
+                if (!playerData.exists) {
+                    const randomResponse = await fetch('/api/player/random', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ world_setting: worldSetting })
+                    });
+                    const randomData = await randomResponse.json();
+                    if (randomData.success) {
+                        playerCharacter = randomData.player;
+                    }
+                } else {
+                    playerCharacter = playerData.player;
+                }
+            } catch (e) {
+                console.error('初始化过程出错:', e);
+            } finally {
+                document.getElementById('loading-overlay')?.remove();
+            }
+
+            showCharacterReviewScreen();
+        }
+
+        async function startGameWithCharacter() {
             messages = [];
             chapter = 1;
             logs = [];
@@ -2861,23 +3301,9 @@
             document.body.appendChild(overlay);
 
             try {
-                await fetch('/api/save-memory', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ worldSetting: worldSetting })
-                });
-                
-                const charResponse = await fetch('/api/characters/generate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ world_setting: worldSetting })
-                });
-                const charData = await charResponse.json();
-                console.log('角色生成结果:', charData.message || (charData.error ? '生成失败: ' + charData.error : '生成成功'));
-                
                 await loadCharactersList();
             } catch (e) {
-                console.error('初始化过程出错:', e);
+                console.error('加载角色列表出错:', e);
             } finally {
                 document.getElementById('loading-overlay')?.remove();
             }

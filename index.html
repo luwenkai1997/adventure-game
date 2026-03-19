@@ -16,6 +16,20 @@
             src: local('SF Mono'), local('Monaco'), local('Consolas'), local('Liberation Mono'), local('Courier New');
         }
 
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(0, 255, 136, 0.2);
+            border-top-color: #00ff88;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
         body {
             font-family: 'LocalMono', 'Courier New', monospace;
             background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0f0f1a 100%);
@@ -1602,6 +1616,13 @@
             document.getElementById('log-container').innerHTML = '';
             document.getElementById('custom-choice-container').style.display = 'flex';
 
+            document.getElementById('loading-overlay')?.remove();
+            const overlay = document.createElement('div');
+            overlay.id = 'loading-overlay';
+            overlay.innerHTML = '<div class="loading-spinner"></div><div>正在初始化游戏，请稍候...</div>';
+            overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);color:#00ff88;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:monospace;';
+            document.body.appendChild(overlay);
+
             try {
                 await fetch('/api/save-memory', {
                     method: 'POST',
@@ -1609,21 +1630,19 @@
                     body: JSON.stringify({ worldSetting: worldSetting })
                 });
                 
-                // 自动生成20个角色卡片
                 const charResponse = await fetch('/api/characters/generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ world_setting: worldSetting })
                 });
                 const charData = await charResponse.json();
-                console.log('角色生成结果:', charData.message || '生成成功');
+                console.log('角色生成结果:', charData.message || (charData.error ? '生成失败: ' + charData.error : '生成成功'));
                 
-                // 刷新角色列表
                 await loadCharactersList();
             } catch (e) {
-                console.error('保存世界观失败:', e);
-                showError('保存世界观失败', '无法连接到服务器，请检查网络连接后重试。');
-                return;
+                console.error('初始化过程出错:', e);
+            } finally {
+                document.getElementById('loading-overlay')?.remove();
             }
 
             messages.push({
@@ -2036,6 +2055,11 @@
 
                 const novelFolder = planData.novel_folder;
                 const plan = planData.plan;
+                
+                if (!plan || !plan.chapters || !Array.isArray(plan.chapters)) {
+                    throw new Error('小说规划数据格式错误：缺少 chapters 字段或格式不正确');
+                }
+                
                 const totalChapters = plan.total_chapters || plan.chapters.length;
 
                 progressTitle.textContent = `《${plan.title}》`;

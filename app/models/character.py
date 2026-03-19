@@ -175,11 +175,11 @@ class CharacterGenerationConfig(BaseModel):
     world_setting: str
     genre: str = "fantasy"
     tone: str = "serious"
-    total_characters: int = 20
+    total_characters: int = 3
     protagonist_count: int = 1
-    antagonist_count: int = 2
-    supporting_count: int = 7
-    npc_count: int = 10
+    antagonist_count: int = 1
+    supporting_count: int = 1
+    npc_count: int = 0
     power_level: str = "medium"
     complexity: str = "medium"
     include_romance: bool = True

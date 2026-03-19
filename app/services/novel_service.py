@@ -54,6 +54,21 @@ class NovelService:
         response = call_llm(prompt, "你是一个专业的小说策划师。", timeout=120)
         plan_data = parse_json_response(response)
 
+        if plan_data is None:
+            raise Exception(f"LLM返回了null内容，原始响应: {response[:500]}")
+        if not isinstance(plan_data, dict):
+            raise Exception(f"LLM返回格式错误：期望JSON对象，实际为{type(plan_data)}，内容: {str(plan_data)[:200]}")
+        if 'title' not in plan_data:
+            raise Exception(f"LLM返回数据缺少title字段: {str(plan_data)[:200]}")
+        if 'chapters' not in plan_data:
+            raise Exception(f"LLM返回数据缺少chapters字段: {str(plan_data)[:200]}")
+        if not isinstance(plan_data['chapters'], list):
+            raise Exception(f"LLM返回数据chapters不是数组: {str(plan_data)[:200]}")
+        if len(plan_data['chapters']) == 0:
+            raise Exception(f"LLM返回数据chapters为空数组")
+        if 'title' not in plan_data['chapters'][0]:
+            raise Exception(f"LLM返回数据第一章缺少title字段")
+
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         novel_folder = f"novel-{timestamp}"
         novels_dir = os.path.join(BASE_DIR, 'novels', novel_folder)
@@ -121,6 +136,8 @@ class NovelService:
                 previous_context=previous_context,
                 ending_type=ending_type
             )
+            chapter_content = call_llm(prompt, "你是一个专业的小说作家。", timeout=180)
+            chapter_filename = "ending.md"
         else:
             prompt = NOVEL_CHAPTER_PROMPT.format(
                 novel_title=novel_title,
@@ -131,10 +148,9 @@ class NovelService:
                 chapter_summary=chapter_summary,
                 continuation_requirement=continuation_requirement
             )
+            chapter_content = call_llm(prompt, "你是一个专业的小说作家。", timeout=180)
+            chapter_filename = f"chapter_{chapter_num:02d}.md"
 
-        chapter_content = call_llm(prompt, "你是一个专业的小说作家。", timeout=180)
-
-        chapter_filename = f"chapter_{chapter_num:02d}.md"
         chapter_path = os.path.join(chapters_dir, chapter_filename)
         with open(chapter_path, 'w', encoding='utf-8') as f:
             f.write(chapter_content)
@@ -165,7 +181,7 @@ class NovelService:
         chapter_files = sorted([f for f in os.listdir(chapters_dir) if f.endswith('.md')])
 
         if not chapter_files:
-            raise Exception("没有找到章节文件")
+            raise Exception(f"没有找到章节文件。请检查novel_folder是否正确: {novel_folder}，章节目录: {chapters_dir}")
 
         merged_content = f"# {novel_title}\n\n"
 

@@ -1,10 +1,19 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from app.services.novel_service import NovelService
 
 
 router = APIRouter()
 novel_service = NovelService()
+
+
+class ChapterRequest(BaseModel):
+    novel_folder: str
+    chapter_num: int
+    chapter_title: str
+    chapter_summary: str
+    ending_type: str = ""
 
 
 @router.post("/api/generate-novel")
@@ -26,20 +35,14 @@ async def plan_novel():
 
 
 @router.post("/api/novel/chapter")
-async def generate_chapter(
-    novel_folder: str,
-    chapter_num: int,
-    chapter_title: str,
-    chapter_summary: str,
-    ending_type: str = ""
-):
+async def generate_chapter(request: ChapterRequest):
     try:
         result = novel_service.generate_chapter(
-            novel_folder,
-            chapter_num,
-            chapter_title,
-            chapter_summary,
-            ending_type
+            request.novel_folder,
+            request.chapter_num,
+            request.chapter_title,
+            request.chapter_summary,
+            request.ending_type
         )
         return JSONResponse(content=result)
     except Exception as e:
@@ -47,7 +50,7 @@ async def generate_chapter(
 
 
 @router.post("/api/novel/merge")
-async def merge_novel(novel_folder: str):
+async def merge_novel(novel_folder: str = Query(...)):
     try:
         result = novel_service.merge_novel(novel_folder)
         return JSONResponse(content=result)

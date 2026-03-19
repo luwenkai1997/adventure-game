@@ -12,6 +12,9 @@ RELATIONS_FILE = os.path.join(CHARACTERS_DIR, "relations.json")
 NOVELS_DIR = os.path.join(BASE_DIR, "novels")
 SNAPSHOTS_DIR = os.path.join(DATA_DIR, "snapshots")
 PLAYER_DIR = os.path.join(DATA_DIR, "player")
+SAVES_DIR = os.path.join(DATA_DIR, "saves")
+MAX_SAVE_SLOTS = 5
+MAX_HISTORY_STEPS = 10
 
 API_BASE_URL = os.getenv("API_BASE_URL")
 API_MODEL = os.getenv("API_MODEL")

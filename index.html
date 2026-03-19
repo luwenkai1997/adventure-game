@@ -1613,6 +1613,148 @@
             margin-left: 8px;
             font-size: 0.9em;
         }
+
+        .save-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        .save-modal.active {
+            display: flex;
+        }
+
+        .save-modal-content {
+            background: rgba(0, 20, 40, 0.95);
+            border: 2px solid #00ff88;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 700px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .save-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .save-modal-header h2 {
+            color: #00ff88;
+            margin: 0;
+        }
+
+        .save-modal-close {
+            background: none;
+            border: none;
+            color: #00ff88;
+            font-size: 2rem;
+            cursor: pointer;
+        }
+
+        .save-slots {
+            display: grid;
+            gap: 15px;
+        }
+
+        .save-slot {
+            background: rgba(0, 255, 136, 0.05);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            border-radius: 8px;
+            padding: 15px;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 10px;
+        }
+
+        .save-slot.empty {
+            opacity: 0.5;
+            border-style: dashed;
+        }
+
+        .save-slot-info h3 {
+            color: #00ff88;
+            margin: 0 0 5px 0;
+            font-size: 1.1rem;
+        }
+
+        .save-slot-info p {
+            color: #888;
+            margin: 0;
+            font-size: 0.85rem;
+        }
+
+        .save-slot-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .save-slot-actions button {
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        .save-slot-actions .btn-save {
+            background: rgba(0, 255, 136, 0.2);
+            border: 1px solid #00ff88;
+            color: #00ff88;
+        }
+
+        .save-slot-actions .btn-load {
+            background: rgba(0, 200, 255, 0.2);
+            border: 1px solid #00ccff;
+            color: #00ccff;
+        }
+
+        .save-slot-actions .btn-delete {
+            background: rgba(255, 68, 68, 0.2);
+            border: 1px solid #ff4444;
+            color: #ff4444;
+        }
+
+        .undo-btn {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            color: #00ff88;
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .undo-btn:hover {
+            background: rgba(0, 255, 136, 0.2);
+        }
+
+        .undo-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .undo-count {
+            background: rgba(0, 255, 136, 0.3);
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+        }
     </style>
 </head>
 <body>
@@ -1757,6 +1899,7 @@
                 </div>
                 <button class="player-panel-btn" id="player-panel-btn" onclick="togglePlayerPanel()">👤 角色</button>
                 <button class="characters-btn" onclick="toggleCharacterPanel()">👥 NPC</button>
+                <button class="player-panel-btn" onclick="showSaveModal()">💾 存档</button>
                 <button class="end-game-btn" id="end-game-btn" onclick="triggerEnding()">结束游戏</button>
             </div>
             <div id="player-panel" class="player-panel">
@@ -3719,6 +3862,350 @@
             } else {
                 showStartScreen();
             }
+            updateUndoButton();
+        }
+
+        let saveSlots = [];
+
+        async function loadSaveSlots() {
+            try {
+                const response = await fetch('/api/save/list');
+                const data = await response.json();
+                if (data.success) {
+                    saveSlots = data.saves;
+                    renderSaveSlots();
+                }
+            } catch (error) {
+                console.error('加载存档列表失败:', error);
+            }
+        }
+
+        function renderSaveSlots() {
+            const container = document.getElementById('save-slots');
+            container.innerHTML = '';
+            
+            saveSlots.forEach(slot => {
+                const slotDiv = document.createElement('div');
+                slotDiv.className = 'save-slot' + (slot.has_save ? '' : ' empty');
+                
+                if (slot.has_save) {
+                    const date = new Date(slot.timestamp);
+                    const dateStr = date.toLocaleString('zh-CN');
+                    
+                    slotDiv.innerHTML = `
+                        <div class="save-slot-info">
+                            <h3>${slot.save_name}</h3>
+                            <p>章节: ${slot.chapter} | ${slot.world_setting || '无世界观'}</p>
+                            <p>时间: ${dateStr}</p>
+                        </div>
+                        <div class="save-slot-actions">
+                            <button class="btn-load" onclick="loadSave('${slot.slot_id}')">加载</button>
+                            <button class="btn-save" onclick="showSaveDialog('${slot.slot_id}')">覆盖</button>
+                            <button class="btn-delete" onclick="deleteSave('${slot.slot_id}')">删除</button>
+                        </div>
+                    `;
+                } else {
+                    slotDiv.innerHTML = `
+                        <div class="save-slot-info">
+                            <h3>${slot.save_name}</h3>
+                            <p>空存档位</p>
+                        </div>
+                        <div class="save-slot-actions">
+                            <button class="btn-save" onclick="showSaveDialog('${slot.slot_id}')">新建存档</button>
+                        </div>
+                    `;
+                }
+                
+                container.appendChild(slotDiv);
+            });
+        }
+
+        function showSaveModal() {
+            loadSaveSlots();
+            document.getElementById('save-modal').classList.add('active');
+        }
+
+        function closeSaveModal() {
+            document.getElementById('save-modal').classList.remove('active');
+        }
+
+        function showSaveDialog(slotId) {
+            const saveName = prompt('请输入存档名称:', `存档 ${slotId}`);
+            if (saveName) {
+                saveGame(slotId, saveName);
+            }
+        }
+
+        async function saveGame(slotId, saveName) {
+            try {
+                const saveData = {
+                    slot_id: slotId,
+                    save_name: saveName,
+                    world_setting: worldSetting,
+                    chapter: chapter,
+                    messages: messages,
+                    logs: logs,
+                    current_scene: currentScene,
+                    current_choices: currentChoices,
+                    player: playerCharacter,
+                    characters: window.charactersData || [],
+                    relations: window.relationsData || [],
+                    ending_triggered: endingTriggered,
+                    ending_countdown: endingCountdown,
+                    selected_ending_type: selectedEndingType,
+                    preview_scene: currentScene ? currentScene.substring(0, 100) : ''
+                };
+
+                const response = await fetch(`/api/save/${slotId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(saveData)
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    alert('存档成功!');
+                    loadSaveSlots();
+                    pushHistory({
+                        chapter: chapter,
+                        current_scene: currentScene,
+                        current_choices: currentChoices,
+                        player: playerCharacter
+                    });
+                }
+            } catch (error) {
+                console.error('保存失败:', error);
+                alert('保存失败');
+            }
+        }
+
+        async function loadSave(slotId) {
+            try {
+                const response = await fetch(`/api/save/load/${slotId}`);
+                const data = await response.json();
+                
+                if (data.success && data.save) {
+                    const save = data.save;
+                    
+                    messages = save.messages || [];
+                    chapter = save.chapter || 1;
+                    logs = save.logs || [];
+                    currentScene = save.current_scene;
+                    currentChoices = save.current_choices || [];
+                    worldSetting = save.world_setting || '';
+                    endingTriggered = save.ending_triggered || false;
+                    endingCountdown = save.ending_countdown || 0;
+                    selectedEndingType = save.selected_ending_type || '';
+                    playerCharacter = save.player || null;
+                    window.charactersData = save.characters || [];
+                    window.relationsData = save.relations || [];
+
+                    showScreen('game-screen');
+                    document.getElementById('chapter-num').textContent = chapter;
+                    
+                    const logContainer = document.getElementById('log-container');
+                    logContainer.innerHTML = '';
+                    logs.forEach(log => {
+                        const entry = document.createElement('div');
+                        entry.className = 'log-entry';
+                        entry.textContent = log;
+                        logContainer.appendChild(entry);
+                    });
+
+                    if (currentScene) {
+                        document.getElementById('scene-text').textContent = currentScene;
+                    }
+
+                    renderChoices(currentChoices, null);
+
+                    closeSaveModal();
+                    updatePlayerPanel();
+                    alert('加载成功!');
+                }
+            } catch (error) {
+                console.error('加载失败:', error);
+                alert('加载失败');
+            }
+        }
+
+        async function deleteSave(slotId) {
+            if (confirm('确定要删除这个存档吗?')) {
+                try {
+                    const response = await fetch(`/api/save/${slotId}`, {
+                        method: 'DELETE'
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        loadSaveSlots();
+                        alert('删除成功');
+                    }
+                } catch (error) {
+                    console.error('删除失败:', error);
+                    alert('删除失败');
+                }
+            }
+        }
+
+        async function pushHistory(snapshot) {
+            try {
+                await fetch('/api/history/undo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(snapshot)
+                });
+                updateUndoButton();
+            } catch (error) {
+                console.error('保存历史失败:', error);
+            }
+        }
+
+        async function undoMove() {
+            try {
+                const response = await fetch('/api/history/undo', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.success && data.snapshot) {
+                    const snapshot = data.snapshot;
+                    
+                    messages = snapshot.messages || [];
+                    chapter = snapshot.chapter || 1;
+                    currentScene = snapshot.current_scene;
+                    currentChoices = snapshot.current_choices || [];
+                    playerCharacter = snapshot.player || null;
+
+                    logs = logs.slice(0, chapter - 1);
+                    
+                    document.getElementById('chapter-num').textContent = chapter;
+                    
+                    const logContainer = document.getElementById('log-container');
+                    if (logs.length > 0) {
+                        logContainer.innerHTML = '';
+                        logs.forEach(log => {
+                            const entry = document.createElement('div');
+                            entry.className = 'log-entry';
+                            entry.textContent = log;
+                            logContainer.appendChild(entry);
+                        });
+                    }
+
+                    if (currentScene) {
+                        document.getElementById('scene-text').textContent = currentScene;
+                    }
+
+                    renderChoices(currentChoices, null);
+                    updatePlayerPanel();
+                    updateUndoButton();
+                }
+            } catch (error) {
+                console.error('回退失败:', error);
+                alert('回退失败');
+            }
+        }
+
+        async function updateUndoButton() {
+            try {
+                const response = await fetch('/api/history/count');
+                const data = await response.json();
+                if (data.success) {
+                    const count = data.count;
+                    const undoBtn = document.getElementById('undo-btn');
+                    const undoCount = document.getElementById('undo-count');
+                    if (undoCount) {
+                        undoCount.textContent = count;
+                    }
+                    if (undoBtn) {
+                        undoBtn.disabled = count === 0;
+                    }
+                }
+            } catch (error) {
+                console.error('获取历史数量失败:', error);
+            }
+        }
+
+        function makeChoice(choice) {
+            pushHistory({
+                messages: JSON.parse(JSON.stringify(messages)),
+                chapter: chapter,
+                current_scene: currentScene,
+                current_choices: currentChoices ? JSON.parse(JSON.stringify(currentChoices)) : null,
+                player: playerCharacter ? JSON.parse(JSON.stringify(playerCharacter)) : null
+            });
+
+            messages.push({ role: 'user', content: choice });
+            
+            document.getElementById('choices-container').innerHTML = '';
+            setLoading(true);
+            
+            fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    messages: messages,
+                    extraPrompt: playerCharacter ? generatePlayerPrompt(playerCharacter) : ''
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) {
+                    showError('AI响应错误', data.error);
+                    setLoading(false);
+                    return;
+                }
+                
+                try {
+                    const response = JSON.parse(data.content);
+                    
+                    if (response.ending) {
+                        endingTriggered = true;
+                        showEnding(response.scene, response.ending);
+                    } else {
+                        chapter++;
+                        document.getElementById('chapter-num').textContent = chapter;
+                        currentScene = response.scene;
+                        currentChoices = response.choices;
+                        
+                        document.getElementById('scene-text').textContent = currentScene;
+                        renderChoices(currentChoices, null);
+                        
+                        addChapterLog(currentScene, currentChoices, choice, response.log);
+                    }
+                } catch (e) {
+                    showError('解析错误', '无法解析AI响应');
+                }
+                setLoading(false);
+            })
+            .catch(err => {
+                showError('网络错误', err.message);
+                setLoading(false);
+            });
+        }
+
+        function generatePlayerPrompt(player) {
+            if (!player) return '';
+            
+            let prompt = '\n\n【玩家角色信息】\n';
+            prompt += `姓名: ${player.name || '未知'}\n`;
+            if (player.race) prompt += `种族: ${player.race}\n`;
+            if (player.background) prompt += `背景: ${player.background}\n`;
+            
+            prompt += '\n属性:\n';
+            prompt += `- 力量 ${player.strength} (修正值: ${calculateModifier(player.strength) >= 0 ? '+' : ''}${calculateModifier(player.strength)})\n`;
+            prompt += `- 敏捷 ${player.dexterity} (修正值: ${calculateModifier(player.dexterity) >= 0 ? '+' : ''}${calculateModifier(player.dexterity)})\n`;
+            prompt += `- 体质 ${player.constitution} (修正值: ${calculateModifier(player.constitution) >= 0 ? '+' : ''}${calculateModifier(player.constitution)})\n`;
+            prompt += `- 智力 ${player.intelligence} (修正值: ${calculateModifier(player.intelligence) >= 0 ? '+' : ''}${calculateModifier(player.intelligence)})\n`;
+            prompt += `- 感知 ${player.wisdom} (修正值: ${calculateModifier(player.wisdom) >= 0 ? '+' : ''}${calculateModifier(player.wisdom)})\n`;
+            prompt += `- 魅力 ${player.charisma} (修正值: ${calculateModifier(player.charisma) >= 0 ? '+' : ''}${calculateModifier(player.charisma)})\n`;
+            
+            if (player.skills && player.skills.length > 0) {
+                prompt += '\n技能:\n';
+                player.skills.forEach(skill => {
+                    prompt += `- ${skill.name} (等级 ${skill.level})\n`;
+                });
+            }
+            
+            return prompt;
         }
 
         <div class="check-modal" id="check-modal">
@@ -3745,6 +4232,20 @@
                 <div class="check-result" id="check-result-text"></div>
             </div>
         </div>
+
+        <div class="save-modal" id="save-modal">
+            <div class="save-modal-content">
+                <div class="save-modal-header">
+                    <h2>📁 游戏存档</h2>
+                    <button class="save-modal-close" onclick="closeSaveModal()">×</button>
+                </div>
+                <div class="save-slots" id="save-slots"></div>
+            </div>
+        </div>
+
+        <button class="undo-btn" id="undo-btn" onclick="undoMove()" disabled>
+            ↩️ 回退 <span class="undo-count" id="undo-count">0</span>
+        </button>
 
         initApp();
     </script>

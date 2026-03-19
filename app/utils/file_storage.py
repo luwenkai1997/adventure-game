@@ -12,6 +12,7 @@ from app.config import (
     NOVELS_DIR,
     SNAPSHOTS_DIR,
     PLAYER_DIR,
+    SAVES_DIR,
 )
 
 
@@ -220,3 +221,62 @@ def delete_player() -> bool:
         os.remove(filepath)
         return True
     return False
+
+
+def get_or_create_saves_dir() -> str:
+    if not os.path.exists(SAVES_DIR):
+        os.makedirs(SAVES_DIR)
+    return SAVES_DIR
+
+
+def list_saves() -> List[dict]:
+    get_or_create_saves_dir()
+    saves = []
+    for filename in os.listdir(SAVES_DIR):
+        if filename.startswith("save_") and filename.endswith(".json"):
+            filepath = os.path.join(SAVES_DIR, filename)
+            with open(filepath, "r", encoding="utf-8") as f:
+                saves.append(json.load(f))
+    return sorted(saves, key=lambda x: x.get("timestamp", ""), reverse=True)
+
+
+def save_game_state(slot_id: str, data: dict) -> str:
+    get_or_create_saves_dir()
+    filepath = os.path.join(SAVES_DIR, f"save_{slot_id}.json")
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    return filepath
+
+
+def load_game_state(slot_id: str) -> Optional[dict]:
+    get_or_create_saves_dir()
+    filepath = os.path.join(SAVES_DIR, f"save_{slot_id}.json")
+    if os.path.exists(filepath):
+        with open(filepath, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return None
+
+
+def delete_game_save(slot_id: str) -> bool:
+    get_or_create_saves_dir()
+    filepath = os.path.join(SAVES_DIR, f"save_{slot_id}.json")
+    if os.path.exists(filepath):
+        os.remove(filepath)
+        return True
+    return False
+
+
+def save_history(history: List[dict]) -> None:
+    get_or_create_saves_dir()
+    filepath = os.path.join(SAVES_DIR, "history.json")
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(history, f, ensure_ascii=False, indent=2)
+
+
+def load_history() -> List[dict]:
+    get_or_create_saves_dir()
+    filepath = os.path.join(SAVES_DIR, "history.json")
+    if os.path.exists(filepath):
+        with open(filepath, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []

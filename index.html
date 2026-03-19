@@ -1476,6 +1476,143 @@
             font-size: 0.8rem;
             color: #aaffcc;
         }
+
+        .check-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        .check-modal.active {
+            display: flex;
+        }
+
+        .check-modal-content {
+            background: rgba(0, 20, 40, 0.95);
+            border: 2px solid #00ff88;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .check-title {
+            color: #00ff88;
+            font-size: 1.5rem;
+            margin-bottom: 30px;
+        }
+
+        .dice-container {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 30px;
+        }
+
+        .dice {
+            width: 120px;
+            height: 120px;
+            background: linear-gradient(135deg, #1a1a2e, #0f0f1a);
+            border: 3px solid #00ff88;
+            border-radius: 16px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 4rem;
+            font-weight: bold;
+            color: #00ff88;
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
+        }
+
+        .dice.rolling {
+            animation: diceRoll 0.1s linear infinite;
+        }
+
+        @keyframes diceRoll {
+            0% { transform: rotate(0deg); }
+            25% { transform: rotate(10deg); }
+            50% { transform: rotate(0deg); }
+            75% { transform: rotate(-10deg); }
+            100% { transform: rotate(0deg); }
+        }
+
+        .dice.critical {
+            border-color: #ffcc00;
+            box-shadow: 0 0 50px rgba(255, 204, 0, 0.5);
+            color: #ffcc00;
+        }
+
+        .dice.fumble {
+            border-color: #ff4444;
+            box-shadow: 0 0 50px rgba(255, 68, 68, 0.5);
+            color: #ff4444;
+        }
+
+        .check-info {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 20px;
+            font-size: 1.1rem;
+        }
+
+        .check-info-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .check-info-label {
+            color: #888;
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+        }
+
+        .check-info-value {
+            color: #00ff88;
+            font-weight: bold;
+            font-size: 1.3rem;
+        }
+
+        .check-vs {
+            color: #888;
+            font-size: 1rem;
+            margin-bottom: 15px;
+        }
+
+        .check-result {
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+
+        .check-result.success {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            color: #00ff88;
+        }
+
+        .check-result.failure {
+            background: rgba(255, 68, 68, 0.1);
+            border: 1px solid rgba(255, 68, 68, 0.3);
+            color: #ff6666;
+        }
+
+        .choice-btn.has-check::after {
+            content: '🎲';
+            margin-left: 8px;
+            font-size: 0.9em;
+        }
     </style>
 </head>
 <body>
@@ -2347,6 +2484,142 @@
             }
 
             console.log('游戏状态已恢复');
+        }
+
+        let currentCheckCallback = null;
+
+        async function performDiceCheck(attribute, skill, difficulty, description) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('check-modal');
+                const diceDisplay = document.getElementById('dice-display');
+                const diceRoll = document.getElementById('dice-roll');
+                const diceModifier = document.getElementById('dice-modifier');
+                const diceTotal = document.getElementById('dice-total');
+                const diceDC = document.getElementById('dice-dc');
+                const resultText = document.getElementById('check-result-text');
+                
+                modal.classList.add('active');
+                diceDisplay.textContent = '?';
+                diceDisplay.className = 'dice';
+                diceRoll.textContent = '-';
+                diceModifier.textContent = '+0';
+                diceTotal.textContent = '-';
+                diceDC.textContent = difficulty;
+                resultText.textContent = '';
+                resultText.className = 'check-result';
+                
+                currentCheckCallback = resolve;
+                
+                setTimeout(async () => {
+                    diceDisplay.classList.add('rolling');
+                    
+                    let rollInterval = setInterval(() => {
+                        diceDisplay.textContent = Math.floor(Math.random() * 20) + 1;
+                    }, 50);
+                    
+                    setTimeout(async () => {
+                        clearInterval(rollInterval);
+                        diceDisplay.classList.remove('rolling');
+                        
+                        try {
+                            const response = await fetch('/api/check', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    attribute: attribute,
+                                    skill: skill || '',
+                                    difficulty: difficulty,
+                                    description: description || ''
+                                })
+                            });
+                            
+                            const data = await response.json();
+                            if (data.success) {
+                                const result = data.result;
+                                
+                                diceRoll.textContent = result.roll;
+                                diceModifier.textContent = (result.modifier >= 0 ? '+' : '') + result.modifier + (result.skill_bonus > 0 ? `+${result.skill_bonus}` : '');
+                                diceTotal.textContent = result.total;
+                                
+                                if (result.critical) {
+                                    diceDisplay.classList.add('critical');
+                                    diceDisplay.textContent = '20';
+                                } else if (result.fumble) {
+                                    diceDisplay.classList.add('fumble');
+                                    diceDisplay.textContent = '1';
+                                }
+                                
+                                resultText.textContent = result.narrative;
+                                resultText.className = 'check-result ' + (result.success ? 'success' : 'failure');
+                                
+                                setTimeout(() => {
+                                    modal.classList.remove('active');
+                                    resolve(result);
+                                }, 2000);
+                            }
+                        } catch (error) {
+                            console.error('检定请求失败:', error);
+                            modal.classList.remove('active');
+                            resolve({ success: false, roll: 0 });
+                        }
+                    }, 1500);
+                }, 500);
+            });
+        }
+
+        function closeCheckModal() {
+            const modal = document.getElementById('check-modal');
+            modal.classList.remove('active');
+            if (currentCheckCallback) {
+                currentCheckCallback({ success: false, roll: 0 });
+                currentCheckCallback = null;
+            }
+        }
+
+        function makeChoiceWithCheck(choice, checkInfo) {
+            if (checkInfo) {
+                performDiceCheck(
+                    checkInfo.attribute,
+                    checkInfo.skill,
+                    checkInfo.difficulty,
+                    checkInfo.description
+                ).then(result => {
+                    if (result.success) {
+                        makeChoice(choice + '（检定成功）');
+                    } else {
+                        makeChoice(choice + '（检定失败）');
+                    }
+                });
+            } else {
+                makeChoice(choice);
+            }
+        }
+
+        function renderChoices(choices, checks) {
+            const choicesContainer = document.getElementById('choices-container');
+            choicesContainer.innerHTML = '';
+            
+            choices.forEach((choice, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'choice-btn';
+                if (checks && checks[index]) {
+                    btn.className += ' has-check';
+                }
+                btn.textContent = `${index + 1}. ${choice}`;
+                btn.onclick = () => makeChoiceWithCheck(choice, checks ? checks[index] : null);
+                choicesContainer.appendChild(btn);
+            });
+        }
+
+        async function getPlayerCheckInfo() {
+            try {
+                const response = await fetch('/api/check/info');
+                const data = await response.json();
+                return data.info || {};
+            } catch (error) {
+                console.error('获取玩家检定信息失败:', error);
+                return {};
+            }
         }
 
         function showScreen(screenId) {
@@ -3447,6 +3720,31 @@
                 showStartScreen();
             }
         }
+
+        <div class="check-modal" id="check-modal">
+            <div class="check-modal-content">
+                <h2 class="check-title">🎲 骰子检定</h2>
+                <div class="dice-container">
+                    <div class="dice" id="dice-display">?</div>
+                </div>
+                <div class="check-info">
+                    <div class="check-info-item">
+                        <span class="check-info-label">D20</span>
+                        <span class="check-info-value" id="dice-roll">-</span>
+                    </div>
+                    <div class="check-info-item">
+                        <span class="check-info-label">修正值</span>
+                        <span class="check-info-value" id="dice-modifier">+0</span>
+                    </div>
+                    <div class="check-info-item">
+                        <span class="check-info-label">总计</span>
+                        <span class="check-info-value" id="dice-total">-</span>
+                    </div>
+                </div>
+                <div class="check-vs">VS 难度等级 (DC) <span id="dice-dc">12</span></div>
+                <div class="check-result" id="check-result-text"></div>
+            </div>
+        </div>
 
         initApp();
     </script>

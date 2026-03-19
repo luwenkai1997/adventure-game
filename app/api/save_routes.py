@@ -55,6 +55,17 @@ async def delete_save(slot_id: str):
         return JSONResponse(status_code=500, content={"error": f"删除失败: {str(e)}"})
 
 
+@router.get("/api/save/load/{slot_id}")
+async def load_save_get(slot_id: str):
+    try:
+        save = save_service.load_save(slot_id)
+        if not save:
+            return JSONResponse(status_code=404, content={"error": "存档不存在"})
+        return JSONResponse(content={"success": True, "save": save})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"加载失败: {str(e)}"})
+
+
 @router.post("/api/save/load/{slot_id}")
 async def load_save(slot_id: str):
     try:
@@ -76,6 +87,17 @@ async def get_history():
     except Exception as e:
         return JSONResponse(
             status_code=500, content={"error": f"获取历史失败: {str(e)}"}
+        )
+
+
+@router.post("/api/history")
+async def push_history(snapshot: dict):
+    try:
+        save_service.push_history(snapshot)
+        return JSONResponse(content={"success": True})
+    except Exception as e:
+        return JSONResponse(
+            status_code=500, content={"error": f"保存历史失败: {str(e)}"}
         )
 
 

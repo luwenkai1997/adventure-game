@@ -3469,7 +3469,7 @@
                 card.className = 'character-card-mini';
                 card.onclick = () => showCharacterDetail(char.id);
                 
-                const statusClass = char.status || 'active';
+                const statusClass = (char.status && char.status.current_state) || char.status || 'active';
                 const statusText = statusClass === 'active' ? '活跃' : statusClass === 'inactive' ? '非活跃' : '已故';
                 
                 card.innerHTML = `
@@ -4056,7 +4056,7 @@
 
         async function pushHistory(snapshot) {
             try {
-                await fetch('/api/history/undo', {
+                await fetch('/api/history', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(snapshot)

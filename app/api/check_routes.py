@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
+import random
 from app.models.check import CheckRequest, get_difficulty_name, get_difficulty_color
 from app.services.check_service import CheckService
 
@@ -42,8 +43,6 @@ async def get_difficulty_info(dc: int):
 @router.get("/api/check/roll")
 async def roll_dice(dice: str = "d20"):
     try:
-        import random
-
         if dice.lower() == "d20":
             result = random.randint(1, 20)
         elif dice.lower() == "d12":

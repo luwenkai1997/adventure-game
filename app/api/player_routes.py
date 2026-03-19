@@ -10,6 +10,7 @@ from app.models.player import (
 )
 from app.services.player_service import PlayerService
 from app.models.character import CharacterUpdate
+from app.utils.file_storage import delete_player as delete_player_file
 
 
 router = APIRouter()
@@ -130,9 +131,7 @@ async def update_hp(delta: int):
 @router.delete("/api/player")
 async def delete_player():
     try:
-        from app.utils.file_storage import delete_player
-
-        if delete_player():
+        if delete_player_file():
             return JSONResponse(content={"success": True})
         return JSONResponse(status_code=404, content={"error": "玩家角色不存在"})
     except Exception as e:

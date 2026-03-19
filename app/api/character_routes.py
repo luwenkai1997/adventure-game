@@ -22,8 +22,9 @@ from app.utils.file_storage import (
     add_relation,
     update_relation,
     delete_relation,
+    save_relations,
 )
-from app.config import RELATION_TYPES
+from app.config import RELATION_TYPES, SNAPSHOTS_DIR
 
 
 router = APIRouter()
@@ -37,6 +38,68 @@ async def get_characters():
         return JSONResponse(content={'characters': characters})
     except Exception as e:
         return JSONResponse(status_code=500, content={'error': f'获取角色列表失败: {str(e)}'})
+
+
+@router.get("/api/characters/graph")
+async def get_character_graph():
+    try:
+        graph_data = character_service.get_character_graph()
+        return JSONResponse(content=graph_data)
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'获取关系图数据失败: {str(e)}'})
+
+
+@router.get("/api/characters/protagonist")
+async def get_protagonist():
+    try:
+        characters = load_characters()
+        protagonists = [c for c in characters if c.get('role_type') == 'protagonist']
+        return JSONResponse(content={'characters': protagonists})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'获取主角失败: {str(e)}'})
+
+
+@router.get("/api/characters/antagonists")
+async def get_antagonists():
+    try:
+        characters = load_characters()
+        antagonists = [c for c in characters if c.get('role_type') == 'antagonist']
+        return JSONResponse(content={'characters': antagonists})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'获取反派失败: {str(e)}'})
+
+
+@router.get("/api/characters/inject-context")
+async def inject_character_context(character_ids: str = ""):
+    try:
+        ids = [id.strip() for id in character_ids.split(",") if id.strip()]
+        context = character_service.get_character_context(ids)
+        return JSONResponse(content={'context': context})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'注入上下文失败: {str(e)}'})
+
+
+@router.get("/api/characters/by-role/{role_type}")
+async def get_characters_by_role(role_type: str):
+    try:
+        characters = load_characters()
+        filtered = [c for c in characters if c.get('role_type', 'npc') == role_type]
+        return JSONResponse(content={'characters': filtered, 'count': len(filtered)})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'获取角色失败: {str(e)}'})
+
+
+@router.get("/api/characters/snapshot/{chapter}")
+async def get_character_snapshot(chapter: int):
+    try:
+        snapshot_path = os.path.join(SNAPSHOTS_DIR, f'chapter_{chapter:03d}.json')
+        if os.path.exists(snapshot_path):
+            with open(snapshot_path, 'r', encoding='utf-8') as f:
+                snapshot = json.load(f)
+            return JSONResponse(content={'snapshot': snapshot})
+        return JSONResponse(status_code=404, content={'error': '快照不存在'})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': f'获取快照失败: {str(e)}'})
 
 
 @router.get("/api/characters/{char_id}")
@@ -82,51 +145,11 @@ async def del_character(char_id: str):
         if delete_character(char_id):
             relations = load_relations()
             relations = [r for r in relations if r['source_id'] != char_id and r['target_id'] != char_id]
-            from app.utils.file_storage import save_relations
             save_relations(relations)
             return JSONResponse(content={'success': True})
         return JSONResponse(status_code=404, content={'error': '角色不存在'})
     except Exception as e:
         return JSONResponse(status_code=500, content={'error': f'删除角色失败: {str(e)}'})
-
-
-@router.get("/api/characters/graph")
-async def get_character_graph():
-    try:
-        graph_data = character_service.get_character_graph()
-        return JSONResponse(content=graph_data)
-    except Exception as e:
-        return JSONResponse(status_code=500, content={'error': f'获取关系图数据失败: {str(e)}'})
-
-
-@router.get("/api/characters/by-role/{role_type}")
-async def get_characters_by_role(role_type: str):
-    try:
-        characters = load_characters()
-        filtered = [c for c in characters if c.get('role_type', 'npc') == role_type]
-        return JSONResponse(content={'characters': filtered, 'count': len(filtered)})
-    except Exception as e:
-        return JSONResponse(status_code=500, content={'error': f'获取角色失败: {str(e)}'})
-
-
-@router.get("/api/characters/protagonist")
-async def get_protagonist():
-    try:
-        characters = load_characters()
-        protagonists = [c for c in characters if c.get('role_type') == 'protagonist']
-        return JSONResponse(content={'characters': protagonists})
-    except Exception as e:
-        return JSONResponse(status_code=500, content={'error': f'获取主角失败: {str(e)}'})
-
-
-@router.get("/api/characters/antagonists")
-async def get_antagonists():
-    try:
-        characters = load_characters()
-        antagonists = [c for c in characters if c.get('role_type') == 'antagonist']
-        return JSONResponse(content={'characters': antagonists})
-    except Exception as e:
-        return JSONResponse(status_code=500, content={'error': f'获取反派失败: {str(e)}'})
 
 
 @router.post("/api/characters/generate")
@@ -170,31 +193,6 @@ async def create_character_snapshot(chapter: int):
         return JSONResponse(content={'success': True, 'snapshot_path': snapshot_path})
     except Exception as e:
         return JSONResponse(status_code=500, content={'error': f'创建快照失败: {str(e)}'})
-
-
-from app.config import SNAPSHOTS_DIR
-
-@router.get("/api/characters/snapshot/{chapter}")
-async def get_character_snapshot(chapter: int):
-    try:
-        snapshot_path = os.path.join(SNAPSHOTS_DIR, f'chapter_{chapter:03d}.json')
-        if os.path.exists(snapshot_path):
-            with open(snapshot_path, 'r', encoding='utf-8') as f:
-                snapshot = json.load(f)
-            return JSONResponse(content={'snapshot': snapshot})
-        return JSONResponse(status_code=404, content={'error': '快照不存在'})
-    except Exception as e:
-        return JSONResponse(status_code=500, content={'error': f'获取快照失败: {str(e)}'})
-
-
-@router.get("/api/characters/inject-context")
-async def inject_character_context(character_ids: str = ""):
-    try:
-        ids = [id.strip() for id in character_ids.split(",") if id.strip()]
-        context = character_service.get_character_context(ids)
-        return JSONResponse(content={'context': context})
-    except Exception as e:
-        return JSONResponse(status_code=500, content={'error': f'注入上下文失败: {str(e)}'})
 
 
 @router.get("/api/relations")

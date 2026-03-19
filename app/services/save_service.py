@@ -4,6 +4,15 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from app.models.save import GameSave, HistorySnapshot, SaveCreateRequest
 from app.config import SAVES_DIR, MAX_SAVE_SLOTS, MAX_HISTORY_STEPS
+from app.utils.file_storage import (
+    get_or_create_saves_dir,
+    list_saves,
+    save_game_state,
+    load_game_state,
+    delete_game_save,
+    save_history,
+    load_history,
+)
 
 
 class SaveService:
@@ -11,8 +20,6 @@ class SaveService:
         pass
 
     def list_saves(self) -> List[Dict[str, Any]]:
-        from app.utils.file_storage import get_or_create_saves_dir, list_saves
-
         saves = list_saves()
 
         save_list = []
@@ -48,13 +55,9 @@ class SaveService:
         return save_list
 
     def get_save(self, slot_id: str) -> Optional[Dict[str, Any]]:
-        from app.utils.file_storage import load_game_state
-
         return load_game_state(slot_id)
 
     def save_game(self, request: SaveCreateRequest) -> Dict[str, Any]:
-        from app.utils.file_storage import save_game_state
-
         save_data = {
             "slot_id": request.slot_id,
             "save_name": request.save_name,
@@ -78,16 +81,12 @@ class SaveService:
         return {"success": True, "filepath": filepath, "save": save_data}
 
     def delete_save(self, slot_id: str) -> bool:
-        from app.utils.file_storage import delete_game_save
-
         return delete_game_save(slot_id)
 
     def load_save(self, slot_id: str) -> Optional[Dict[str, Any]]:
         return self.get_save(slot_id)
 
     def push_history(self, snapshot: Dict[str, Any]) -> None:
-        from app.utils.file_storage import save_history, load_history
-
         history = load_history()
 
         snapshot["step"] = len(history) + 1
@@ -101,8 +100,6 @@ class SaveService:
         save_history(history)
 
     def undo(self) -> Optional[Dict[str, Any]]:
-        from app.utils.file_storage import save_history, load_history
-
         history = load_history()
 
         if not history:
@@ -114,8 +111,6 @@ class SaveService:
         return last_snapshot
 
     def get_history(self) -> List[Dict[str, Any]]:
-        from app.utils.file_storage import load_history
-
         history = load_history()
 
         return [
@@ -129,11 +124,7 @@ class SaveService:
         ]
 
     def clear_history(self) -> None:
-        from app.utils.file_storage import save_history
-
         save_history([])
 
     def get_history_count(self) -> int:
-        from app.utils.file_storage import load_history
-
         return len(load_history())

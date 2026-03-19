@@ -537,7 +537,7 @@
             border-bottom: 1px solid rgba(0, 255, 136, 0.2);
         }
 
-        .ending-select-container {
+        .log-entry {
             font-size: 0.85rem;
             color: rgba(0, 255, 136, 0.7);
             padding: 8px 0;
@@ -2132,7 +2132,6 @@
         let endingCountdown = 0;
         let worldSetting = "";
         let selectedEndingType = "";
-        let customChoiceInput = null;
         let playerCharacter = null;
         let selectedSkills = [];
         let presetSkills = {};
@@ -2845,6 +2844,14 @@
             document.getElementById('chapter-num').textContent = chapter;
             document.getElementById('log-container').innerHTML = '';
             document.getElementById('custom-choice-container').style.display = 'flex';
+            
+            await fetch('/api/history', { method: 'DELETE' }).catch(() => {});
+            
+            const undoBtn = document.getElementById('undo-btn');
+            if (undoBtn) {
+                undoBtn.style.display = 'flex';
+            }
+            updateUndoButton();
 
             document.getElementById('loading-overlay')?.remove();
             const overlay = document.createElement('div');
@@ -2921,14 +2928,6 @@
 
             saveGameState();
             await sendMessage();
-        }
-
-        function triggerEnding() {
-            if (endingTriggered) return;
-            endingTriggered = true;
-            endingCountdown = 3;
-            document.getElementById('end-game-btn').disabled = true;
-            document.getElementById('end-game-btn').textContent = '收尾中...';
         }
 
         async function sendMessage() {
@@ -3870,7 +3869,6 @@
             } else {
                 showStartScreen();
             }
-            updateUndoButton();
         }
 
         let saveSlots = [];
@@ -4198,7 +4196,7 @@
         </div>
     </div>
 
-    <button class="undo-btn" id="undo-btn" onclick="undoMove()" disabled>
+    <button class="undo-btn" id="undo-btn" onclick="undoMove()" disabled style="display: none;">
         ↩️ 回退 <span class="undo-count" id="undo-count">0</span>
     </button>
 </body>

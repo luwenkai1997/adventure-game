@@ -53,6 +53,52 @@ async def random_player(request: Optional[PlayerRandomRequest] = None):
         )
 
 
+@router.post("/api/player/generate")
+async def generate_player(request: Optional[PlayerRandomRequest] = None):
+    """使用LLM根据世界观生成主角"""
+    import asyncio
+    from app.services.player_service import PlayerService
+    
+    try:
+        world_setting = request.world_setting if request else ""
+        
+        # 使用LLM生成主角
+        async def generate_with_timeout():
+            return await asyncio.get_event_loop().run_in_executor(
+                None, 
+                player_service.generate_player_with_llm, 
+                world_setting
+            )
+        
+        try:
+            player = await asyncio.wait_for(generate_with_timeout(), timeout=60.0)
+            if player:
+                return JSONResponse(content={"success": True, "player": player.model_dump()})
+            else:
+                # LLM生成失败，回退到随机生成
+                player = player_service.random_player(request)
+                return JSONResponse(content={
+                    "success": True, 
+                    "player": player.model_dump(),
+                    "warning": "LLM生成失败，已使用随机角色"
+                })
+        except asyncio.TimeoutError:
+            # 超时，回退到随机生成
+            player = player_service.random_player(request)
+            return JSONResponse(content={
+                "success": True, 
+                "player": player.model_dump(),
+                "warning": "LLM生成超时，已使用随机角色"
+            })
+    except Exception as e:
+        import traceback
+        print(f"生成主角时出错: {str(e)}")
+        print(traceback.format_exc())
+        return JSONResponse(
+            status_code=500, content={"error": f"生成角色失败: {str(e)}"}
+        )
+
+
 @router.get("/api/player")
 async def get_player():
     try:

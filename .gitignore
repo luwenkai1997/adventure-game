@@ -17,3 +17,8 @@ memory/
 novels/
 .trae/
 data/characters/*.json
+data/saves/
+data/snapshots/
+data/player/
+data/characters/relations.json
+*.bak

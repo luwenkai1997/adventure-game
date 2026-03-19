@@ -329,3 +329,82 @@ class PlayerService:
                 summary_parts.append(f"  - {skill.name} (Lv.{skill.level})")
 
         return "\n".join(summary_parts)
+
+    def generate_player_with_llm(self, world_setting: str = "") -> Optional[PlayerCharacter]:
+        """使用LLM根据世界观生成主角"""
+        from app.config import PLAYER_GENERATION_PROMPT
+        from app.utils.llm_client import call_llm, parse_json_response
+        from uuid import uuid4
+        
+        try:
+            prompt = PLAYER_GENERATION_PROMPT.format(world_setting=world_setting or "一个神秘的冒险世界")
+            
+            response = call_llm(
+                prompt, 
+                "你是一个专业的角色设计师，擅长创造符合世界观的有趣角色。请严格按照JSON格式返回。",
+                timeout=60,
+                max_tokens=2000
+            )
+            
+            player_data = parse_json_response(response)
+            
+            if not player_data or not isinstance(player_data, dict):
+                print("LLM返回格式错误，无法解析角色数据")
+                return None
+            
+            # 验证必要字段
+            required_fields = ['name', 'age', 'gender', 'race']
+            for field in required_fields:
+                if field not in player_data:
+                    print(f"LLM返回数据缺少必要字段: {field}")
+                    return None
+            
+            # 处理技能
+            skills = []
+            if 'skills' in player_data and isinstance(player_data['skills'], list):
+                for skill_data in player_data['skills']:
+                    if isinstance(skill_data, dict):
+                        skills.append(PlayerSkill(
+                            id=f"skill_{uuid4().hex[:6]}",
+                            name=skill_data.get('name', '未知技能'),
+                            category=skill_data.get('category', 'general'),
+                            level=skill_data.get('level', 1),
+                            description=skill_data.get('description', ''),
+                            related_attribute=skill_data.get('related_attribute', 'strength')
+                        ))
+            
+            # 计算HP
+            constitution = player_data.get('constitution', 10)
+            max_hp = self.calculate_max_hp(constitution)
+            
+            # 创建角色
+            player = PlayerCharacter(
+                id="player",
+                name=player_data.get('name', '冒险者'),
+                age=player_data.get('age', 20),
+                gender=player_data.get('gender', '其他'),
+                race=player_data.get('race', '人类'),
+                background=player_data.get('background', '一位神秘的冒险者'),
+                appearance=player_data.get('appearance', '看起来充满决心'),
+                strength=player_data.get('strength', 10),
+                dexterity=player_data.get('dexterity', 10),
+                constitution=constitution,
+                intelligence=player_data.get('intelligence', 10),
+                wisdom=player_data.get('wisdom', 10),
+                charisma=player_data.get('charisma', 10),
+                max_hp=max_hp,
+                current_hp=max_hp,
+                skills=skills,
+                created_at=datetime.now().isoformat(),
+                updated_at=datetime.now().isoformat()
+            )
+            
+            # 保存角色
+            save_player(player.model_dump())
+            return player
+            
+        except Exception as e:
+            print(f"LLM生成角色失败: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            return None

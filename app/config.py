@@ -283,3 +283,51 @@ RELATION_TYPES: Dict[str, Dict] = {
     "subordinate": {"name": "下属", "color": "#88aaff", "icon": "📋"},
     "superior": {"name": "上级", "color": "#aa88ff", "icon": "👑"},
 }
+
+PLAYER_GENERATION_PROMPT = """你是一个专业的角色设计师。请根据以下世界观设定，生成一个主角（玩家角色）。
+
+世界观设定：
+{world_setting}
+
+要求：
+1. 角色必须包含以下完整信息：
+   - 姓名（符合世界观风格，有特色的名字）
+   - 年龄（16-40岁之间）
+   - 性别（男/女/其他）
+   - 种族（符合世界观，如人类、精灵、赛博格等）
+   - 称号或职业头衔
+   - 外貌描述（详细且生动，100字左右）
+   - 背景故事（200-300字，包含出身、经历、动机）
+   - 性格特点（3-5个特质）
+   - 六项属性值：力量、敏捷、体质、智力、感知、魅力（每项8-18，总和60-80）
+   - 2-3个技能（每个技能包含名称、类别、等级1-3、描述）
+
+2. 角色要符合世界观设定，具有主角气质
+3. 角色应该有成长空间和明确的动机目标
+
+请严格按照以下JSON格式返回，不要有任何其他内容（不要用markdown代码块包裹，不要有任何解释文字）：
+{{
+  "name": "角色名",
+  "age": 25,
+  "gender": "性别",
+  "race": "种族",
+  "title": "称号或职业头衔",
+  "appearance": "完整外貌描述",
+  "background": "背景故事",
+  "personality": "性格特点描述",
+  "strength": 12,
+  "dexterity": 12,
+  "constitution": 12,
+  "intelligence": 12,
+  "wisdom": 12,
+  "charisma": 12,
+  "skills": [
+    {{
+      "name": "技能名",
+      "category": "combat/social/knowledge/survival",
+      "level": 2,
+      "description": "技能描述"
+    }}
+  ]
+}}
+"""

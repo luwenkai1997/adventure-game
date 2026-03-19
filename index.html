@@ -3224,50 +3224,134 @@
                 return;
             }
 
+            // 显示加载动画
             document.getElementById('loading-overlay')?.remove();
             const overlay = document.createElement('div');
             overlay.id = 'loading-overlay';
-            overlay.innerHTML = '<div class="loading-spinner"></div><div>正在生成角色，请稍候...</div>';
-            overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);color:#00ff88;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:monospace;';
+            overlay.innerHTML = `
+                <div class="loading-spinner"></div>
+                <div id="loading-text">正在生成角色，请稍候...</div>
+                <div id="loading-detail" style="margin-top: 10px; font-size: 0.8rem; opacity: 0.7;">正在连接AI服务...</div>
+            `;
+            overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);color:#00ff88;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:monospace;';
             document.body.appendChild(overlay);
 
+            let generationSuccess = false;
+            let errorMessage = '';
+
             try {
-                await fetch('/api/save-memory', {
+                // 步骤1: 保存世界观
+                document.getElementById('loading-detail').textContent = '正在保存世界观设定...';
+                const memoryResponse = await fetch('/api/save-memory', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ worldSetting: worldSetting })
                 });
+                if (!memoryResponse.ok) {
+                    throw new Error('保存世界观失败');
+                }
+                
+                // 步骤2: 生成NPC角色（使用LLM）
+                document.getElementById('loading-detail').textContent = '正在使用AI生成NPC角色（约需30-60秒）...';
+                const charController = new AbortController();
+                const charTimeout = setTimeout(() => charController.abort(), 120000); // 2分钟超时
                 
                 const charResponse = await fetch('/api/characters/generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ world_setting: worldSetting })
+                    body: JSON.stringify({ 
+                        world_setting: worldSetting,
+                        config: {
+                            world_setting: worldSetting,
+                            protagonist_count: 1,
+                            antagonist_count: 1,
+                            supporting_count: 2,
+                            npc_count: 2
+                        }
+                    }),
+                    signal: charController.signal
                 });
-                const charData = await charResponse.json();
-                console.log('NPC生成结果:', charData.message || (charData.error ? '生成失败: ' + charData.error : '生成成功'));
+                clearTimeout(charTimeout);
                 
+                const charData = await charResponse.json();
+                if (!charResponse.ok || charData.error) {
+                    console.warn('NPC生成警告:', charData.error || '未知错误');
+                    // NPC生成失败不阻断流程，继续生成玩家角色
+                } else {
+                    console.log('NPC生成成功:', charData.message);
+                    generationSuccess = true;
+                }
+                
+                // 步骤3: 加载角色列表
+                document.getElementById('loading-detail').textContent = '正在加载角色列表...';
                 await loadCharactersList();
                 
+                // 步骤4: 生成玩家角色（主角）- 使用LLM根据世界观生成
+                document.getElementById('loading-detail').textContent = '正在使用AI生成主角（约需20-40秒）...';
+                
+                // 先检查是否已有玩家角色
                 const playerResponse = await fetch('/api/player');
                 const playerData = await playerResponse.json();
                 
                 if (!playerData.exists) {
-                    const randomResponse = await fetch('/api/player/random', {
+                    // 使用LLM生成主角
+                    const playerController = new AbortController();
+                    const playerTimeout = setTimeout(() => playerController.abort(), 60000);
+                    
+                    const playerGenResponse = await fetch('/api/player/generate', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ world_setting: worldSetting })
+                        body: JSON.stringify({ world_setting: worldSetting }),
+                        signal: playerController.signal
                     });
-                    const randomData = await randomResponse.json();
-                    if (randomData.success) {
-                        playerCharacter = randomData.player;
+                    clearTimeout(playerTimeout);
+                    
+                    const playerGenData = await playerGenResponse.json();
+                    if (playerGenData.success) {
+                        playerCharacter = playerGenData.player;
+                        generationSuccess = true;
+                        if (playerGenData.warning) {
+                            console.warn('主角生成警告:', playerGenData.warning);
+                        }
+                    } else {
+                        throw new Error('生成主角失败: ' + (playerGenData.error || '未知错误'));
                     }
                 } else {
                     playerCharacter = playerData.player;
                 }
+                
+                document.getElementById('loading-detail').textContent = '角色生成完成！';
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
             } catch (e) {
                 console.error('初始化过程出错:', e);
+                errorMessage = e.message || '角色生成过程中发生错误';
+                
+                // 如果生成失败，显示错误但不阻断流程，使用默认角色
+                if (!playerCharacter) {
+                    playerCharacter = {
+                        name: '冒险者',
+                        age: 20,
+                        gender: '其他',
+                        race: '人类',
+                        background: '一位神秘的冒险者',
+                        appearance: '看起来充满决心',
+                        strength: 10,
+                        dexterity: 10,
+                        constitution: 10,
+                        intelligence: 10,
+                        wisdom: 10,
+                        charisma: 10,
+                        skills: []
+                    };
+                }
             } finally {
                 document.getElementById('loading-overlay')?.remove();
+            }
+
+            // 显示错误提示（如果有）
+            if (errorMessage) {
+                showError('角色生成警告', errorMessage + '\n\n将使用默认角色继续游戏。');
             }
 
             showCharacterReviewScreen();

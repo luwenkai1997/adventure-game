@@ -154,17 +154,54 @@ async def del_character(char_id: str):
 
 @router.post("/api/characters/generate")
 async def api_generate_characters(request: GenerateCharactersRequest):
+    import asyncio
+    
     try:
         config = request.config or CharacterGenerationConfig(
             world_setting=request.world_setting
         )
 
-        all_characters = character_service.generate_all_characters(config)
+        # 使用 asyncio.wait_for 设置总超时时间为 100 秒
+        async def generate_with_timeout():
+            return await asyncio.get_event_loop().run_in_executor(
+                None, 
+                character_service.generate_all_characters, 
+                config
+            )
+        
+        try:
+            all_characters = await asyncio.wait_for(generate_with_timeout(), timeout=100.0)
+        except asyncio.TimeoutError:
+            return JSONResponse(
+                status_code=504, 
+                content={'error': '角色生成超时，请稍后重试'}
+            )
+        
+        if not all_characters:
+            return JSONResponse(
+                status_code=500, 
+                content={'error': '未能生成任何角色'}
+            )
+        
+        # 保存角色
         saved_count = save_characters_batch(all_characters)
-        relations = character_service.generate_relations(all_characters, config.world_setting)
-
-        for rel in relations:
-            add_relation(rel)
+        
+        # 生成关系（也设置超时）
+        try:
+            relations = await asyncio.wait_for(
+                asyncio.get_event_loop().run_in_executor(
+                    None,
+                    character_service.generate_relations,
+                    all_characters,
+                    config.world_setting
+                ),
+                timeout=60.0
+            )
+            for rel in relations:
+                add_relation(rel)
+        except asyncio.TimeoutError:
+            relations = []
+            print("关系生成超时，继续返回已生成的角色")
 
         return JSONResponse(content={
             'success': True,
@@ -174,6 +211,9 @@ async def api_generate_characters(request: GenerateCharactersRequest):
             'message': f'成功生成 {saved_count} 个角色和 {len(relations)} 个关系'
         })
     except Exception as e:
+        import traceback
+        print(f"生成角色时出错: {str(e)}")
+        print(traceback.format_exc())
         return JSONResponse(status_code=500, content={'error': f'生成角色失败: {str(e)}'})
 
 

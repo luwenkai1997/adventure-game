@@ -1171,10 +1171,431 @@
             height: 100%;
             background: #00ff88;
         }
+
+        .character-creation-screen {
+            max-width: 900px;
+        }
+
+        .character-creation-container {
+            background: rgba(0, 20, 40, 0.8);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 8px;
+            padding: 30px;
+        }
+
+        .creation-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .creation-tab {
+            flex: 1;
+            padding: 12px 20px;
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            color: #00ff88;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .creation-tab.active {
+            background: rgba(0, 255, 136, 0.2);
+            border-color: #00ff88;
+        }
+
+        .creation-content {
+            display: none;
+        }
+
+        .creation-content.active {
+            display: block;
+        }
+
+        .basic-info-section, .attributes-section, .skills-section, .preview-section {
+            margin-bottom: 25px;
+        }
+
+        .basic-info-section h3, .attributes-section h3, .skills-section h3, .preview-section h3 {
+            color: #00ff88;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+            padding-bottom: 8px;
+        }
+
+        #points-display {
+            color: #00ccff;
+            font-size: 0.9rem;
+        }
+
+        .attribute-sliders {
+            display: grid;
+            gap: 15px;
+        }
+
+        .attribute-item {
+            display: grid;
+            grid-template-columns: 120px 1fr 50px;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .attribute-item label {
+            color: #aaffcc;
+            font-size: 0.9rem;
+        }
+
+        .attr-value {
+            font-weight: bold;
+            color: #00ff88;
+        }
+
+        .attr-modifier {
+            color: #00ccff;
+            font-size: 0.85rem;
+        }
+
+        .skills-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .skill-checkbox {
+            display: none;
+        }
+
+        .skill-label {
+            display: block;
+            padding: 10px 15px;
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .skill-checkbox:checked + .skill-label {
+            background: rgba(0, 255, 136, 0.3);
+            border-color: #00ff88;
+        }
+
+        .selected-skills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            min-height: 36px;
+        }
+
+        .selected-skill-tag {
+            padding: 6px 12px;
+            background: rgba(0, 255, 136, 0.2);
+            border: 1px solid rgba(0, 255, 136, 0.4);
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: #00ff88;
+        }
+
+        .character-preview {
+            background: rgba(0, 10, 20, 0.6);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            border-radius: 4px;
+            padding: 15px;
+            white-space: pre-wrap;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: #aaffcc;
+        }
+
+        .random-preview {
+            background: rgba(0, 10, 20, 0.6);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 15px;
+            text-align: center;
+            color: #888;
+        }
+
+        .player-panel-btn {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            color: #00ff88;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .player-panel-btn:hover {
+            background: rgba(0, 255, 136, 0.2);
+        }
+
+        .player-panel {
+            position: fixed;
+            top: 0;
+            right: -400px;
+            width: 380px;
+            height: 100vh;
+            background: rgba(0, 20, 40, 0.95);
+            border-left: 1px solid rgba(0, 255, 136, 0.3);
+            z-index: 1000;
+            transition: right 0.3s;
+            overflow-y: auto;
+        }
+
+        .player-panel.open {
+            right: 0;
+        }
+
+        .player-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+        }
+
+        .player-panel-header h3 {
+            color: #00ff88;
+            margin: 0;
+        }
+
+        .player-panel-close {
+            background: none;
+            border: none;
+            color: #00ff88;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+        }
+
+        .player-info {
+            padding: 20px;
+        }
+
+        .player-name {
+            font-size: 1.3rem;
+            color: #00ff88;
+            margin-bottom: 5px;
+        }
+
+        .player-basic-info {
+            color: #888;
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+        }
+
+        .player-hp-bar {
+            margin-bottom: 20px;
+        }
+
+        .hp-label {
+            display: flex;
+            justify-content: space-between;
+            color: #ff6666;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+
+        .hp-bar-bg {
+            height: 12px;
+            background: rgba(255, 0, 0, 0.2);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .hp-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff4444, #ff6666);
+            transition: width 0.3s;
+        }
+
+        .player-attributes {
+            margin-bottom: 20px;
+        }
+
+        .player-attributes h4 {
+            color: #00ff88;
+            margin-bottom: 10px;
+            font-size: 1rem;
+        }
+
+        .player-attr-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+
+        .player-attr-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 10px;
+            background: rgba(0, 255, 136, 0.05);
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+
+        .player-attr-name {
+            color: #aaffcc;
+        }
+
+        .player-attr-value {
+            color: #00ff88;
+            font-weight: bold;
+        }
+
+        .player-attr-mod {
+            color: #00ccff;
+            font-size: 0.8rem;
+        }
+
+        .player-skills h4 {
+            color: #00ff88;
+            margin-bottom: 10px;
+            font-size: 1rem;
+        }
+
+        .player-skill-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .player-skill-tag {
+            padding: 5px 10px;
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 4px;
+            font-size: 0.8rem;
+            color: #aaffcc;
+        }
     </style>
 </head>
 <body>
     <div class="container">
+        <div id="character-creation-screen" class="screen">
+            <div class="title">
+                <h1>创建角色</h1>
+                <p class="subtitle">打造你的冒险者</p>
+            </div>
+            <div class="character-creation-container">
+                <div class="creation-tabs">
+                    <button class="creation-tab active" onclick="switchCreationTab('custom')">自定义创建</button>
+                    <button class="creation-tab" onclick="switchCreationTab('random')">随机生成</button>
+                </div>
+                
+                <div id="custom-creation" class="creation-content active">
+                    <div class="basic-info-section">
+                        <h3>基本信息</h3>
+                        <div class="form-group">
+                            <label>角色名称 *</label>
+                            <input type="text" id="player-name" placeholder="输入角色名称" required>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>年龄</label>
+                                <input type="number" id="player-age" min="16" max="100" value="25">
+                            </div>
+                            <div class="form-group">
+                                <label>性别</label>
+                                <select id="player-gender">
+                                    <option value="">选择性别</option>
+                                    <option value="男">男</option>
+                                    <option value="女">女</option>
+                                    <option value="其他">其他</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>种族</label>
+                                <select id="player-race">
+                                    <option value="">选择种族</option>
+                                    <option value="人类">人类</option>
+                                    <option value="精灵">精灵</option>
+                                    <option value="矮人">矮人</option>
+                                    <option value="兽人">兽人</option>
+                                    <option value="其他">其他</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>背景故事</label>
+                            <textarea id="player-background" rows="2" placeholder="描述角色的过去经历"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>外貌描述</label>
+                            <textarea id="player-appearance" rows="2" placeholder="描述角色的外貌特征"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="attributes-section">
+                        <h3>属性分配 <span id="points-display">可用点数: 0</span></h3>
+                        <div class="attribute-sliders">
+                            <div class="attribute-item">
+                                <label>力量 <span class="attr-value" id="str-value">10</span></label>
+                                <input type="range" id="attr-strength" min="3" max="18" value="10" onchange="updateAttribute('strength', this.value)">
+                                <span class="attr-modifier" id="str-mod">(0)</span>
+                            </div>
+                            <div class="attribute-item">
+                                <label>敏捷 <span class="attr-value" id="dex-value">10</span></label>
+                                <input type="range" id="attr-dexterity" min="3" max="18" value="10" onchange="updateAttribute('dexterity', this.value)">
+                                <span class="attr-modifier" id="dex-mod">(0)</span>
+                            </div>
+                            <div class="attribute-item">
+                                <label>体质 <span class="attr-value" id="con-value">10</span></label>
+                                <input type="range" id="attr-constitution" min="3" max="18" value="10" onchange="updateAttribute('constitution', this.value)">
+                                <span class="attr-modifier" id="con-mod">(0)</span>
+                            </div>
+                            <div class="attribute-item">
+                                <label>智力 <span class="attr-value" id="int-value">10</span></label>
+                                <input type="range" id="attr-intelligence" min="3" max="18" value="10" onchange="updateAttribute('intelligence', this.value)">
+                                <span class="attr-modifier" id="int-mod">(0)</span>
+                            </div>
+                            <div class="attribute-item">
+                                <label>感知 <span class="attr-value" id="wis-value">10</span></label>
+                                <input type="range" id="attr-wisdom" min="3" max="18" value="10" onchange="updateAttribute('wisdom', this.value)">
+                                <span class="attr-modifier" id="wis-mod">(0)</span>
+                            </div>
+                            <div class="attribute-item">
+                                <label>魅力 <span class="attr-value" id="cha-value">10</span></label>
+                                <input type="range" id="attr-charisma" min="3" max="18" value="10" onchange="updateAttribute('charisma', this.value)">
+                                <span class="attr-modifier" id="cha-mod">(0)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="skills-section">
+                        <h3>选择技能 (2-3个)</h3>
+                        <div id="skills-container" class="skills-grid"></div>
+                        <div id="selected-skills" class="selected-skills"></div>
+                    </div>
+                </div>
+
+                <div id="random-creation" class="creation-content">
+                    <div id="random-preview" class="random-preview">
+                        <p>点击下方按钮随机生成角色</p>
+                    </div>
+                    <button class="btn btn-secondary" onclick="generateRandomPlayer()">🎲 随机生成</button>
+                </div>
+
+                <div class="preview-section">
+                    <h3>角色预览</h3>
+                    <div id="character-preview" class="character-preview"></div>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn" onclick="confirmCharacterCreation()">确认创建</button>
+                    <button class="btn btn-secondary" onclick="skipToStartScreen()">跳过 (无角色)</button>
+                </div>
+            </div>
+        </div>
+
         <div id="start-screen" class="screen active">
             <div class="title">
                 <h1>文字冒险</h1>
@@ -1197,8 +1618,16 @@
                     <div class="cursor"></div>
                     <span style="margin-left: 10px; color: rgba(0, 255, 136, 0.6);">生成中...</span>
                 </div>
-                <button class="characters-btn" onclick="toggleCharacterPanel()">👥 角色</button>
+                <button class="player-panel-btn" id="player-panel-btn" onclick="togglePlayerPanel()">👤 角色</button>
+                <button class="characters-btn" onclick="toggleCharacterPanel()">👥 NPC</button>
                 <button class="end-game-btn" id="end-game-btn" onclick="triggerEnding()">结束游戏</button>
+            </div>
+            <div id="player-panel" class="player-panel">
+                <div class="player-panel-header">
+                    <h3>我的角色</h3>
+                    <button class="player-panel-close" onclick="togglePlayerPanel()">×</button>
+                </div>
+                <div id="player-info" class="player-info"></div>
             </div>
             <div class="game-content">
                 <div class="game-main">
@@ -1411,7 +1840,7 @@
         </div>
     </div>
 
-    <script>
+     <script>
         const STORAGE_KEY = 'adventure_game_save';
         
         let messages = [];
@@ -1424,6 +1853,391 @@
         let worldSetting = "";
         let selectedEndingType = "";
         let customChoiceInput = null;
+        let playerCharacter = null;
+        let selectedSkills = [];
+        let presetSkills = {};
+        let playerAttributes = {
+            strength: 10,
+            dexterity: 10,
+            constitution: 10,
+            intelligence: 10,
+            wisdom: 10,
+            charisma: 10
+        };
+
+        async function loadPresetSkills() {
+            try {
+                const response = await fetch('/api/player/skills');
+                const data = await response.json();
+                presetSkills = data.skills;
+                renderSkillsGrid();
+            } catch (error) {
+                console.error('加载预设技能失败:', error);
+            }
+        }
+
+        function renderSkillsGrid() {
+            const container = document.getElementById('skills-container');
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            const categoryNames = {
+                combat: '⚔️ 战斗',
+                social: '💬 社交',
+                knowledge: '📚 知识',
+                survival: '🏕️ 生存'
+            };
+            
+            for (const [category, skills] of Object.entries(presetSkills)) {
+                const categoryLabel = document.createElement('div');
+                categoryLabel.className = 'skill-category-label';
+                categoryLabel.style.cssText = 'grid-column: 1 / -1; color: #00ff88; margin-top: 10px; font-size: 0.9rem;';
+                categoryLabel.textContent = categoryNames[category] || category;
+                container.appendChild(categoryLabel);
+                
+                for (const skill of skills) {
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.className = 'skill-checkbox';
+                    checkbox.id = `skill-${skill.name}`;
+                    checkbox.value = skill.name;
+                    checkbox.onchange = () => toggleSkill(skill.name);
+                    
+                    const label = document.createElement('label');
+                    label.className = 'skill-label';
+                    label.htmlFor = `skill-${skill.name}`;
+                    label.textContent = skill.name;
+                    
+                    container.appendChild(checkbox);
+                    container.appendChild(label);
+                }
+            }
+        }
+
+        function toggleSkill(skillName) {
+            const checkbox = document.getElementById(`skill-${skillName}`);
+            if (checkbox.checked) {
+                if (selectedSkills.length < 3) {
+                    selectedSkills.push(skillName);
+                } else {
+                    checkbox.checked = false;
+                    alert('最多只能选择3个技能');
+                }
+            } else {
+                selectedSkills = selectedSkills.filter(s => s !== skillName);
+            }
+            updateSelectedSkillsDisplay();
+            updateCharacterPreview();
+        }
+
+        function updateSelectedSkillsDisplay() {
+            const container = document.getElementById('selected-skills');
+            if (!container) return;
+            
+            container.innerHTML = selectedSkills.map(skill => 
+                `<span class="selected-skill-tag">${skill}</span>`
+            ).join('');
+        }
+
+        function calculateModifier(value) {
+            return Math.floor((value - 10) / 2);
+        }
+
+        function updateAttribute(attrName, value) {
+            playerAttributes[attrName] = parseInt(value);
+            
+            const displayValue = document.getElementById(`${attrName.substring(0, 3)}-value`);
+            const displayMod = document.getElementById(`${attrName.substring(0, 3)}-mod`);
+            
+            if (displayValue) displayValue.textContent = value;
+            if (displayMod) displayMod.textContent = `(${calculateModifier(parseInt(value)) >= 0 ? '+' : ''}${calculateModifier(parseInt(value))})`;
+            
+            updateCharacterPreview();
+        }
+
+        function updateCharacterPreview() {
+            const preview = document.getElementById('character-preview');
+            if (!preview) return;
+            
+            const name = document.getElementById('player-name')?.value || '未命名';
+            const age = document.getElementById('player-age')?.value || '';
+            const gender = document.getElementById('player-gender')?.value || '';
+            const race = document.getElementById('player-race')?.value || '';
+            const background = document.getElementById('player-background')?.value || '';
+            const appearance = document.getElementById('player-appearance')?.value || '';
+            
+            const hp = 10 + calculateModifier(playerAttributes.constitution) * 2;
+            
+            let content = `【${name}】\n`;
+            content += `种族: ${race || '未知'} | 年龄: ${age || '未知'} | 性别: ${gender || '未知'}\n\n`;
+            content += `背景: ${background || '暂无描述'}\n\n`;
+            content += `外貌: ${appearance || '暂无描述'}\n\n`;
+            content += `HP: ${hp}/${hp}\n\n`;
+            content += `属性:\n`;
+            content += `  力量 ${playerAttributes.strength} (${calculateModifier(playerAttributes.strength) >= 0 ? '+' : ''}${calculateModifier(playerAttributes.strength)})\n`;
+            content += `  敏捷 ${playerAttributes.dexterity} (${calculateModifier(playerAttributes.dexterity) >= 0 ? '+' : ''}${calculateModifier(playerAttributes.dexterity)})\n`;
+            content += `  体质 ${playerAttributes.constitution} (${calculateModifier(playerAttributes.constitution) >= 0 ? '+' : ''}${calculateModifier(playerAttributes.constitution)})\n`;
+            content += `  智力 ${playerAttributes.intelligence} (${calculateModifier(playerAttributes.intelligence) >= 0 ? '+' : ''}${calculateModifier(playerAttributes.intelligence)})\n`;
+            content += `  感知 ${playerAttributes.wisdom} (${calculateModifier(playerAttributes.wisdom) >= 0 ? '+' : ''}${calculateModifier(playerAttributes.wisdom)})\n`;
+            content += `  魅力 ${playerAttributes.charisma} (${calculateModifier(playerAttributes.charisma) >= 0 ? '+' : ''}${calculateModifier(playerAttributes.charisma)})\n`;
+            
+            if (selectedSkills.length > 0) {
+                content += `\n技能: ${selectedSkills.join(', ')}`;
+            }
+            
+            preview.textContent = content;
+        }
+
+        function switchCreationTab(tab) {
+            document.querySelectorAll('.creation-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.creation-content').forEach(c => c.classList.remove('active'));
+            
+            if (tab === 'custom') {
+                document.querySelector('.creation-tab:nth-child(1)').classList.add('active');
+                document.getElementById('custom-creation').classList.add('active');
+            } else {
+                document.querySelector('.creation-tab:nth-child(2)').classList.add('active');
+                document.getElementById('random-creation').classList.add('active');
+            }
+        }
+
+        async function generateRandomPlayer() {
+            try {
+                const response = await fetch('/api/player/random', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ world_setting: '' })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    playerCharacter = data.player;
+                    displayRandomPlayer(data.player);
+                }
+            } catch (error) {
+                console.error('随机生成角色失败:', error);
+                alert('随机生成角色失败');
+            }
+        }
+
+        function displayRandomPlayer(player) {
+            document.getElementById('player-name').value = player.name || '';
+            document.getElementById('player-age').value = player.age || '';
+            document.getElementById('player-gender').value = player.gender || '';
+            document.getElementById('player-race').value = player.race || '';
+            document.getElementById('player-background').value = player.background || '';
+            document.getElementById('player-appearance').value = player.appearance || '';
+            
+            playerAttributes = {
+                strength: player.strength || 10,
+                dexterity: player.dexterity || 10,
+                constitution: player.constitution || 10,
+                intelligence: player.intelligence || 10,
+                wisdom: player.wisdom || 10,
+                charisma: player.charisma || 10
+            };
+            
+            ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'].forEach(attr => {
+                const slider = document.getElementById(`attr-${attr}`);
+                const displayValue = document.getElementById(`${attr.substring(0, 3)}-value`);
+                const displayMod = document.getElementById(`${attr.substring(0, 3)}-mod`);
+                
+                if (slider) slider.value = playerAttributes[attr];
+                if (displayValue) displayValue.textContent = playerAttributes[attr];
+                if (displayMod) displayMod.textContent = `(${calculateModifier(playerAttributes[attr]) >= 0 ? '+' : ''}${calculateModifier(playerAttributes[attr])})`;
+            });
+            
+            selectedSkills = (player.skills || []).map(s => s.name);
+            updateSelectedSkillsDisplay();
+            
+            document.querySelectorAll('.skill-checkbox').forEach(cb => {
+                cb.checked = selectedSkills.includes(cb.value);
+            });
+            
+            updateCharacterPreview();
+        }
+
+        async function confirmCharacterCreation() {
+            const name = document.getElementById('player-name')?.value?.trim();
+            if (!name) {
+                alert('请输入角色名称');
+                return;
+            }
+            
+            if (selectedSkills.length < 2) {
+                alert('请至少选择2个技能');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/player/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: name,
+                        age: parseInt(document.getElementById('player-age')?.value) || null,
+                        gender: document.getElementById('player-gender')?.value || null,
+                        race: document.getElementById('player-race')?.value || null,
+                        background: document.getElementById('player-background')?.value || '',
+                        appearance: document.getElementById('player-appearance')?.value || '',
+                        strength: playerAttributes.strength,
+                        dexterity: playerAttributes.dexterity,
+                        constitution: playerAttributes.constitution,
+                        intelligence: playerAttributes.intelligence,
+                        wisdom: playerAttributes.wisdom,
+                        charisma: playerAttributes.charisma,
+                        skills: selectedSkills
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    playerCharacter = data.player;
+                    showStartScreen();
+                }
+            } catch (error) {
+                console.error('创建角色失败:', error);
+                alert('创建角色失败');
+            }
+        }
+
+        function skipToStartScreen() {
+            playerCharacter = null;
+            showStartScreen();
+        }
+
+        async function loadPlayerCharacter() {
+            try {
+                const response = await fetch('/api/player');
+                const data = await response.json();
+                if (data.exists) {
+                    playerCharacter = data.player;
+                    return true;
+                }
+                return false;
+            } catch (error) {
+                console.error('加载角色失败:', error);
+                return false;
+            }
+        }
+
+        function showCharacterCreationScreen() {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById('character-creation-screen').classList.add('active');
+            loadPresetSkills();
+            updateCharacterPreview();
+        }
+
+        function showStartScreen() {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById('start-screen').classList.add('active');
+        }
+
+        function togglePlayerPanel() {
+            const panel = document.getElementById('player-panel');
+            panel.classList.toggle('open');
+            if (panel.classList.contains('open')) {
+                updatePlayerPanel();
+            }
+        }
+
+        function updatePlayerPanel() {
+            const infoDiv = document.getElementById('player-info');
+            if (!infoDiv || !playerCharacter) {
+                infoDiv.innerHTML = '<p style="color: #888;">未创建角色</p>';
+                return;
+            }
+            
+            const hpPercent = (playerCharacter.current_hp / playerCharacter.max_hp) * 100;
+            
+            let content = `
+                <div class="player-name">${playerCharacter.name}</div>
+                <div class="player-basic-info">
+                    ${playerCharacter.race || ''} ${playerCharacter.age ? playerCharacter.age + '岁' : ''} ${playerCharacter.gender || ''}
+                </div>
+                
+                <div class="player-hp-bar">
+                    <div class="hp-label">
+                        <span>❤️ HP</span>
+                        <span>${playerCharacter.current_hp}/${playerCharacter.max_hp}</span>
+                    </div>
+                    <div class="hp-bar-bg">
+                        <div class="hp-bar-fill" style="width: ${hpPercent}%"></div>
+                    </div>
+                </div>
+                
+                <div class="player-attributes">
+                    <h4>属性</h4>
+                    <div class="player-attr-grid">
+                        <div class="player-attr-item">
+                            <span class="player-attr-name">力量</span>
+                            <span>
+                                <span class="player-attr-value">${playerCharacter.strength}</span>
+                                <span class="player-attr-mod">(${calculateModifier(playerCharacter.strength) >= 0 ? '+' : ''}${calculateModifier(playerCharacter.strength)})</span>
+                            </span>
+                        </div>
+                        <div class="player-attr-item">
+                            <span class="player-attr-name">敏捷</span>
+                            <span>
+                                <span class="player-attr-value">${playerCharacter.dexterity}</span>
+                                <span class="player-attr-mod">(${calculateModifier(playerCharacter.dexterity) >= 0 ? '+' : ''}${calculateModifier(playerCharacter.dexterity)})</span>
+                            </span>
+                        </div>
+                        <div class="player-attr-item">
+                            <span class="player-attr-name">体质</span>
+                            <span>
+                                <span class="player-attr-value">${playerCharacter.constitution}</span>
+                                <span class="player-attr-mod">(${calculateModifier(playerCharacter.constitution) >= 0 ? '+' : ''}${calculateModifier(playerCharacter.constitution)})</span>
+                            </span>
+                        </div>
+                        <div class="player-attr-item">
+                            <span class="player-attr-name">智力</span>
+                            <span>
+                                <span class="player-attr-value">${playerCharacter.intelligence}</span>
+                                <span class="player-attr-mod">(${calculateModifier(playerCharacter.intelligence) >= 0 ? '+' : ''}${calculateModifier(playerCharacter.intelligence)})</span>
+                            </span>
+                        </div>
+                        <div class="player-attr-item">
+                            <span class="player-attr-name">感知</span>
+                            <span>
+                                <span class="player-attr-value">${playerCharacter.wisdom}</span>
+                                <span class="player-attr-mod">(${calculateModifier(playerCharacter.wisdom) >= 0 ? '+' : ''}${calculateModifier(playerCharacter.wisdom)})</span>
+                            </span>
+                        </div>
+                        <div class="player-attr-item">
+                            <span class="player-attr-name">魅力</span>
+                            <span>
+                                <span class="player-attr-value">${playerCharacter.charisma}</span>
+                                <span class="player-attr-mod">(${calculateModifier(playerCharacter.charisma) >= 0 ? '+' : ''}${calculateModifier(playerCharacter.charisma)})</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            if (playerCharacter.skills && playerCharacter.skills.length > 0) {
+                content += `
+                    <div class="player-skills">
+                        <h4>技能</h4>
+                        <div class="player-skill-list">
+                            ${playerCharacter.skills.map(s => `<span class="player-skill-tag">${s.name} Lv.${s.level}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (playerCharacter.background) {
+                content += `
+                    <div style="margin-top: 15px;">
+                        <h4 style="color: #00ff88; margin-bottom: 8px;">背景</h4>
+                        <p style="color: #aaffcc; font-size: 0.85rem; line-height: 1.5;">${playerCharacter.background}</p>
+                    </div>
+                `;
+            }
+            
+            infoDiv.innerHTML = content;
+        }
 
         function saveGameState() {
             try {
@@ -2624,6 +3438,17 @@
                 console.error('渲染关系图失败:', e);
             }
         }
+
+        async function initApp() {
+            const hasPlayer = await loadPlayerCharacter();
+            if (!hasPlayer) {
+                showCharacterCreationScreen();
+            } else {
+                showStartScreen();
+            }
+        }
+
+        initApp();
     </script>
 </body>
 </html>

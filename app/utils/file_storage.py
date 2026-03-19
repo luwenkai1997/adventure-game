@@ -11,6 +11,7 @@ from app.config import (
     DATA_DIR,
     NOVELS_DIR,
     SNAPSHOTS_DIR,
+    PLAYER_DIR,
 )
 
 
@@ -46,7 +47,7 @@ def get_or_create_snapshots_dir() -> str:
 
 def save_memory(world_setting: str, story_summary: str = "") -> str:
     memory_dir = get_or_create_memory_dir()
-    memory_path = os.path.join(memory_dir, 'memory.md')
+    memory_path = os.path.join(memory_dir, "memory.md")
     content = f"""# 游戏记忆文档
 
 ## 世界观设定
@@ -64,24 +65,24 @@ def save_memory(world_setting: str, story_summary: str = "") -> str:
 ## 当前状态
 （待补充）
 """
-    with open(memory_path, 'w', encoding='utf-8') as f:
+    with open(memory_path, "w", encoding="utf-8") as f:
         f.write(content)
     return memory_path
 
 
 def save_memory_text(content: str) -> str:
     memory_dir = get_or_create_memory_dir()
-    memory_path = os.path.join(memory_dir, 'memory.md')
-    with open(memory_path, 'w', encoding='utf-8') as f:
+    memory_path = os.path.join(memory_dir, "memory.md")
+    with open(memory_path, "w", encoding="utf-8") as f:
         f.write(content)
     return memory_path
 
 
 def load_memory() -> str:
     memory_dir = get_or_create_memory_dir()
-    memory_path = os.path.join(memory_dir, 'memory.md')
+    memory_path = os.path.join(memory_dir, "memory.md")
     if os.path.exists(memory_path):
-        with open(memory_path, 'r', encoding='utf-8') as f:
+        with open(memory_path, "r", encoding="utf-8") as f:
             return f.read()
     return ""
 
@@ -90,32 +91,32 @@ def load_characters() -> List[dict]:
     get_or_create_characters_dir()
     characters = []
     for filename in os.listdir(CHARACTERS_DIR):
-        if filename.endswith('.json') and filename != 'relations.json':
+        if filename.endswith(".json") and filename != "relations.json":
             filepath = os.path.join(CHARACTERS_DIR, filename)
-            with open(filepath, 'r', encoding='utf-8') as f:
+            with open(filepath, "r", encoding="utf-8") as f:
                 characters.append(json.load(f))
     return characters
 
 
 def save_character(character: dict) -> str:
     get_or_create_characters_dir()
-    if not character.get('id'):
-        character['id'] = f"char_{uuid.uuid4().hex[:8]}"
-    character['updated_at'] = datetime.now().isoformat()
-    if 'created_at' not in character:
-        character['created_at'] = character['updated_at']
+    if not character.get("id"):
+        character["id"] = f"char_{uuid.uuid4().hex[:8]}"
+    character["updated_at"] = datetime.now().isoformat()
+    if "created_at" not in character:
+        character["created_at"] = character["updated_at"]
 
     filepath = os.path.join(CHARACTERS_DIR, f"{character['id']}.json")
-    with open(filepath, 'w', encoding='utf-8') as f:
+    with open(filepath, "w", encoding="utf-8") as f:
         json.dump(character, f, ensure_ascii=False, indent=2)
-    return character['id']
+    return character["id"]
 
 
 def load_character(char_id: str) -> Optional[dict]:
     get_or_create_characters_dir()
     filepath = os.path.join(CHARACTERS_DIR, f"{char_id}.json")
     if os.path.exists(filepath):
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(filepath, "r", encoding="utf-8") as f:
             return json.load(f)
     return None
 
@@ -141,24 +142,24 @@ def save_characters_batch(characters: List[dict]) -> int:
 def load_relations() -> List[dict]:
     get_or_create_characters_dir()
     if os.path.exists(RELATIONS_FILE):
-        with open(RELATIONS_FILE, 'r', encoding='utf-8') as f:
+        with open(RELATIONS_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     return []
 
 
 def save_relations(relations: List[dict]) -> None:
     get_or_create_characters_dir()
-    with open(RELATIONS_FILE, 'w', encoding='utf-8') as f:
+    with open(RELATIONS_FILE, "w", encoding="utf-8") as f:
         json.dump(relations, f, ensure_ascii=False, indent=2)
 
 
 def add_relation(relation: dict) -> dict:
     relations = load_relations()
-    if not relation.get('id'):
-        relation['id'] = f"rel_{uuid.uuid4().hex[:8]}"
-    relation['updated_at'] = datetime.now().isoformat()
-    if 'created_at' not in relation:
-        relation['created_at'] = relation['updated_at']
+    if not relation.get("id"):
+        relation["id"] = f"rel_{uuid.uuid4().hex[:8]}"
+    relation["updated_at"] = datetime.now().isoformat()
+    if "created_at" not in relation:
+        relation["created_at"] = relation["updated_at"]
     relations.append(relation)
     save_relations(relations)
     return relation
@@ -167,9 +168,9 @@ def add_relation(relation: dict) -> dict:
 def update_relation(rel_id: str, updates: dict) -> Optional[dict]:
     relations = load_relations()
     for i, rel in enumerate(relations):
-        if rel['id'] == rel_id:
+        if rel["id"] == rel_id:
             relations[i].update(updates)
-            relations[i]['updated_at'] = datetime.now().isoformat()
+            relations[i]["updated_at"] = datetime.now().isoformat()
             save_relations(relations)
             return relations[i]
     return None
@@ -178,8 +179,44 @@ def update_relation(rel_id: str, updates: dict) -> Optional[dict]:
 def delete_relation(rel_id: str) -> bool:
     relations = load_relations()
     for i, rel in enumerate(relations):
-        if rel['id'] == rel_id:
+        if rel["id"] == rel_id:
             relations.pop(i)
             save_relations(relations)
             return True
+    return False
+
+
+def get_or_create_player_dir() -> str:
+    if not os.path.exists(PLAYER_DIR):
+        os.makedirs(PLAYER_DIR)
+    return PLAYER_DIR
+
+
+def save_player(player: dict) -> str:
+    get_or_create_player_dir()
+    player["updated_at"] = datetime.now().isoformat()
+    if "created_at" not in player:
+        player["created_at"] = player["updated_at"]
+
+    filepath = os.path.join(PLAYER_DIR, "player.json")
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(player, f, ensure_ascii=False, indent=2)
+    return player.get("id", "player")
+
+
+def load_player() -> Optional[dict]:
+    get_or_create_player_dir()
+    filepath = os.path.join(PLAYER_DIR, "player.json")
+    if os.path.exists(filepath):
+        with open(filepath, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return None
+
+
+def delete_player() -> bool:
+    get_or_create_player_dir()
+    filepath = os.path.join(PLAYER_DIR, "player.json")
+    if os.path.exists(filepath):
+        os.remove(filepath)
+        return True
     return False

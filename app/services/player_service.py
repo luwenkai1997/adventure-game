@@ -1,0 +1,282 @@
+import random
+import uuid
+from typing import List, Optional
+from datetime import datetime
+from app.models.player import (
+    PlayerCharacter,
+    PlayerSkill,
+    PlayerCreateRequest,
+    PlayerRandomRequest,
+    PRESET_SKILLS,
+    ATTRIBUTE_NAMES_EN,
+)
+from app.utils.file_storage import save_player, load_player
+
+
+class PlayerService:
+    def __init__(self):
+        pass
+
+    def calculate_modifier(self, attribute: int) -> int:
+        return (attribute - 10) // 2
+
+    def calculate_max_hp(self, constitution: int) -> int:
+        modifier = self.calculate_modifier(constitution)
+        return 10 + modifier * 2
+
+    def create_player(self, request: PlayerCreateRequest) -> PlayerCharacter:
+        skills = []
+        for skill_name in request.skills:
+            skill = self._find_skill_by_name(skill_name)
+            if skill:
+                skills.append(skill)
+
+        max_hp = self.calculate_max_hp(request.constitution)
+
+        player = PlayerCharacter(
+            id="player",
+            name=request.name,
+            age=request.age,
+            gender=request.gender,
+            race=request.race,
+            background=request.background,
+            appearance=request.appearance,
+            strength=request.strength,
+            dexterity=request.dexterity,
+            constitution=request.constitution,
+            intelligence=request.intelligence,
+            wisdom=request.wisdom,
+            charisma=request.charisma,
+            max_hp=max_hp,
+            current_hp=max_hp,
+            skills=skills,
+            created_at=datetime.now().isoformat(),
+            updated_at=datetime.now().isoformat(),
+        )
+
+        save_player(player.model_dump())
+        return player
+
+    def random_player(
+        self, request: Optional[PlayerRandomRequest] = None
+    ) -> PlayerCharacter:
+        gender_options = ["男", "女", "其他"]
+        race_options = ["人类", "精灵", "矮人", "兽人", "其他"]
+
+        gender = (
+            request.gender
+            if request and request.gender
+            else random.choice(gender_options)
+        )
+        race = random.choice(race_options)
+
+        attributes = {
+            "strength": random.randint(8, 15),
+            "dexterity": random.randint(8, 15),
+            "constitution": random.randint(8, 15),
+            "intelligence": random.randint(8, 15),
+            "wisdom": random.randint(8, 15),
+            "charisma": random.randint(8, 15),
+        }
+
+        used_points = sum(attributes.values())
+        points_pool = 90 - used_points
+
+        while points_pool > 0 and used_points < 95:
+            attr_to_boost = random.choice(list(attributes.keys()))
+            if attributes[attr_to_boost] < 18:
+                attributes[attr_to_boost] += 1
+                points_pool -= 1
+
+        skill_categories = list(PRESET_SKILLS.keys())
+        num_skills = random.randint(2, 3)
+        selected_categories = random.sample(
+            skill_categories, min(num_skills, len(skill_categories))
+        )
+
+        skills = []
+        for category in selected_categories:
+            category_skills = PRESET_SKILLS[category]
+            selected_skill = random.choice(category_skills)
+            skills.append(
+                PlayerSkill(
+                    id=f"skill_{uuid.uuid4().hex[:6]}",
+                    name=selected_skill["name"],
+                    category=category,
+                    level=random.randint(1, 3),
+                    description=selected_skill["description"],
+                    related_attribute=selected_skill["related_attribute"],
+                )
+            )
+
+        name_templates = {
+            "男": ["李云", "张风", "王剑", "刘影", "陈墨", "周游", "吴寒", "郑锋"],
+            "女": ["林婉", "苏雪", "周晴", "吴月", "郑岚", "陈烟", "刘露", "李梅"],
+            "其他": ["无名", "行者", "孤影", "夜羽", "霜寒", "云烟", "风啸", "雷鸣"],
+        }
+        name = random.choice(name_templates.get(gender, name_templates["男"]))
+        age = random.randint(18, 40)
+
+        background_templates = [
+            "曾是一名游历四方的侠客，见惯了世间百态",
+            "出身于没落的武林世家，自幼习武",
+            "原本是山野间的猎人，机缘巧合踏入江湖",
+            "曾是某个门派的弟子，因故离开师门",
+            "江湖郎中，精通医术和草药知识",
+            "落魄书生，偶得武功秘籍自学成才",
+        ]
+        background = random.choice(background_templates)
+
+        appearance_templates = {
+            "人类": "普通人类外貌，但眼神中透着江湖历练",
+            "精灵": "尖耳长发，气质出尘，行动间轻盈如风",
+            "矮人": "身材矮小但敦实有力，胡须浓密",
+            "兽人": "带有兽类特征，犬齿微露，目光锐利",
+            "其他": "气质独特，让人难以看出来历",
+        }
+        appearance = appearance_templates.get(race, appearance_templates["其他"])
+
+        max_hp = self.calculate_max_hp(attributes["constitution"])
+
+        player = PlayerCharacter(
+            id="player",
+            name=name,
+            age=age,
+            gender=gender,
+            race=race,
+            background=background,
+            appearance=appearance,
+            strength=attributes["strength"],
+            dexterity=attributes["dexterity"],
+            constitution=attributes["constitution"],
+            intelligence=attributes["intelligence"],
+            wisdom=attributes["wisdom"],
+            charisma=attributes["charisma"],
+            max_hp=max_hp,
+            current_hp=max_hp,
+            skills=skills,
+            created_at=datetime.now().isoformat(),
+            updated_at=datetime.now().isoformat(),
+        )
+
+        save_player(player.model_dump())
+        return player
+
+    def get_player(self) -> Optional[PlayerCharacter]:
+        player_data = load_player()
+        if player_data:
+            return PlayerCharacter(**player_data)
+        return None
+
+    def update_player(self, updates: dict) -> Optional[PlayerCharacter]:
+        player_data = load_player()
+        if not player_data:
+            return None
+
+        player_data.update(updates)
+        player_data["updated_at"] = datetime.now().isoformat()
+
+        if "constitution" in updates:
+            player_data["max_hp"] = self.calculate_max_hp(updates["constitution"])
+            if "current_hp" not in updates:
+                player_data["current_hp"] = player_data["max_hp"]
+
+        save_player(player_data)
+        return PlayerCharacter(**player_data)
+
+    def add_skill(self, skill_name: str) -> Optional[PlayerCharacter]:
+        player = self.get_player()
+        if not player:
+            return None
+
+        skill = self._find_skill_by_name(skill_name)
+        if not skill:
+            return None
+
+        for existing_skill in player.skills:
+            if existing_skill.name == skill_name:
+                return player
+
+        player.skills.append(skill)
+        return self.update_player({"skills": [s.model_dump() for s in player.skills]})
+
+    def remove_skill(self, skill_name: str) -> Optional[PlayerCharacter]:
+        player = self.get_player()
+        if not player:
+            return None
+
+        player.skills = [s for s in player.skills if s.name != skill_name]
+        return self.update_player({"skills": [s.model_dump() for s in player.skills]})
+
+    def update_hp(self, delta: int) -> Optional[PlayerCharacter]:
+        player = self.get_player()
+        if not player:
+            return None
+
+        new_hp = player.current_hp + delta
+        new_hp = max(0, min(new_hp, player.max_hp))
+
+        return self.update_player({"current_hp": new_hp})
+
+    def _find_skill_by_name(self, name: str) -> Optional[PlayerSkill]:
+        for category, skills in PRESET_SKILLS.items():
+            for skill_data in skills:
+                if skill_data["name"] == name:
+                    return PlayerSkill(
+                        id=f"skill_{uuid.uuid4().hex[:6]}",
+                        name=skill_data["name"],
+                        category=category,
+                        level=1,
+                        description=skill_data["description"],
+                        related_attribute=skill_data["related_attribute"],
+                    )
+        return None
+
+    def get_skill_modifier(self, skill_name: str) -> int:
+        player = self.get_player()
+        if not player:
+            return 0
+
+        for skill in player.skills:
+            if skill.name == skill_name:
+                return skill.level
+        return 0
+
+    def get_player_summary(self) -> str:
+        player = self.get_player()
+        if not player:
+            return ""
+
+        summary_parts = [
+            f"【{player.name}】",
+            f"种族: {player.race or '未知'}",
+            f"年龄: {player.age or '未知'}",
+            f"背景: {player.background or '未知'}",
+        ]
+
+        summary_parts.append("属性:")
+        summary_parts.append(
+            f"  力量 {player.strength} ({(player.strength - 10) // 2:+d})"
+        )
+        summary_parts.append(
+            f"  敏捷 {player.dexterity} ({(player.dexterity - 10) // 2:+d})"
+        )
+        summary_parts.append(
+            f"  体质 {player.constitution} ({(player.constitution - 10) // 2:+d})"
+        )
+        summary_parts.append(
+            f"  智力 {player.intelligence} ({(player.intelligence - 10) // 2:+d})"
+        )
+        summary_parts.append(f"  感知 {player.wisdom} ({(player.wisdom - 10) // 2:+d})")
+        summary_parts.append(
+            f"  魅力 {player.charisma} ({(player.charisma - 10) // 2:+d})"
+        )
+
+        summary_parts.append(f"HP: {player.current_hp}/{player.max_hp}")
+
+        if player.skills:
+            summary_parts.append("技能:")
+            for skill in player.skills:
+                summary_parts.append(f"  - {skill.name} (Lv.{skill.level})")
+
+        return "\n".join(summary_parts)

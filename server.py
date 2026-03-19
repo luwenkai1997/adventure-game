@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.game_routes import router as game_router
 from app.api.character_routes import router as character_router
 from app.api.novel_routes import router as novel_router
+from app.api.player_routes import router as player_router
 
 
 app = FastAPI()
@@ -17,3 +18,4 @@ app.add_middleware(
 app.include_router(game_router)
 app.include_router(character_router)
 app.include_router(novel_router)
+app.include_router(player_router)

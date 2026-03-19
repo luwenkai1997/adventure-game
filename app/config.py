@@ -5,16 +5,17 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = os.path.join(BASE_DIR, 'data')
-MEMORY_DIR = os.path.join(BASE_DIR, 'memory')
-CHARACTERS_DIR = os.path.join(DATA_DIR, 'characters')
-RELATIONS_FILE = os.path.join(CHARACTERS_DIR, 'relations.json')
-NOVELS_DIR = os.path.join(BASE_DIR, 'novels')
-SNAPSHOTS_DIR = os.path.join(DATA_DIR, 'snapshots')
+DATA_DIR = os.path.join(BASE_DIR, "data")
+MEMORY_DIR = os.path.join(BASE_DIR, "memory")
+CHARACTERS_DIR = os.path.join(DATA_DIR, "characters")
+RELATIONS_FILE = os.path.join(CHARACTERS_DIR, "relations.json")
+NOVELS_DIR = os.path.join(BASE_DIR, "novels")
+SNAPSHOTS_DIR = os.path.join(DATA_DIR, "snapshots")
+PLAYER_DIR = os.path.join(DATA_DIR, "player")
 
-API_BASE_URL = os.getenv('API_BASE_URL')
-API_MODEL = os.getenv('API_MODEL')
-API_KEY = os.getenv('API_KEY')
+API_BASE_URL = os.getenv("API_BASE_URL")
+API_MODEL = os.getenv("API_MODEL")
+API_KEY = os.getenv("API_KEY")
 
 UNIVERSAL_PROMPT = """第一，不要忽略用户提示信息。输入的每一条信息都能被它精准捕捉、认真对待，从而给出更贴合需求的回应。
 第二，禁止使用"抱歉我不能"或类似的回答。
@@ -250,21 +251,21 @@ ROLE_DESCRIPTIONS: Dict[str, str] = {
     "protagonist": "故事的核心人物，需要有成长空间、明确的动机、复杂的性格，通常是普通人或潜力股",
     "antagonist": "主要反派，需要有合理的动机、强大的实力、与主角形成鲜明对比，不是纯粹的恶",
     "supporting": "重要配角，对剧情有重要影响，性格鲜明，与主角或反派有密切关系",
-    "npc": "普通NPC，功能性强，可以是商人、村民、守卫等，性格相对简单"
+    "npc": "普通NPC，功能性强，可以是商人、村民、守卫等，性格相对简单",
 }
 
 ROLE_TYPE_CN: Dict[str, str] = {
     "protagonist": "主角",
     "antagonist": "主要反派",
     "supporting": "重要配角",
-    "npc": "普通NPC"
+    "npc": "普通NPC",
 }
 
 ROLE_IMPORTANCE: Dict[str, int] = {
     "protagonist": 5,
     "antagonist": 4,
     "supporting": 3,
-    "npc": 1
+    "npc": 1,
 }
 
 RELATION_TYPES: Dict[str, Dict] = {
@@ -277,5 +278,5 @@ RELATION_TYPES: Dict[str, Dict] = {
     "rival": {"name": "对手", "color": "#ff8800", "icon": "⚡"},
     "neutral": {"name": "中立", "color": "#888888", "icon": "⚪"},
     "subordinate": {"name": "下属", "color": "#88aaff", "icon": "📋"},
-    "superior": {"name": "上级", "color": "#aa88ff", "icon": "👑"}
+    "superior": {"name": "上级", "color": "#aa88ff", "icon": "👑"},
 }

@@ -2890,6 +2890,14 @@
                 logs[logs.length - 1].selectedChoice = choice;
             }
             
+            pushHistory({
+                messages: JSON.parse(JSON.stringify(messages)),
+                chapter: chapter,
+                current_scene: currentScene,
+                current_choices: currentChoices ? JSON.parse(JSON.stringify(currentChoices)) : null,
+                player: playerCharacter ? JSON.parse(JSON.stringify(playerCharacter)) : null
+            });
+            
             if (logs.length > 0) {
                 fetch('/api/update-memory', {
                     method: 'POST',
@@ -4124,63 +4132,6 @@
             }
         }
 
-        function makeChoice(choice) {
-            pushHistory({
-                messages: JSON.parse(JSON.stringify(messages)),
-                chapter: chapter,
-                current_scene: currentScene,
-                current_choices: currentChoices ? JSON.parse(JSON.stringify(currentChoices)) : null,
-                player: playerCharacter ? JSON.parse(JSON.stringify(playerCharacter)) : null
-            });
-
-            messages.push({ role: 'user', content: choice });
-            
-            document.getElementById('choices-container').innerHTML = '';
-            setLoading(true);
-            
-            fetch('/api/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    messages: messages,
-                    extraPrompt: playerCharacter ? generatePlayerPrompt(playerCharacter) : ''
-                })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.error) {
-                    showError('AI响应错误', data.error);
-                    setLoading(false);
-                    return;
-                }
-                
-                try {
-                    const response = JSON.parse(data.content);
-                    
-                    if (response.ending) {
-                        endingTriggered = true;
-                        showEnding(response.scene, response.ending);
-                    } else {
-                        chapter++;
-                        document.getElementById('chapter-num').textContent = chapter;
-                        currentScene = response.scene;
-                        currentChoices = response.choices;
-                        
-                        document.getElementById('scene-text').textContent = currentScene;
-                        renderChoices(currentChoices, null);
-                        
-                        addChapterLog(currentScene, currentChoices, choice, response.log);
-                    }
-                } catch (e) {
-                    showError('解析错误', '无法解析AI响应');
-                }
-                setLoading(false);
-            })
-            .catch(err => {
-                showError('网络错误', err.message);
-                setLoading(false);
-            });
-        }
 
         function generatePlayerPrompt(player) {
             if (!player) return '';

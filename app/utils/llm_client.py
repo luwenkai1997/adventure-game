@@ -2,7 +2,12 @@ import json
 import re
 import time
 import requests
-from requests.exceptions import RequestException, ChunkedEncodingError, Timeout, ConnectionError
+from requests.exceptions import (
+    RequestException,
+    ChunkedEncodingError,
+    Timeout,
+    ConnectionError,
+)
 from typing import Any
 from app.config import API_BASE_URL, API_MODEL, API_KEY
 
@@ -12,7 +17,10 @@ RETRY_DELAY = 2
 
 
 def call_llm(
-    prompt: str, system_prompt: str = None, timeout: int = 120, max_tokens: int = MAX_TOKENS_LIMIT
+    prompt: str,
+    system_prompt: str = None,
+    timeout: int = 120,
+    max_tokens: int = MAX_TOKENS_LIMIT,
 ) -> str:
     if system_prompt is None:
         system_prompt = "你是一个AI助手。"
@@ -24,7 +32,12 @@ def call_llm(
 
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {API_KEY}"}
 
-    payload = {"model": API_MODEL, "messages": messages, "max_tokens": max_tokens}
+    payload = {
+        "model": API_MODEL,
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "stream": False,
+    }
 
     last_error = None
     for attempt in range(MAX_RETRIES):
@@ -34,23 +47,28 @@ def call_llm(
                 headers=headers,
                 json=payload,
                 timeout=timeout,
+                stream=False,
             )
 
             if response.status_code != 200:
-                raise Exception(f"API请求失败: {response.status_code} - {response.text[:500]}")
+                raise Exception(
+                    f"API请求失败: {response.status_code} - {response.text[:500]}"
+                )
 
             result = response.json()
             return result["choices"][0]["message"]["content"]
-            
+
         except (ChunkedEncodingError, Timeout, ConnectionError, RequestException) as e:
             last_error = e
-            print(f"API请求失败 (尝试 {attempt + 1}/{MAX_RETRIES}): {type(e).__name__}: {str(e)[:100]}")
+            print(
+                f"API请求失败 (尝试 {attempt + 1}/{MAX_RETRIES}): {type(e).__name__}: {str(e)[:100]}"
+            )
             if attempt < MAX_RETRIES - 1:
                 time.sleep(RETRY_DELAY * (attempt + 1))
             continue
         except Exception as e:
             raise e
-    
+
     raise Exception(f"API请求失败，已重试{MAX_RETRIES}次: {last_error}")
 
 

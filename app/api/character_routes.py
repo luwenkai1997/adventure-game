@@ -24,7 +24,8 @@ from app.utils.file_storage import (
     delete_relation,
     save_relations,
 )
-from app.config import RELATION_TYPES, SNAPSHOTS_DIR
+from app.config import RELATION_TYPES
+from app.utils.file_storage import get_snapshot_path
 
 
 router = APIRouter()
@@ -92,7 +93,7 @@ async def get_characters_by_role(role_type: str):
 @router.get("/api/characters/snapshot/{chapter}")
 async def get_character_snapshot(chapter: int):
     try:
-        snapshot_path = os.path.join(SNAPSHOTS_DIR, f'chapter_{chapter:03d}.json')
+        snapshot_path = get_snapshot_path(chapter)
         if os.path.exists(snapshot_path):
             with open(snapshot_path, 'r', encoding='utf-8') as f:
                 snapshot = json.load(f)

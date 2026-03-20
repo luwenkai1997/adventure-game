@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>文字冒险游戏</title>
     <style>
+        html {
+            scroll-behavior: smooth;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -37,10 +43,13 @@
             color: #00ff88;
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
             padding: 20px;
+            padding-top: 40px;
+            padding-bottom: 60px;
             position: relative;
-            overflow: hidden;
+            overflow-x: hidden;
+            overflow-y: auto;
         }
 
         body::before {
@@ -2121,8 +2130,9 @@
                 <label for="world-setting">设定你的世界观</label>
                 <textarea id="world-setting" placeholder="例如：赛博朋克新加坡、古代江湖、深海科研站遭遇变异体、末日后的废土世界..."></textarea>
                 <div class="button-group">
-                    <button class="btn" onclick="startGame()">开始冒险</button>
+                    <button class="btn" onclick="startGame()">开始新游戏</button>
                     <button class="btn btn-secondary" id="continue-btn" onclick="continueGame()" style="display: none;">继续游戏</button>
+                    <button class="btn btn-secondary" onclick="showGamesListModal()">游戏列表</button>
                 </div>
             </div>
         </div>
@@ -3289,6 +3299,19 @@
             let errorMessage = '';
 
             try {
+                // 步骤0: 创建新游戏
+                document.getElementById('loading-detail').textContent = '正在创建新游戏...';
+                const createGameResponse = await fetch('/api/games/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ world_setting: worldSetting })
+                });
+                if (!createGameResponse.ok) {
+                    throw new Error('创建游戏失败');
+                }
+                const createGameData = await createGameResponse.json();
+                console.log('新游戏已创建:', createGameData.game_id);
+                
                 // 步骤1: 保存故事设定
                 document.getElementById('loading-detail').textContent = '正在保存故事设定...';
                 const memoryResponse = await fetch('/api/save-memory', {
@@ -4386,11 +4409,7 @@
 
         async function initApp() {
             const hasPlayer = await loadPlayerCharacter();
-            if (!hasPlayer) {
-                showCharacterCreationScreen();
-            } else {
-                showStartScreen();
-            }
+            showStartScreen();
         }
 
         let saveSlots = [];
@@ -4455,6 +4474,103 @@
 
         function closeSaveModal() {
             document.getElementById('save-modal').classList.remove('active');
+        }
+
+        async function showGamesListModal() {
+            await loadGamesList();
+            document.getElementById('games-list-modal').classList.add('active');
+        }
+
+        function closeGamesListModal() {
+            document.getElementById('games-list-modal').classList.remove('active');
+        }
+
+        async function loadGamesList() {
+            try {
+                const response = await fetch('/api/games');
+                const data = await response.json();
+                renderGamesList(data.games);
+            } catch (error) {
+                console.error('加载游戏列表失败:', error);
+            }
+        }
+
+        function renderGamesList(games) {
+            const container = document.getElementById('games-list');
+            container.innerHTML = '';
+            
+            if (games.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #888;">暂无游戏记录</p>';
+                return;
+            }
+            
+            games.forEach(game => {
+                const gameDiv = document.createElement('div');
+                gameDiv.className = 'save-slot';
+                
+                const date = new Date(game.created_at);
+                const dateStr = date.toLocaleString('zh-CN');
+                
+                gameDiv.innerHTML = `
+                    <div class="save-slot-info">
+                        <h3>${game.game_id}</h3>
+                        <p>${game.world_setting ? game.world_setting.substring(0, 50) + '...' : '无世界观'}</p>
+                        <p>创建时间: ${dateStr}</p>
+                    </div>
+                    <div class="save-slot-actions">
+                        <button class="btn-load" onclick="loadGame('${game.game_id}')">加载</button>
+                        <button class="btn-delete" onclick="deleteGame('${game.game_id}')">删除</button>
+                    </div>
+                `;
+                
+                container.appendChild(gameDiv);
+            });
+        }
+
+        async function loadGame(gameId) {
+            try {
+                const response = await fetch(`/api/games/load/${gameId}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    closeGamesListModal();
+                    worldSetting = data.game_info?.world_setting || '';
+                    document.getElementById('world-setting').value = worldSetting;
+                    
+                    const playerResponse = await fetch('/api/player');
+                    const playerData = await playerResponse.json();
+                    if (playerData.exists) {
+                        playerCharacter = playerData.player;
+                        showCharacterReviewScreen();
+                    } else {
+                        showScreen('start-screen');
+                    }
+                }
+            } catch (error) {
+                console.error('加载游戏失败:', error);
+                alert('加载游戏失败');
+            }
+        }
+
+        async function deleteGame(gameId) {
+            if (!confirm('确定要删除这个游戏吗？此操作不可恢复。')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/games/${gameId}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    await loadGamesList();
+                }
+            } catch (error) {
+                console.error('删除游戏失败:', error);
+            }
         }
 
         function showSaveDialog(slotId) {
@@ -4715,6 +4831,16 @@
                 <button class="save-modal-close" onclick="closeSaveModal()">×</button>
             </div>
             <div class="save-slots" id="save-slots"></div>
+        </div>
+    </div>
+
+    <div class="save-modal" id="games-list-modal">
+        <div class="save-modal-content">
+            <div class="save-modal-header">
+                <h2>🎮 游戏列表</h2>
+                <button class="save-modal-close" onclick="closeGamesListModal()">×</button>
+            </div>
+            <div class="save-slots" id="games-list"></div>
         </div>
     </div>
 

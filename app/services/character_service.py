@@ -10,7 +10,6 @@ from app.config import (
     ROLE_TYPE_CN,
     ROLE_IMPORTANCE,
     RELATION_TYPES,
-    SNAPSHOTS_DIR,
     BASE_DIR,
 )
 from app.models.character import (
@@ -34,6 +33,7 @@ from app.utils.file_storage import (
     update_relation,
     delete_relation,
     get_or_create_snapshots_dir,
+    get_snapshot_path,
 )
 from app.utils.llm_client import call_llm, parse_json_response
 
@@ -48,7 +48,6 @@ class CharacterService:
         protagonist_info: dict,
         count: int = 10
     ) -> List[dict]:
-        """使用LLM生成NPC，包含主角信息"""
         from app.config import NPC_GENERATION_PROMPT
         from app.utils.llm_client import call_llm, parse_json_response
         
@@ -310,7 +309,7 @@ class CharacterService:
             'relations': relations
         }
 
-        snapshot_path = os.path.join(SNAPSHOTS_DIR, f'chapter_{chapter:03d}.json')
+        snapshot_path = get_snapshot_path(chapter)
         with open(snapshot_path, 'w', encoding='utf-8') as f:
             json.dump(snapshot, f, ensure_ascii=False, indent=2)
 

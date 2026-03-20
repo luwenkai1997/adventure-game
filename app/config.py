@@ -5,14 +5,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = os.path.join(BASE_DIR, "data")
-MEMORY_DIR = os.path.join(BASE_DIR, "memory")
-CHARACTERS_DIR = os.path.join(DATA_DIR, "characters")
-RELATIONS_FILE = os.path.join(CHARACTERS_DIR, "relations.json")
-NOVELS_DIR = os.path.join(BASE_DIR, "novels")
-SNAPSHOTS_DIR = os.path.join(DATA_DIR, "snapshots")
-PLAYER_DIR = os.path.join(DATA_DIR, "player")
-SAVES_DIR = os.path.join(DATA_DIR, "saves")
 MAX_SAVE_SLOTS = 5
 MAX_HISTORY_STEPS = 10
 

@@ -8,9 +8,15 @@ from app.config import (
     NOVEL_CHAPTER_PROMPT,
     NOVEL_ENDING_PROMPT,
     BASE_DIR,
-    NOVELS_DIR,
 )
-from app.utils.file_storage import load_memory, load_history
+from app.utils.file_storage import (
+    load_memory,
+    load_history,
+    get_novel_path,
+    get_or_create_novels_dir,
+    require_game_id,
+    get_novel_dir,
+)
 from app.utils.llm_client import call_llm, parse_json_response
 
 
@@ -19,7 +25,6 @@ class NovelService:
         pass
 
     def calculate_chapter_range(self) -> tuple:
-        """根据游戏轮次计算章节数量范围（35%-50%）"""
         history = load_history()
         game_rounds = len(history)
         
@@ -46,7 +51,7 @@ class NovelService:
 
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         novel_folder = f"novel-{timestamp}"
-        novels_dir = os.path.join(BASE_DIR, 'novels', novel_folder)
+        novels_dir = get_novel_path(novel_folder)
         os.makedirs(novels_dir, exist_ok=True)
 
         novel_path = os.path.join(novels_dir, 'novel.md')
@@ -96,7 +101,7 @@ class NovelService:
 
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         novel_folder = f"novel-{timestamp}"
-        novels_dir = os.path.join(BASE_DIR, 'novels', novel_folder)
+        novels_dir = get_novel_path(novel_folder)
         os.makedirs(novels_dir, exist_ok=True)
         chapters_dir = os.path.join(novels_dir, 'chapters')
         os.makedirs(chapters_dir, exist_ok=True)
@@ -125,7 +130,7 @@ class NovelService:
         if not memory_content:
             raise Exception("memory.md不存在")
 
-        novels_dir = os.path.join(BASE_DIR, 'novels', novel_folder)
+        novels_dir = get_novel_path(novel_folder)
         plan_path = os.path.join(novels_dir, 'plan.json')
 
         if not os.path.exists(plan_path):
@@ -190,7 +195,7 @@ class NovelService:
         }
 
     def merge_novel(self, novel_folder: str) -> dict:
-        novels_dir = os.path.join(BASE_DIR, 'novels', novel_folder)
+        novels_dir = get_novel_path(novel_folder)
         plan_path = os.path.join(novels_dir, 'plan.json')
 
         if not os.path.exists(plan_path):
@@ -230,7 +235,7 @@ class NovelService:
         }
 
     def get_novel_status(self, novel_folder: str) -> dict:
-        novels_dir = os.path.join(BASE_DIR, 'novels', novel_folder)
+        novels_dir = get_novel_path(novel_folder)
         plan_path = os.path.join(novels_dir, 'plan.json')
 
         if not os.path.exists(plan_path):

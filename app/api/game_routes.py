@@ -1,14 +1,56 @@
-import os
 from fastapi import APIRouter
-from fastapi.responses import HTMLResponse, JSONResponse
-from app.models.novel import ChatRequest, UpdateMemoryRequest, MemoryRequest
-from app.services.game_service import GameService
-from app.utils.file_storage import save_memory
+from fastapi.responses import JSONResponse, HTMLResponse
+from pydantic import BaseModel
+from typing import Optional, List
+import os
 from app.config import BASE_DIR
+from app.utils.game_manager import (
+    create_game_structure,
+    list_all_games,
+    get_game_info,
+    delete_game,
+    update_game_info,
+    get_game_dir,
+)
+from app.utils.file_storage import (
+    set_current_game,
+    get_current_game,
+    init_new_game,
+    save_memory,
+    save_memory_text,
+    load_memory,
+)
+from app.services.game_service import GameService
 
 
 router = APIRouter()
 game_service = GameService()
+
+
+class CreateGameRequest(BaseModel):
+    world_setting: str = ""
+
+
+class UpdateGameRequest(BaseModel):
+    status: Optional[str] = None
+    world_setting: Optional[str] = None
+
+
+class ChatRequest(BaseModel):
+    messages: List[dict]
+    extraPrompt: str = ""
+
+
+class MemoryRequest(BaseModel):
+    worldSetting: str
+    storySummary: str = ""
+
+
+class UpdateMemoryRequest(BaseModel):
+    scene: str
+    selectedChoice: str
+    logSummary: str
+    endingType: str = ""
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -49,3 +91,86 @@ async def api_update_memory(request: UpdateMemoryRequest):
         return JSONResponse(content={'success': True})
     except Exception as e:
         return JSONResponse(status_code=500, content={'error': f'更新失败: {str(e)}'})
+
+
+@router.post("/api/games/create")
+async def api_create_game(request: CreateGameRequest):
+    try:
+        paths = init_new_game(request.world_setting)
+        game_id = paths["game_dir"].split("/")[-1]
+        return JSONResponse(content={
+            "success": True,
+            "game_id": game_id,
+            "paths": {k: v for k, v in paths.items() if k != "game_info"}
+        })
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"创建游戏失败: {str(e)}"})
+
+
+@router.get("/api/games")
+async def api_list_games():
+    try:
+        games = list_all_games()
+        return JSONResponse(content={"games": games, "count": len(games)})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"获取游戏列表失败: {str(e)}"})
+
+
+@router.get("/api/games/current")
+async def api_get_current_game():
+    try:
+        game_id = get_current_game()
+        if game_id:
+            game_info = get_game_info(game_id)
+            return JSONResponse(content={"current_game": game_id, "game_info": game_info})
+        return JSONResponse(content={"current_game": None, "game_info": None})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"获取当前游戏失败: {str(e)}"})
+
+
+@router.post("/api/games/load/{game_id}")
+async def api_load_game(game_id: str):
+    try:
+        game_dir = get_game_dir(game_id)
+        set_current_game(game_id)
+        game_info = get_game_info(game_id)
+        return JSONResponse(content={
+            "success": True,
+            "game_id": game_id,
+            "game_info": game_info
+        })
+    except FileNotFoundError:
+        return JSONResponse(status_code=404, content={"error": f"游戏不存在: {game_id}"})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"加载游戏失败: {str(e)}"})
+
+
+@router.get("/api/games/{game_id}")
+async def api_get_game(game_id: str):
+    try:
+        game_info = get_game_info(game_id)
+        if game_info:
+            return JSONResponse(content={"game_info": game_info})
+        return JSONResponse(status_code=404, content={"error": "游戏不存在"})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"获取游戏信息失败: {str(e)}"})
+
+
+@router.put("/api/games/{game_id}")
+async def api_update_game(game_id: str, request: UpdateGameRequest):
+    try:
+        updates = {k: v for k, v in request.model_dump().items() if v is not None}
+        game_info = update_game_info(game_id, updates)
+        return JSONResponse(content={"success": True, "game_info": game_info})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"更新游戏失败: {str(e)}"})
+
+
+@router.delete("/api/games/{game_id}")
+async def api_delete_game(game_id: str):
+    try:
+        if delete_game(game_id):
+            return JSONResponse(content={"success": True})
+        return JSONResponse(status_code=404, content={"error": "游戏不存在"})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"删除游戏失败: {str(e)}"})

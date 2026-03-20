@@ -16,6 +16,9 @@ uv.lock
 .trae/
 *.bak
 
+IMPLEMENTATION_PLAN.md
+requirements.txt
+
 games/
 !games/.gitkeep
 

@@ -139,16 +139,19 @@ def load_memory() -> str:
 
 
 def load_characters() -> List[dict]:
-    get_or_create_characters_dir()
-    game_id = require_game_id()
-    char_dir = get_character_dir(game_id)
-    characters = []
-    for filename in os.listdir(char_dir):
-        if filename.endswith(".json") and filename != "relations.json":
-            filepath = os.path.join(char_dir, filename)
-            with open(filepath, "r", encoding="utf-8") as f:
-                characters.append(json.load(f))
-    return characters
+    try:
+        get_or_create_characters_dir()
+        game_id = require_game_id()
+        char_dir = get_character_dir(game_id)
+        characters = []
+        for filename in os.listdir(char_dir):
+            if filename.endswith(".json") and filename != "relations.json":
+                filepath = os.path.join(char_dir, filename)
+                with open(filepath, "r", encoding="utf-8") as f:
+                    characters.append(json.load(f))
+        return characters
+    except RuntimeError:
+        return []
 
 
 def save_character(character: dict) -> str:
@@ -205,11 +208,14 @@ def get_relations_file() -> str:
 
 
 def load_relations() -> List[dict]:
-    get_or_create_characters_dir()
-    relations_file = get_relations_file()
-    if os.path.exists(relations_file):
-        with open(relations_file, "r", encoding="utf-8") as f:
-            return json.load(f)
+    try:
+        get_or_create_characters_dir()
+        relations_file = get_relations_file()
+        if os.path.exists(relations_file):
+            with open(relations_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except RuntimeError:
+        pass
     return []
 
 

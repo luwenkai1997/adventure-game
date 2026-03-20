@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel
 from typing import Optional, List
 import os
-from app.config import BASE_DIR
+from app.config import BASE_DIR, STORY_EXPANSION_PROMPT
 from app.utils.game_manager import (
     create_game_structure,
     list_all_games,
@@ -21,6 +21,7 @@ from app.utils.file_storage import (
     load_memory,
 )
 from app.services.game_service import GameService
+from app.utils.llm_client import call_llm
 
 
 router = APIRouter()
@@ -51,6 +52,10 @@ class UpdateMemoryRequest(BaseModel):
     selectedChoice: str
     logSummary: str
     endingType: str = ""
+
+
+class StoryExpansionRequest(BaseModel):
+    user_input: str
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -91,6 +96,30 @@ async def api_update_memory(request: UpdateMemoryRequest):
         return JSONResponse(content={'success': True})
     except Exception as e:
         return JSONResponse(status_code=500, content={'error': f'更新失败: {str(e)}'})
+
+
+@router.post("/api/story/expand")
+async def api_expand_story(request: StoryExpansionRequest):
+    try:
+        if not request.user_input or not request.user_input.strip():
+            return JSONResponse(status_code=400, content={'error': '请输入故事设定'})
+        
+        prompt = STORY_EXPANSION_PROMPT.format(user_input=request.user_input)
+        
+        expanded_story = call_llm(
+            prompt, 
+            "你是一个专业的游戏世界观设计师，擅长创造丰富、引人入胜的故事设定。",
+            timeout=120
+        )
+        
+        return JSONResponse(content={
+            'success': True,
+            'expanded_story': expanded_story
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={'error': f'故事补全失败: {str(e)}'})
 
 
 @router.post("/api/games/create")

@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List
 
 
-GAMES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "games")
+GAMES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "games")
 
 
 def get_games_dir() -> str:

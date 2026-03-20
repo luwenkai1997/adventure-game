@@ -42,6 +42,31 @@ class CharacterService:
     def __init__(self):
         pass
 
+    def _try_fix_truncated_json(self, content: str) -> List[dict]:
+        import re
+        import json
+        
+        if not content:
+            return []
+        
+        try:
+            complete_objects = re.findall(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', content)
+            npcs = []
+            for obj_str in complete_objects:
+                try:
+                    npc = json.loads(obj_str)
+                    if isinstance(npc, dict) and 'name' in npc:
+                        npcs.append(npc)
+                except:
+                    continue
+            if npcs:
+                print(f"成功从截断的JSON中提取了 {len(npcs)} 个NPC")
+                return npcs
+        except Exception as e:
+            print(f"修复截断JSON失败: {str(e)[:100]}")
+        
+        return []
+
     def generate_npcs_with_llm(
         self, 
         world_setting: str, 
@@ -66,8 +91,13 @@ class CharacterService:
         
         system_prompt = "你是一个专业的角色设计师，擅长创造与主角和故事设定相契合的NPC角色。请严格按照JSON数组格式返回结果。"
         
-        response = call_llm(prompt, system_prompt, timeout=180, max_tokens=6000)
-        npcs_data = parse_json_response(response)
+        response = call_llm(prompt, system_prompt, timeout=180, max_tokens=8000)
+        
+        try:
+            npcs_data = parse_json_response(response)
+        except Exception as e:
+            print(f"NPC JSON解析失败，尝试修复: {str(e)[:200]}")
+            npcs_data = self._try_fix_truncated_json(response)
         
         if not npcs_data:
             print("LLM返回格式错误，无法解析NPC数据")

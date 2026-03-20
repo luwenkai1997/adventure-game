@@ -210,6 +210,30 @@
             box-shadow: 0 0 20px rgba(0, 200, 255, 0.4);
         }
 
+        .btn-expand {
+            background: linear-gradient(135deg, rgba(255, 200, 0, 0.2) 0%, rgba(200, 150, 0, 0.2) 100%);
+            border-color: #ffc800;
+            color: #ffc800;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .btn-expand:hover {
+            background: linear-gradient(135deg, rgba(255, 200, 0, 0.4) 0%, rgba(200, 150, 0, 0.4) 100%);
+            box-shadow: 0 0 20px rgba(255, 200, 0, 0.4);
+        }
+
+        .btn-expand:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #expanded-setting {
+            min-height: 300px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
         .button-group {
             display: flex;
             gap: 15px;
@@ -1218,6 +1242,13 @@
             color: #00ccff;
         }
 
+        .attr-range-hint {
+            font-size: 0.75rem;
+            color: rgba(0, 255, 136, 0.6);
+            font-weight: normal;
+            margin-left: 5px;
+        }
+
         .review-container .form-row {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -1964,7 +1995,7 @@
                     </div>
 
                     <div class="attributes-section">
-                        <h3>属性分配 <span id="points-display">可用点数: 0</span></h3>
+                        <h3>属性分配 <span id="points-display">可用点数: 0</span> <span class="attr-range-hint">(范围: 3-18)</span></h3>
                         <div class="attribute-sliders">
                             <div class="attribute-item">
                                 <label>力量 <span class="attr-value" id="str-value">10</span></label>
@@ -2079,7 +2110,7 @@
                 </div>
 
                 <div class="review-section">
-                    <h3>属性值 <span class="points-info" id="review-points-info">总点数: 0</span></h3>
+                    <h3>属性值 <span class="points-info" id="review-points-info">总点数: 0</span> <span class="attr-range-hint">(范围: 1-30)</span></h3>
                     <div class="attribute-grid">
                         <div class="attribute-item">
                             <label>力量</label>
@@ -2129,6 +2160,12 @@
             <div class="input-section">
                 <label for="world-setting">设定你的世界观</label>
                 <textarea id="world-setting" placeholder="例如：赛博朋克新加坡、古代江湖、深海科研站遭遇变异体、末日后的废土世界..."></textarea>
+                <button class="btn btn-expand" id="expand-btn" onclick="expandStorySetting()">
+                    <span id="expand-btn-text">背景拓展</span>
+                    <span id="expand-loading" style="display: none;">拓展中...</span>
+                </button>
+                <label for="expanded-setting" style="margin-top: 15px;">详细故事设定（可编辑）</label>
+                <textarea id="expanded-setting" placeholder="点击「背景拓展」按钮，AI将根据你的简短设定生成完整的故事背景..."></textarea>
                 <div class="button-group">
                     <button class="btn" onclick="startGame()">开始新游戏</button>
                     <button class="btn btn-secondary" id="continue-btn" onclick="continueGame()" style="display: none;">继续游戏</button>
@@ -2294,27 +2331,27 @@
                     </div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label>生命值</label>
+                            <label>生命值 <span class="attr-range-hint">(0-200)</span></label>
                             <input type="number" id="form-health" value="100" min="0" max="200">
                         </div>
                         <div class="form-group">
-                            <label>魔力值</label>
+                            <label>魔力值 <span class="attr-range-hint">(0-200)</span></label>
                             <input type="number" id="form-mana" value="100" min="0" max="200">
                         </div>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label>力量</label>
+                            <label>力量 <span class="attr-range-hint">(1-100)</span></label>
                             <input type="number" id="form-strength" value="10" min="1" max="100">
                         </div>
                         <div class="form-group">
-                            <label>智力</label>
+                            <label>智力 <span class="attr-range-hint">(1-100)</span></label>
                             <input type="number" id="form-intelligence" value="10" min="1" max="100">
                         </div>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label>魅力</label>
+                            <label>魅力 <span class="attr-range-hint">(1-100)</span></label>
                             <input type="number" id="form-charisma" value="10" min="1" max="100">
                         </div>
                         <div class="form-group">
@@ -3278,10 +3315,68 @@
             container.scrollTop = container.scrollHeight;
         }
 
+        async function expandStorySetting() {
+            const userInput = document.getElementById('world-setting').value.trim();
+            if (!userInput) {
+                showError('请先输入故事设定', '请在上方文本框中输入简短的故事设定，AI将为你扩展成完整的世界观。');
+                return;
+            }
+
+            const expandBtn = document.getElementById('expand-btn');
+            const expandBtnText = document.getElementById('expand-btn-text');
+            const expandLoading = document.getElementById('expand-loading');
+            const expandedSetting = document.getElementById('expanded-setting');
+
+            expandBtn.disabled = true;
+            expandBtnText.style.display = 'none';
+            expandLoading.style.display = 'inline';
+
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 30000);
+
+                const response = await fetch('/api/story/expand', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_input: userInput }),
+                    signal: controller.signal
+                });
+                clearTimeout(timeout);
+
+                const data = await response.json();
+
+                if (data.success) {
+                    expandedSetting.value = data.expanded_story;
+                    expandedSetting.style.borderColor = '#00ff88';
+                    setTimeout(() => {
+                        expandedSetting.style.borderColor = '';
+                    }, 2000);
+                } else {
+                    showError('拓展失败', data.error || '未知错误，请重试');
+                }
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    showError('请求超时', 'AI拓展请求超时，请检查网络后重试');
+                } else {
+                    showError('拓展失败', '网络错误，请检查连接后重试');
+                }
+            } finally {
+                expandBtn.disabled = false;
+                expandBtnText.style.display = 'inline';
+                expandLoading.style.display = 'none';
+            }
+        }
+
         async function startGame() {
-            worldSetting = document.getElementById('world-setting').value.trim();
-            if (!worldSetting) {
-                showError('请输入故事设定', '请在文本框中输入你想要探索的故事设定，例如：赛博朋克新加坡、古代江湖、深海科研站遭遇变异体等。');
+            const expandedSettingEl = document.getElementById('expanded-setting');
+            const simpleSetting = document.getElementById('world-setting').value.trim();
+            
+            if (expandedSettingEl.value.trim()) {
+                worldSetting = expandedSettingEl.value.trim();
+            } else if (simpleSetting) {
+                worldSetting = simpleSetting;
+            } else {
+                showError('请输入故事设定', '请在文本框中输入你想要探索的故事设定，或点击「背景拓展」生成详细设定。');
                 return;
             }
 

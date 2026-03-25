@@ -39,15 +39,19 @@ class NovelService:
         
         return min_chapters, max_chapters, game_rounds
 
-    def generate_full_novel(self) -> dict:
+    async def generate_full_novel(self) -> dict:
         memory_content = load_memory()
 
         if not memory_content:
             raise Exception("memory.md不存在，请先开始游戏")
 
-        prompt = NOVEL_GENERATION_PROMPT.format(memory_content=memory_content)
+        prompt = NOVEL_GENERATION_PROMPT.format(
+            memory_content=memory_content,
+            min_chapters=3,
+            max_chapters=15,
+        )
 
-        novel_content = call_llm(prompt, "你是一个专业的小说作家。", timeout=300)
+        novel_content = await call_llm(prompt, "你是一个专业的小说作家。", timeout=300)
 
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         novel_folder = f"novel-{timestamp}"
@@ -64,7 +68,7 @@ class NovelService:
             'novel_content': novel_content
         }
 
-    def plan_novel(self) -> dict:
+    async def plan_novel(self) -> dict:
         memory_content = load_memory()
 
         if not memory_content:
@@ -78,7 +82,7 @@ class NovelService:
             max_chapters=max_chapters
         )
 
-        response = call_llm(prompt, "你是一个专业的小说策划师。", timeout=120)
+        response = await call_llm(prompt, "你是一个专业的小说策划师。", timeout=120)
         plan_data = parse_json_response(response)
 
         if plan_data is None:
@@ -117,7 +121,7 @@ class NovelService:
             'chapter_range': {'min': min_chapters, 'max': max_chapters}
         }
 
-    def generate_chapter(
+    async def generate_chapter(
         self,
         novel_folder: str,
         chapter_num: int,
@@ -168,7 +172,7 @@ class NovelService:
                 previous_context=previous_context,
                 ending_type=ending_type
             )
-            chapter_content = call_llm(prompt, "你是一个专业的小说作家。", timeout=180)
+            chapter_content = await call_llm(prompt, "你是一个专业的小说作家。", timeout=180)
             chapter_filename = "ending.md"
         else:
             prompt = NOVEL_CHAPTER_PROMPT.format(
@@ -180,7 +184,7 @@ class NovelService:
                 chapter_summary=chapter_summary,
                 continuation_requirement=continuation_requirement
             )
-            chapter_content = call_llm(prompt, "你是一个专业的小说作家。", timeout=180)
+            chapter_content = await call_llm(prompt, "你是一个专业的小说作家。", timeout=180)
             chapter_filename = f"chapter_{chapter_num:02d}.md"
 
         chapter_path = os.path.join(chapters_dir, chapter_filename)

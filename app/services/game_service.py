@@ -27,7 +27,7 @@ class GameService:
     def __init__(self):
         self.composer = PromptComposer()
 
-    def update_memory(self, scene: str, selected_choice: str, log_summary: str, ending_type: str = "") -> str:
+    async def update_memory(self, scene: str, selected_choice: str, log_summary: str, ending_type: str = "") -> str:
         memory_content = load_memory()
 
         prompt = MEMORY_UPDATE_PROMPT.format(
@@ -38,11 +38,11 @@ class GameService:
             ending_type=ending_type or "无"
         )
 
-        new_memory = call_llm(prompt, method_name="update_memory")
+        new_memory = await call_llm(prompt, method_name="update_memory")
         save_memory_text(new_memory)
         return new_memory
 
-    def chat(
+    async def chat(
         self,
         messages: List[Dict],
         extra_prompt: str = "",
@@ -54,16 +54,16 @@ class GameService:
             turn_context=turn_context,
         )
 
-        content = call_llm(
+        content = await call_llm(
             "\n".join([msg["content"] for msg in full_messages]),
             system_prompt=None,
             method_name="game_chat"
         )
 
-        parsed_content, repaired = self.validate_or_repair(content)
+        parsed_content, repaired = await self.validate_or_repair(content)
         return parsed_content, content
 
-    def validate_or_repair(self, raw_content: str) -> Tuple[ChatTurnContent, bool]:
+    async def validate_or_repair(self, raw_content: str) -> Tuple[ChatTurnContent, bool]:
         attempts = 0
         last_error = None
 
@@ -78,6 +78,6 @@ class GameService:
                     break
 
                 repair_prompt = get_repair_prompt(raw_content)
-                raw_content = call_llm(repair_prompt, method_name="chat_repair")
+                raw_content = await call_llm(repair_prompt, method_name="chat_repair")
 
         raise last_error

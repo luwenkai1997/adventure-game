@@ -19,7 +19,7 @@ class ChapterRequest(BaseModel):
 @router.post("/api/generate-novel")
 async def generate_novel():
     try:
-        result = novel_service.generate_full_novel()
+        result = await novel_service.generate_full_novel()
         return JSONResponse(content=result)
     except Exception as e:
         return JSONResponse(status_code=500, content={'error': f'服务器错误: {str(e)}'})
@@ -28,7 +28,7 @@ async def generate_novel():
 @router.post("/api/novel/plan")
 async def plan_novel():
     try:
-        result = novel_service.plan_novel()
+        result = await novel_service.plan_novel()
         return JSONResponse(content=result)
     except Exception as e:
         return JSONResponse(status_code=500, content={'error': f'规划小说失败: {str(e)}'})
@@ -37,7 +37,7 @@ async def plan_novel():
 @router.post("/api/novel/chapter")
 async def generate_chapter(request: ChapterRequest):
     try:
-        result = novel_service.generate_chapter(
+        result = await novel_service.generate_chapter(
             request.novel_folder,
             request.chapter_num,
             request.chapter_title,

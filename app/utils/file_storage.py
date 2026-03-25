@@ -15,9 +15,36 @@ from app.utils.game_manager import (
     create_game_structure,
     get_game_dir,
 )
+from app.config import BASE_DIR
 
 
 _session_game_map: Dict[str, Optional[str]] = {}
+
+SESSION_STORE_PATH = os.path.join(BASE_DIR, "data", "session_games.json")
+
+
+def load_session_games_from_disk() -> None:
+    """Restore session → active game mapping after server restart."""
+    global _session_game_map
+    try:
+        if os.path.exists(SESSION_STORE_PATH):
+            with open(SESSION_STORE_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                for k, v in data.items():
+                    if isinstance(k, str) and (v is None or isinstance(v, str)):
+                        _session_game_map[k] = v
+    except Exception:
+        pass
+
+
+def _persist_session_games() -> None:
+    try:
+        os.makedirs(os.path.dirname(SESSION_STORE_PATH), exist_ok=True)
+        with open(SESSION_STORE_PATH, "w", encoding="utf-8") as f:
+            json.dump(_session_game_map, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
 
 
 def get_session_game_map() -> Dict[str, Optional[str]]:
@@ -30,6 +57,7 @@ def set_current_game(game_id: str) -> None:
         _session_game_map[session_id] = game_id
     else:
         _session_game_map["default"] = game_id
+    _persist_session_games()
 
 
 def get_current_game() -> Optional[str]:

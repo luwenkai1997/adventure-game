@@ -162,16 +162,11 @@ async def api_generate_characters(request: GenerateCharactersRequest):
             world_setting=request.world_setting
         )
 
-        # 使用 asyncio.wait_for 设置总超时时间为 100 秒
-        async def generate_with_timeout():
-            return await asyncio.get_event_loop().run_in_executor(
-                None, 
-                character_service.generate_all_characters, 
-                config
-            )
-        
         try:
-            all_characters = await asyncio.wait_for(generate_with_timeout(), timeout=100.0)
+            all_characters = await asyncio.wait_for(
+                character_service.generate_all_characters(config),
+                timeout=100.0,
+            )
         except asyncio.TimeoutError:
             return JSONResponse(
                 status_code=504, 
@@ -190,13 +185,8 @@ async def api_generate_characters(request: GenerateCharactersRequest):
         # 生成关系（也设置超时）
         try:
             relations = await asyncio.wait_for(
-                asyncio.get_event_loop().run_in_executor(
-                    None,
-                    character_service.generate_relations,
-                    all_characters,
-                    config.world_setting
-                ),
-                timeout=60.0
+                character_service.generate_relations(all_characters, config.world_setting),
+                timeout=60.0,
             )
             for rel in relations:
                 add_relation(rel)
@@ -235,17 +225,13 @@ async def api_generate_npcs(request: Request):
         if not protagonist_info:
             return JSONResponse(status_code=400, content={'error': '缺少主角信息'})
         
-        async def generate_with_timeout():
-            return await asyncio.get_event_loop().run_in_executor(
-                None,
-                character_service.generate_npcs_with_llm,
-                world_setting,
-                protagonist_info,
-                npc_count
-            )
-        
         try:
-            npcs = await asyncio.wait_for(generate_with_timeout(), timeout=180.0)
+            npcs = await asyncio.wait_for(
+                character_service.generate_npcs_with_llm(
+                    world_setting, protagonist_info, npc_count
+                ),
+                timeout=180.0,
+            )
         except asyncio.TimeoutError:
             return JSONResponse(
                 status_code=504,
@@ -262,13 +248,8 @@ async def api_generate_npcs(request: Request):
         
         try:
             relations = await asyncio.wait_for(
-                asyncio.get_event_loop().run_in_executor(
-                    None,
-                    character_service.generate_relations,
-                    npcs,
-                    world_setting
-                ),
-                timeout=60.0
+                character_service.generate_relations(npcs, world_setting),
+                timeout=60.0,
             )
             for rel in relations:
                 add_relation(rel)

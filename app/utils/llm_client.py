@@ -88,7 +88,7 @@ def log_llm_call(
         print(f"[LLM日志] 写入失败: {e}")
 
 
-def call_llm(
+async def call_llm(
     prompt: str,
     system_prompt: str = None,
     timeout: int = API_TIMEOUT,
@@ -97,7 +97,9 @@ def call_llm(
     request_id: Optional[str] = None,
     max_retries: int = 2,
 ) -> str:
-    return call_llm_with_retry(
+    # max_tokens reserved for future API payload support
+    _ = max_tokens
+    return await call_llm_with_retry(
         prompt=prompt,
         system_prompt=system_prompt,
         request_id=request_id,

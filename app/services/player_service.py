@@ -330,7 +330,7 @@ class PlayerService:
 
         return "\n".join(summary_parts)
 
-    def generate_player_with_llm(self, world_setting: str = "") -> Optional[PlayerCharacter]:
+    async def generate_player_with_llm(self, world_setting: str = "") -> Optional[PlayerCharacter]:
         """使用LLM根据故事设定生成主角"""
         from app.config import PLAYER_GENERATION_PROMPT
         from app.utils.llm_client import call_llm, parse_json_response
@@ -339,7 +339,7 @@ class PlayerService:
         try:
             prompt = PLAYER_GENERATION_PROMPT.format(world_setting=world_setting or "一个神秘的冒险世界")
             
-            response = call_llm(
+            response = await call_llm(
                 prompt, 
                 "你是一个专业的角色设计师，擅长创造符合故事设定的有趣角色。请严格按照JSON格式返回。",
                 timeout=90,

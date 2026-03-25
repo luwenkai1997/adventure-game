@@ -8,5 +8,5 @@ def get_current_session_id() -> Optional[str]:
     return session_id_ctx.get()
 
 
-def set_current_session_id(session_id: str) -> None:
+def set_current_session_id(session_id: Optional[str]) -> None:
     session_id_ctx.set(session_id)

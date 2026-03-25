@@ -1,11 +1,11 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, List
 import os
 import uuid
 import json
-from app.config import BASE_DIR, STORY_EXPANSION_PROMPT, API_STREAMING_ENABLED
+from app.config import BASE_DIR, STORY_EXPANSION_PROMPT
 from app.utils.game_manager import (
     create_game_structure,
     list_all_games,
@@ -26,9 +26,7 @@ from app.services.game_service import GameService
 from app.services.prompt_composer import PromptComposer
 from app.services.chat_parser import (
     parse_chat_output,
-    get_repair_prompt,
     ParseError,
-    ChatTurnContent,
 )
 from app.services.llm_gateway import (
     stream_llm,
@@ -37,6 +35,7 @@ from app.services.llm_gateway import (
 )
 from app.models.chat import ChatRequestV2, ChatResponseV2, ChatTurnContent
 from app.utils.llm_client import call_llm
+from app.errors import AppError
 
 
 router = APIRouter()
@@ -86,7 +85,7 @@ async def index():
 async def chat(request: ChatRequestV2):
     try:
         request_id = str(uuid.uuid4())
-        parsed_content, raw_content = game_service.chat(
+        parsed_content, raw_content = await game_service.chat(
             request.messages,
             request.extraPrompt,
             request.turn_context,
@@ -119,7 +118,7 @@ async def api_save_memory(request: MemoryRequest):
 @router.post("/api/update-memory")
 async def api_update_memory(request: UpdateMemoryRequest):
     try:
-        game_service.update_memory(
+        await game_service.update_memory(
             request.scene,
             request.selectedChoice,
             request.logSummary,
@@ -134,11 +133,15 @@ async def api_update_memory(request: UpdateMemoryRequest):
 async def api_expand_story(request: StoryExpansionRequest):
     try:
         if not request.user_input or not request.user_input.strip():
-            return JSONResponse(status_code=400, content={'error': '请输入故事设定'})
+            raise AppError(
+                code="validation_error",
+                message="请输入故事设定",
+                status_code=400,
+            )
         
         prompt = STORY_EXPANSION_PROMPT.format(user_input=request.user_input)
         
-        expanded_story = call_llm(
+        expanded_story = await call_llm(
             prompt, 
             "你是一个专业的游戏世界观设计师，擅长创造丰富、引人入胜的故事设定。",
             timeout=120
@@ -148,6 +151,8 @@ async def api_expand_story(request: StoryExpansionRequest):
             'success': True,
             'expanded_story': expanded_story
         })
+    except AppError:
+        raise
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -248,9 +253,9 @@ async def chat_stream(request: ChatRequestV2):
     prompt = "\n".join([msg["content"] for msg in full_messages])
     system_prompt = None
 
-    def event_generator():
+    async def event_generator():
         full_content = ""
-        for chunk in stream_llm(prompt, system_prompt, request_id):
+        async for chunk in stream_llm(prompt, system_prompt, request_id):
             full_content += chunk
             if is_cancelled(request_id):
                 yield f"data: {{\"type\": \"cancelled\"}}\n\n"
@@ -283,6 +288,82 @@ async def chat_stream(request: ChatRequestV2):
             "Connection": "keep-alive",
         },
     )
+
+
+@router.websocket("/ws/chat/stream")
+async def ws_chat_stream(websocket: WebSocket):
+    """Stream chat completion over WebSocket (optional alternative to SSE).
+
+    Connect with query param: ``?session_id=<tab_session_id>`` so the correct
+    game workspace is used (same as ``X-Adventure-Session-ID`` on HTTP).
+
+    First message from client: JSON body matching ``ChatRequestV2``
+    (``messages``, ``extraPrompt``, ``turn_context``).
+    Server sends JSON frames: ``chunk``, ``done``, ``error``, or ``cancelled``.
+    """
+    from app.request_context import set_current_session_id
+
+    session_id = websocket.query_params.get("session_id")
+    set_current_session_id(session_id)
+    await websocket.accept()
+    try:
+        data = await websocket.receive_json()
+        req = ChatRequestV2.model_validate(data)
+    except Exception as e:
+        await websocket.send_json(
+            {"type": "error", "success": False, "error": f"无效请求: {e}"}
+        )
+        try:
+            await websocket.close()
+        except Exception:
+            pass
+        return
+
+    request_id = str(uuid.uuid4())
+    full_messages = composer.compose(
+        messages=req.messages,
+        extra_prompt=req.extraPrompt,
+        turn_context=req.turn_context,
+    )
+    prompt = "\n".join([msg["content"] for msg in full_messages])
+    full_content = ""
+    try:
+        async for chunk in stream_llm(prompt, None, request_id):
+            full_content += chunk
+            if is_cancelled(request_id):
+                await websocket.send_json({"type": "cancelled", "request_id": request_id})
+                return
+            await websocket.send_json({"type": "chunk", "content": chunk})
+
+        parsed_content, _ = parse_chat_output(full_content)
+        await websocket.send_json(
+            {
+                "type": "done",
+                "success": True,
+                "content": parsed_content.model_dump(),
+                "request_id": request_id,
+            }
+        )
+    except WebSocketDisconnect:
+        cancel_request(request_id)
+    except ParseError as e:
+        await websocket.send_json(
+            {
+                "type": "error",
+                "success": False,
+                "error": f"解析失败: {e.message}",
+                "request_id": request_id,
+            }
+        )
+    except Exception as e:
+        await websocket.send_json(
+            {
+                "type": "error",
+                "success": False,
+                "error": str(e),
+                "request_id": request_id,
+            }
+        )
 
 
 @router.post("/api/chat/cancel/{request_id}")

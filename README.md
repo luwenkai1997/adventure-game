@@ -9,25 +9,28 @@
 - **AI 动态生成剧情和选项** - 每次选择都会触发新的剧情发展
 - **多种结局** - 好结局/坏结局/中立结局，由玩家选择倾向决定
 - **深色终端风格界面** - 复古科幻风格的视觉体验
+- **故事设定扩展** - AI 自动将简短设定扩展为完整世界观
 
 ### 角色系统
 - **AI 生成主角** - 根据世界观自动生成契合的主角角色
 - **NPC 自动生成** - 包含主角、反派、配角等完整角色体系
 - **角色关系网络** - 可视化展示角色之间的关系
 - **角色属性系统** - 力量、敏捷、智力、魅力等六维属性
+- **技能系统** - 战斗、社交、知识、生存四大类共20种预设技能
 
 ### 游戏体验
 - **智能剧情记录** - 自动更新 memory.md 记录故事发展
 - **第4个自定义选项** - 可以自由输入故事发展方向
 - **选择结局类型** - 结束游戏时可指定结局类型
 - **右侧日志面板** - 实时显示每轮故事发展
-- **骰子检定系统** - 支持技能检定，增加游戏策略性
+- **骰子检定系统** - 支持 D20 检定，增加游戏策略性
 
 ### 数据管理
 - **游戏数据隔离** - 每个游戏独立存储，互不干扰
 - **游戏列表管理** - 可查看、加载、删除历史游戏
 - **多存档位** - 支持5个存档位，随时保存/加载
 - **回退功能** - 支持撤销最近10步操作
+- **LLM 调用日志** - 记录所有 AI 对话，便于调试
 
 ### 小说生成
 - **一键生成小说** - 游戏结束后根据记忆文档创作完整小说
@@ -67,6 +70,8 @@ API_MODEL=ark-code-latest
 API_KEY=你的API密钥
 ```
 
+**注意**：本项目兼容任何支持 OpenAI API 格式的大模型服务。
+
 ### 4. 运行服务器
 
 ```bash
@@ -89,34 +94,40 @@ adventure-game/
 ├── .gitignore             # Git 忽略规则
 ├── README.md              # 项目说明
 ├── app/
+│   ├── __init__.py        # 包初始化
+│   ├── config.py          # 配置文件（Prompt模板、常量、API配置）
 │   ├── api/               # API 路由层
-│   │   ├── game_routes.py       # 游戏核心路由（聊天、记忆、游戏管理）
-│   │   ├── character_routes.py  # 角色管理路由
-│   │   ├── player_routes.py     # 玩家角色路由
-│   │   ├── novel_routes.py      # 小说生成路由
-│   │   ├── save_routes.py       # 存档管理路由
-│   │   └── check_routes.py      # 骰子检定路由
-│   ├── models/            # 数据模型层
-│   │   ├── character.py         # 角色数据模型
-│   │   ├── player.py            # 玩家数据模型
-│   │   ├── novel.py             # 小说数据模型
-│   │   ├── save.py              # 存档数据模型
-│   │   └── check.py             # 检定数据模型
+│   │   ├── __init__.py
+│   │   ├── game_routes.py       # 游戏核心路由（聊天、记忆、游戏管理、故事扩展）
+│   │   ├── character_routes.py  # 角色管理路由（角色、关系、NPC生成）
+│   │   ├── player_routes.py     # 玩家角色路由（创建、生成、属性、技能）
+│   │   ├── novel_routes.py      # 小说生成路由（规划、章节、合并）
+│   │   ├── save_routes.py       # 存档管理路由（存档、历史、回退）
+│   │   └── check_routes.py      # 骰子检定路由（检定、掷骰）
+│   ├── models/            # 数据模型层（Pydantic）
+│   │   ├── __init__.py
+│   │   ├── character.py         # 角色数据模型（CharacterCard、CharacterRelation等）
+│   │   ├── player.py            # 玩家数据模型（PlayerCharacter、预设技能）
+│   │   ├── novel.py             # 小说请求模型
+│   │   ├── save.py              # 存档数据模型（GameSave、HistorySnapshot）
+│   │   └── check.py             # 检定数据模型（CheckRequest、CheckResult）
 │   ├── services/          # 业务逻辑层
-│   │   ├── game_service.py      # 游戏核心服务
-│   │   ├── character_service.py # 角色生成服务
-│   │   ├── player_service.py    # 玩家角色服务
-│   │   ├── novel_service.py     # 小说生成服务
-│   │   ├── save_service.py      # 存档管理服务
-│   │   └── check_service.py     # 检定计算服务
-│   ├── utils/             # 工具层
-│   │   ├── game_manager.py      # 游戏管理（创建、加载、删除）
-│   │   ├── file_storage.py      # 文件存储操作
-│   │   └── llm_client.py        # LLM API 调用封装
-│   └── config.py          # 配置文件（Prompt模板、常量）
+│   │   ├── __init__.py
+│   │   ├── game_service.py      # 游戏核心服务（聊天、记忆更新）
+│   │   ├── character_service.py # 角色生成服务（批量生成、关系生成、快照）
+│   │   ├── player_service.py    # 玩家角色服务（创建、随机生成、LLM生成）
+│   │   ├── novel_service.py     # 小说生成服务（规划、章节、合并）
+│   │   ├── save_service.py      # 存档管理服务（存档列表、历史管理）
+│   │   └── check_service.py     # 检定计算服务（D20检定、叙述生成）
+│   └── utils/             # 工具层
+│       ├── __init__.py
+│       ├── game_manager.py      # 游戏管理（创建、加载、删除、目录管理）
+│       ├── file_storage.py      # 文件存储操作（角色、记忆、存档等）
+│       └── llm_client.py        # LLM API 调用封装（流式响应、重试、JSON解析）
 ├── games/                 # 游戏数据目录
 │   └── game_YYYYMMDDHHMMSS/     # 单个游戏目录
 │       ├── game_info.json       # 游戏元信息
+│       ├── llm-log.md           # LLM 调用日志
 │       ├── memory/              # 游戏记忆
 │       │   └── memory.md
 │       ├── character/           # 角色数据
@@ -126,6 +137,9 @@ adventure-game/
 │       │   └── player.json
 │       ├── novel/               # 生成的小说
 │       │   └── novel-timestamp/
+│       │       ├── plan.json
+│       │       ├── chapters/
+│       │       └── novel.md
 │       ├── saves/               # 游戏存档
 │       │   ├── save_1.json
 │       │   └── history.json
@@ -137,10 +151,11 @@ adventure-game/
 
 ## 游戏玩法
 
-1. 在开始页输入你想探索的世界观描述
+1. 在开始页输入你想探索的世界观描述（可使用「背景拓展」功能自动扩展）
 2. 点击"开始新游戏"，系统会：
    - 创建独立游戏目录
    - 使用 AI 生成契合世界观的主角
+   - 确认主角信息后自动生成 10 个 NPC 角色
    - 初始化游戏记忆文档
 3. 阅读剧情，从三个预设选项中做出选择
 4. 也可以输入自定义选项推进故事
@@ -166,18 +181,35 @@ adventure-game/
 ```json
 {
   "success": true,
-  "game_id": "game_20240317143022"
+  "game_id": "game_20240317143022",
+  "paths": {...}
 }
 ```
 
 #### GET /api/games
 获取所有游戏列表
 
+#### GET /api/games/current
+获取当前游戏信息
+
 #### POST /api/games/load/{game_id}
 加载指定游戏
 
+#### PUT /api/games/{game_id}
+更新游戏信息
+
 #### DELETE /api/games/{game_id}
 删除指定游戏
+
+#### POST /api/story/expand
+扩展故事设定（AI 自动补全世界观）
+
+**请求体**:
+```json
+{
+  "user_input": "赛博朋克新加坡"
+}
+```
 
 ### 游戏核心
 
@@ -209,15 +241,24 @@ adventure-game/
 获取角色关系图数据
 
 #### POST /api/characters/generate
-生成角色（主角、反派、NPC等）
+批量生成角色（主角、反派、配角、NPC）
 
 #### POST /api/npcs/generate
-根据主角信息生成 NPC
+根据主角信息生成 NPC（10个角色 + 关系网络）
+
+#### GET /api/characters/snapshot/{chapter}
+获取/创建角色快照
 
 ### 玩家角色
 
+#### POST /api/player/create
+手动创建玩家角色
+
+#### POST /api/player/random
+随机生成玩家角色
+
 #### POST /api/player/generate
-使用 AI 生成主角角色
+使用 LLM 根据世界观生成主角
 
 #### GET /api/player
 获取当前玩家角色
@@ -225,10 +266,26 @@ adventure-game/
 #### PUT /api/player
 更新玩家角色
 
+#### GET /api/player/skills
+获取预设技能列表
+
 ### 小说生成
 
 #### POST /api/novel/plan
-规划小说章节
+规划小说章节（标题、章节大纲）
+
+**响应**:
+```json
+{
+  "novel_folder": "novel-20240317-143022",
+  "plan": {
+    "title": "小说标题",
+    "total_chapters": 6,
+    "chapters": [...]
+  },
+  "game_rounds": 10
+}
+```
 
 #### POST /api/novel/chapter
 生成单个章节
@@ -236,10 +293,13 @@ adventure-game/
 #### POST /api/novel/merge
 合并所有章节为完整小说
 
+#### GET /api/novel/status/{novel_folder}
+获取小说生成状态
+
 ### 存档系统
 
 #### GET /api/save/list
-获取存档列表
+获取存档列表（5个存档位）
 
 #### POST /api/save/{slot_id}
 保存游戏到指定存档位
@@ -247,21 +307,102 @@ adventure-game/
 #### GET /api/save/load/{slot_id}
 加载指定存档
 
+#### DELETE /api/save/{slot_id}
+删除存档
+
 #### POST /api/history/undo
-撤销上一步操作
+撤销上一步操作（最多10步）
+
+### 检定系统
+
+#### POST /api/check
+执行 D20 检定
+
+**请求体**:
+```json
+{
+  "attribute": "strength",
+  "skill": "剑术",
+  "difficulty": 12,
+  "description": "尝试撬开石门"
+}
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "result": {
+    "roll": 15,
+    "modifier": 2,
+    "skill_bonus": 2,
+    "total": 19,
+    "difficulty": 12,
+    "success": true,
+    "critical": false,
+    "fumble": false,
+    "narrative": "成功！投出15点..."
+  }
+}
+```
+
+#### GET /api/check/roll
+掷骰子（支持 d4/d6/d8/d10/d12/d20/d100）
 
 ## 技术架构
 
-- **后端**: FastAPI + Python 3.10+
-- **前端**: HTML5 + CSS3 + Vanilla JavaScript
-- **AI模型**: 兼容 OpenAI API 格式的任意大模型
-- **数据存储**: 文件系统（JSON + Markdown）
-- **包管理**: uv
+### 后端
+- **框架**: FastAPI + Python 3.10+
+- **数据验证**: Pydantic
+- **HTTP 客户端**: requests（支持流式响应）
+- **配置管理**: python-dotenv
+
+### 前端
+- **技术栈**: HTML5 + CSS3 + Vanilla JavaScript
+- **UI 风格**: 深色终端/赛博朋克风格
+- **状态管理**: localStorage + 内存状态
+
+### AI 模型
+- 兼容 OpenAI API 格式的任意大模型
+- 支持流式响应（SSE）
+- 自动重试机制（最多3次）
+- JSON 响应解析与修复
+
+### 数据存储
+- **格式**: JSON + Markdown
+- **结构**: 文件系统（按游戏 ID 隔离）
+- **日志**: LLM 调用完整记录
+
+### 包管理
+- **工具**: uv
+- **依赖**: 见 pyproject.toml
+
+## 配置说明
+
+### 环境变量（.env）
+```
+API_BASE_URL=https://ark.cn-beijing.volces.com/api/coding/v3
+API_MODEL=ark-code-latest
+API_KEY=你的API密钥
+```
+
+### Prompt 模板（app/config.py）
+项目包含多个精心设计的 Prompt 模板：
+
+- `SYSTEM_PROMPT` - 游戏叙述者系统提示
+- `MEMORY_UPDATE_PROMPT` - 记忆文档更新模板
+- `PLAYER_GENERATION_PROMPT` - 主角生成模板
+- `NPC_GENERATION_PROMPT` - NPC 生成模板
+- `CHARACTER_GENERATION_PROMPT` - 通用角色生成模板
+- `RELATION_GENERATION_PROMPT` - 角色关系生成模板
+- `NOVEL_GENERATION_PROMPT` - 小说生成模板
+- `NOVEL_CHAPTER_PROMPT` - 章节生成模板
+- `STORY_EXPANSION_PROMPT` - 故事设定扩展模板
 
 ## 常见问题
 
 ### Q: 游戏进度会丢失吗？
-A: 不会。游戏使用文件系统存储，每个游戏独立保存，支持多存档位。
+A: 不会。游戏使用文件系统存储，每个游戏独立保存，支持多存档位。前端还有 localStorage 自动保存。
 
 ### Q: 如何重新开始游戏？
 A: 点击"开始新游戏"会创建全新的游戏目录，与历史游戏完全隔离。
@@ -274,6 +415,12 @@ A: 游戏记录保存在 `games/game_xxx/memory/memory.md` 文件中，可以直
 
 ### Q: 如何切换不同的游戏？
 A: 点击"游戏列表"按钮，可以查看、加载或删除历史游戏。
+
+### Q: 支持哪些 AI 模型？
+A: 支持任何兼容 OpenAI API 格式的大模型服务，包括火山引擎、OpenAI、Claude API 等。
+
+### Q: 为什么 NPC 生成失败？
+A: NPC 生成超时（180秒）时会继续游戏流程，不影响主线体验。可以稍后手动添加角色。
 
 ## 开发说明
 
@@ -304,6 +451,28 @@ python3 scripts/migrate_data.py
 python3 scripts/test_game_isolation.py
 ```
 
+## 已知限制
+
+1. **前端状态管理**: 使用内存状态，页面刷新会丢失未保存的进度
+2. **并发处理**: 单进程架构，大量并发请求可能需要排队
+3. **文件存储**: 不适合超大规模游戏数据，建议定期清理旧游戏
+4. **LLM 响应**: 依赖外部 API，网络问题可能导致生成失败
+5. **JSON 解析**: 部分模型可能返回格式不正确的 JSON，已有自动修复机制
+6. **角色快照**: 需要手动触发创建，未自动按章节记录
+
+## 未来改进方向
+
+1. **数据库支持**: 迁移到 SQLite 或 PostgreSQL 提升查询性能
+2. **WebSocket**: 实现实时流式响应，改善用户体验
+3. **用户系统**: 添加多用户支持和权限管理
+4. **导入导出**: 支持游戏数据打包导出和导入
+5. **角色头像**: 集成 AI 图片生成 API 创建角色头像
+6. **多语言**: 支持 English 等多语言界面
+7. **移动端适配**: 优化移动设备交互体验
+8. **剧情分支图**: 可视化展示故事走向和选择分支
+9. **存档对比**: 显示不同存档点的差异对比
+10. **自动快照**: 每轮游戏结束自动创建角色状态快照
+
 ## 更新日志
 
 ### v0.3.0 (2024-03-20)
@@ -313,6 +482,8 @@ python3 scripts/test_game_isolation.py
 - 新增游戏列表界面，支持切换历史游戏
 - 优化时间戳精度，确保游戏ID唯一性
 - 添加数据迁移脚本和测试脚本
+- 新增 LLM 调用日志记录功能
+- 新增故事设定自动扩展功能
 
 ### v0.2.0 (2024-03-17)
 - 添加 localStorage 自动保存功能，游戏进度持久化

@@ -6,6 +6,7 @@ from app.api.novel_routes import router as novel_router
 from app.api.player_routes import router as player_router
 from app.api.check_routes import router as check_router
 from app.api.save_routes import router as save_router
+from app.middleware.session_middleware import SessionMiddleware
 
 
 app = FastAPI()
@@ -16,6 +17,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(SessionMiddleware)
 
 app.include_router(game_router)
 app.include_router(character_router)

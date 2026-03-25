@@ -2406,7 +2406,28 @@
 
      <script>
         const STORAGE_KEY = 'adventure_game_save';
-        
+        const SESSION_ID_KEY = 'adventure_tab_session_id';
+
+        function getSessionId() {
+            let sessionId = sessionStorage.getItem(SESSION_ID_KEY);
+            if (!sessionId) {
+                sessionId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+                sessionStorage.setItem(SESSION_ID_KEY, sessionId);
+            }
+            return sessionId;
+        }
+
+        async function apiFetch(url, options) {
+            const sessionId = getSessionId();
+            options = options || {};
+            options.headers = options.headers || {};
+            options.headers['X-Adventure-Session-ID'] = sessionId;
+            if (options.body && !options.headers['Content-Type']) {
+                options.headers['Content-Type'] = 'application/json';
+            }
+            return fetch(url, options);
+        }
+
         let messages = [];
         let chapter = 0;
         let logs = [];
@@ -2430,7 +2451,7 @@
 
         async function loadPresetSkills() {
             try {
-                const response = await fetch('/api/player/skills');
+                const response = await apiFetch('/api/player/skills');
                 const data = await response.json();
                 presetSkills = data.skills;
                 renderSkillsGrid();
@@ -2567,12 +2588,11 @@
 
         async function generateRandomPlayer() {
             try {
-                const response = await fetch('/api/player/random', {
+                const response = await apiFetch('/api/player/random', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ world_setting: '' })
                 });
-                
+
                 const data = await response.json();
                 if (data.success) {
                     playerCharacter = data.player;
@@ -2627,16 +2647,15 @@
                 alert('请输入角色名称');
                 return;
             }
-            
+
             if (selectedSkills.length < 2) {
                 alert('请至少选择2个技能');
                 return;
             }
-            
+
             try {
-                const response = await fetch('/api/player/create', {
+                const response = await apiFetch('/api/player/create', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         name: name,
                         age: parseInt(document.getElementById('player-age')?.value) || null,
@@ -2653,7 +2672,7 @@
                         skills: selectedSkills
                     })
                 });
-                
+
                 const data = await response.json();
                 if (data.success) {
                     playerCharacter = data.player;
@@ -2672,7 +2691,7 @@
 
         async function loadPlayerCharacter() {
             try {
-                const response = await fetch('/api/player');
+                const response = await apiFetch('/api/player');
                 const data = await response.json();
                 if (data.exists) {
                     playerCharacter = data.player;
@@ -3150,19 +3169,18 @@
                     setTimeout(async () => {
                         clearInterval(rollInterval);
                         diceDisplay.classList.remove('rolling');
-                        
+
                         try {
-                            const response = await fetch('/api/check', {
+                            const response = await apiFetch('/api/check', {
                                 method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
-                                    attribute: attribute,
+                                    attribute: attribute || 'strength',
                                     skill: skill || '',
-                                    difficulty: difficulty,
+                                    difficulty: difficulty || 12,
                                     description: description || ''
                                 })
                             });
-                            
+
                             const data = await response.json();
                             if (data.success) {
                                 const result = data.result;
@@ -3207,12 +3225,13 @@
         }
 
         function makeChoiceWithCheck(choice, checkInfo) {
-            if (checkInfo) {
+            if (checkInfo && checkInfo.attribute) {
+                const checkData = checkInfo || {};
                 performDiceCheck(
-                    checkInfo.attribute,
-                    checkInfo.skill,
-                    checkInfo.difficulty,
-                    checkInfo.description
+                    checkData.attribute || 'strength',
+                    checkData.skill || '',
+                    checkData.difficulty || 12,
+                    checkData.description || ''
                 ).then(result => {
                     if (result.success) {
                         makeChoice(choice + '（检定成功）');
@@ -3335,9 +3354,8 @@
                 const controller = new AbortController();
                 const timeout = setTimeout(() => controller.abort(), 30000);
 
-                const response = await fetch('/api/story/expand', {
+                const response = await apiFetch('/api/story/expand', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user_input: userInput }),
                     signal: controller.signal
                 });
@@ -3396,9 +3414,8 @@
             try {
                 // 步骤0: 创建新游戏
                 document.getElementById('loading-detail').textContent = '正在创建新游戏...';
-                const createGameResponse = await fetch('/api/games/create', {
+                const createGameResponse = await apiFetch('/api/games/create', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ world_setting: worldSetting })
                 });
                 if (!createGameResponse.ok) {
@@ -3406,31 +3423,29 @@
                 }
                 const createGameData = await createGameResponse.json();
                 console.log('新游戏已创建:', createGameData.game_id);
-                
+
                 // 步骤1: 保存故事设定
                 document.getElementById('loading-detail').textContent = '正在保存故事设定...';
-                const memoryResponse = await fetch('/api/save-memory', {
+                const memoryResponse = await apiFetch('/api/save-memory', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ worldSetting: worldSetting })
                 });
                 if (!memoryResponse.ok) {
                     throw new Error('保存故事设定失败');
                 }
-                
+
                 // 步骤2: 生成主角（使用LLM）
                 document.getElementById('loading-detail').textContent = '正在使用AI生成主角（约需30-60秒）...';
-                
-                const playerResponse = await fetch('/api/player');
+
+                const playerResponse = await apiFetch('/api/player');
                 const playerData = await playerResponse.json();
-                
+
                 if (!playerData.exists) {
                     const playerController = new AbortController();
                     const playerTimeout = setTimeout(() => playerController.abort(), 90000);
-                    
-                    const playerGenResponse = await fetch('/api/player/generate', {
+
+                    const playerGenResponse = await apiFetch('/api/player/generate', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ world_setting: worldSetting }),
                         signal: playerController.signal
                     });
@@ -3586,111 +3601,37 @@
             }
 
             try {
-                const response = await fetch('/api/chat', {
+                const response = await apiFetch('/api/chat', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         messages: messages,
                         extraPrompt: extraPrompt,
-                        endingType: selectedEndingType
+                        turn_context: lastCheckResult ? { last_check: lastCheckResult } : null
                     })
                 });
 
                 const data = await response.json();
 
-                if (data.error) {
-                    throw new Error(data.error);
+                if (!data.success) {
+                    throw new Error(data.error || '服务器返回错误');
                 }
 
                 const content = data.content;
                 if (!content) {
                     throw new Error('API返回内容为空');
                 }
-                
+
                 messages.push({
                     role: 'assistant',
-                    content: content
+                    content: JSON.stringify(content)
                 });
 
-                let parsed;
-                try {
-                    let jsonStr = content;
-                    const braceStart = jsonStr.indexOf('{');
-                    const braceEnd = jsonStr.lastIndexOf('}');
-                    if (braceStart !== -1 && braceEnd !== -1 && braceEnd > braceStart) {
-                        jsonStr = jsonStr.substring(braceStart, braceEnd + 1);
-                    }
-                    
-                    const sceneMatch = jsonStr.match(/"scene"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
-                    const logMatch = jsonStr.match(/"log"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
-                    const endingMatch = jsonStr.match(/"ending"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
-                    const choicesMatch = jsonStr.match(/"choices"\s*:\s*\[((?:[^\[\]\\]|\\.)*)\]/s);
-                    
-                    parsed = {};
-                    
-                    if (sceneMatch) {
-                        parsed.scene = sceneMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-                    }
-                    
-                    if (logMatch) {
-                        parsed.log = logMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-                    }
-                    
-                    if (endingMatch) {
-                        parsed.ending = endingMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-                    }
-                    
-                    if (choicesMatch) {
-                        const choicesStr = choicesMatch[1];
-                        const choices = [];
-                        let current = '';
-                        let inQuote = false;
-                        let escape = false;
-                        for (let i = 0; i < choicesStr.length; i++) {
-                            const char = choicesStr[i];
-                            if (escape) {
-                                current += char;
-                                escape = false;
-                            } else if (char === '\\') {
-                                current += char;
-                                escape = true;
-                            } else if (char === '"') {
-                                inQuote = !inQuote;
-                                current += char;
-                            } else if (char === ',' && !inQuote) {
-                                if (current.trim()) {
-                                    choices.push(current.trim());
-                                }
-                                current = '';
-                            } else {
-                                current += char;
-                            }
-                        }
-                        if (current.trim()) {
-                            choices.push(current.trim());
-                        }
-                        parsed.choices = choices.map(c => {
-                            return c.replace(/^["']|["']$/g, '').replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-                        });
-                    }
-                    
-                    if (!parsed.scene && !parsed.log && !parsed.ending && !parsed.choices) {
-                        throw new Error('无法解析任何有效字段');
-                    }
-                } catch (e) {
-                    console.error('JSON解析错误:', e);
-                    console.error('原始内容:', content.substring(0, 500));
-                    throw new Error('AI返回格式错误: ' + e.message);
-                }
-
-                renderScene(parsed);
+                renderScene(content);
 
             } catch (error) {
                 let errorMessage = error.message;
                 let errorDetail = '';
-                
+
                 if (errorMessage.includes('504')) {
                     errorDetail = '服务器响应超时，请稍后重试。如果问题持续，请检查网络连接。';
                 } else if (errorMessage.includes('502') || errorMessage.includes('网络请求错误')) {
@@ -3704,11 +3645,13 @@
                 } else {
                     errorDetail = '发生了未知错误，请刷新页面重试。如果问题持续，请联系开发者。';
                 }
-                
+
                 showError('发生错误', errorDetail);
                 setLoading(false);
             }
         }
+
+        let lastCheckResult = null;
 
         function renderScene(data) {
             const sceneText = document.getElementById('scene-text');
@@ -3725,7 +3668,7 @@
                     selectedChoice: null,
                     log: data.log
                 });
-                
+
                 const container = document.getElementById('log-container');
                 const entry = document.createElement('div');
                 entry.className = 'log-entry';
@@ -3746,11 +3689,84 @@
 
             if (data.choices && data.choices.length > 0) {
                 data.choices.forEach((choice, index) => {
-                    const btn = document.createElement('button');
-                    btn.className = 'choice-btn';
-                    btn.textContent = `${index + 1}. ${choice}`;
-                    btn.onclick = () => makeChoice(choice);
-                    choicesContainer.appendChild(btn);
+                    if (choice.check && choice.check_optional) {
+                        const container = document.createElement('div');
+                        container.className = 'choice-with-check';
+                        container.style.cssText = 'display: flex; flex-direction: column; gap: 8px; padding: 10px; background: rgba(0, 255, 136, 0.05); border-radius: 6px; border: 1px solid rgba(0, 255, 136, 0.2);';
+
+                        const textDiv = document.createElement('div');
+                        textDiv.style.cssText = 'color: #00ff88; font-size: 1rem; line-height: 1.5;';
+                        textDiv.textContent = `${index + 1}. ${choice.text}`;
+                        if (choice.check_prompt) {
+                            const promptDiv = document.createElement('div');
+                            promptDiv.style.cssText = 'font-size: 0.8rem; color: rgba(0, 200, 255, 0.7); margin-top: 4px;';
+                            promptDiv.textContent = choice.check_prompt;
+                            textDiv.appendChild(promptDiv);
+                        }
+                        container.appendChild(textDiv);
+
+                        const btnGroup = document.createElement('div');
+                        btnGroup.style.cssText = 'display: flex; gap: 10px;';
+
+                        const directBtn = document.createElement('button');
+                        directBtn.className = 'btn btn-secondary';
+                        directBtn.style.cssText = 'flex: 1; padding: 10px 20px;';
+                        directBtn.textContent = '直接行动';
+                        directBtn.onclick = () => makeChoiceWithCheck(choice.text, null);
+                        btnGroup.appendChild(directBtn);
+
+                        const checkBtn = document.createElement('button');
+                        checkBtn.className = 'choice-btn has-check';
+                        checkBtn.style.cssText = 'flex: 1;';
+                        checkBtn.textContent = '🎲 进行检定';
+                        checkBtn.onclick = () => {
+                            const checkData = choice.check || {};
+                            performDiceCheck(
+                                checkData.attribute || 'strength',
+                                checkData.skill || '',
+                                checkData.difficulty || 12,
+                                checkData.description || ''
+                            ).then(result => {
+                                lastCheckResult = result;
+                                if (result.success) {
+                                    makeChoiceWithCheck(choice.text + `（检定成功：${result.total} ≥ ${checkData.difficulty || 12}）`, result);
+                                } else {
+                                    makeChoiceWithCheck(choice.text + `（检定失败：${result.total} < ${checkData.difficulty || 12}）`, result);
+                                }
+                            });
+                        };
+                        btnGroup.appendChild(checkBtn);
+
+                        container.appendChild(btnGroup);
+                        choicesContainer.appendChild(container);
+                    } else if (choice.check) {
+                        const btn = document.createElement('button');
+                        btn.className = 'choice-btn has-check';
+                        btn.textContent = `${index + 1}. ${choice.text}`;
+                        btn.onclick = () => {
+                            const checkData = choice.check || {};
+                            performDiceCheck(
+                                checkData.attribute || 'strength',
+                                checkData.skill || '',
+                                checkData.difficulty || 12,
+                                checkData.description || ''
+                            ).then(result => {
+                                lastCheckResult = result;
+                                if (result.success) {
+                                    makeChoiceWithCheck(choice.text + `（检定成功：${result.total} ≥ ${checkData.difficulty || 12}）`, result);
+                                } else {
+                                    makeChoiceWithCheck(choice.text + `（检定失败：${result.total} < ${checkData.difficulty || 12}）`, result);
+                                }
+                            });
+                        };
+                        choicesContainer.appendChild(btn);
+                    } else {
+                        const btn = document.createElement('button');
+                        btn.className = 'choice-btn';
+                        btn.textContent = `${index + 1}. ${choice.text}`;
+                        btn.onclick = () => makeChoiceWithCheck(choice.text, null);
+                        choicesContainer.appendChild(btn);
+                    }
                 });
             }
 

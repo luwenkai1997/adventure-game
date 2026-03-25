@@ -1,9 +1,11 @@
 from fastapi import APIRouter
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, List
 import os
-from app.config import BASE_DIR, STORY_EXPANSION_PROMPT
+import uuid
+import json
+from app.config import BASE_DIR, STORY_EXPANSION_PROMPT, API_STREAMING_ENABLED
 from app.utils.game_manager import (
     create_game_structure,
     list_all_games,
@@ -21,11 +23,25 @@ from app.utils.file_storage import (
     load_memory,
 )
 from app.services.game_service import GameService
+from app.services.prompt_composer import PromptComposer
+from app.services.chat_parser import (
+    parse_chat_output,
+    get_repair_prompt,
+    ParseError,
+    ChatTurnContent,
+)
+from app.services.llm_gateway import (
+    stream_llm,
+    cancel_request,
+    is_cancelled,
+)
+from app.models.chat import ChatRequestV2, ChatResponseV2, ChatTurnContent
 from app.utils.llm_client import call_llm
 
 
 router = APIRouter()
 game_service = GameService()
+composer = PromptComposer()
 
 
 class CreateGameRequest(BaseModel):
@@ -67,12 +83,28 @@ async def index():
 
 
 @router.post("/api/chat")
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequestV2):
     try:
-        content = game_service.chat(request.messages, request.extraPrompt)
-        return JSONResponse(content={'content': content})
+        request_id = str(uuid.uuid4())
+        parsed_content, raw_content = game_service.chat(
+            request.messages,
+            request.extraPrompt,
+            request.turn_context,
+        )
+        response = ChatResponseV2(
+            success=True,
+            content=parsed_content,
+            raw_content=raw_content,
+            meta={
+                "request_id": request_id,
+                "repaired": False,
+            }
+        )
+        return JSONResponse(content=response.model_dump())
     except Exception as e:
-        return JSONResponse(status_code=500, content={'error': f'服务器错误: {str(e)}'})
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={'success': False, 'error': f'服务器错误: {str(e)}'})
 
 
 @router.post("/api/save-memory")
@@ -203,3 +235,57 @@ async def api_delete_game(game_id: str):
         return JSONResponse(status_code=404, content={"error": "游戏不存在"})
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"删除游戏失败: {str(e)}"})
+
+
+@router.post("/api/chat/stream")
+async def chat_stream(request: ChatRequestV2):
+    request_id = str(uuid.uuid4())
+    full_messages = composer.compose(
+        messages=request.messages,
+        extra_prompt=request.extraPrompt,
+        turn_context=request.turn_context,
+    )
+    prompt = "\n".join([msg["content"] for msg in full_messages])
+    system_prompt = None
+
+    def event_generator():
+        full_content = ""
+        for chunk in stream_llm(prompt, system_prompt, request_id):
+            full_content += chunk
+            if is_cancelled(request_id):
+                yield f"data: {{\"type\": \"cancelled\"}}\n\n"
+                break
+            yield f"data: {json.dumps({'type': 'chunk', 'content': chunk}, ensure_ascii=False)}\n\n"
+
+        if not is_cancelled(request_id):
+            try:
+                parsed_content, _ = parse_chat_output(full_content)
+                result = {
+                    "type": "done",
+                    "success": True,
+                    "content": parsed_content.model_dump(),
+                    "request_id": request_id,
+                }
+            except ParseError as e:
+                result = {
+                    "type": "error",
+                    "success": False,
+                    "error": f"解析失败: {e.message}",
+                    "request_id": request_id,
+                }
+            yield f"data: {json.dumps(result, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+@router.post("/api/chat/cancel/{request_id}")
+async def cancel_chat(request_id: str):
+    cancel_request(request_id)
+    return JSONResponse(content={"success": True, "request_id": request_id})

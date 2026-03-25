@@ -1,8 +1,9 @@
 import os
 import json
 import uuid
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import datetime
+from app.request_context import get_current_session_id
 from app.utils.game_manager import (
     get_current_game_id,
     get_memory_dir,
@@ -16,19 +17,28 @@ from app.utils.game_manager import (
 )
 
 
-_current_game_id: Optional[str] = None
+_session_game_map: Dict[str, Optional[str]] = {}
+
+
+def get_session_game_map() -> Dict[str, Optional[str]]:
+    return _session_game_map
 
 
 def set_current_game(game_id: str) -> None:
-    global _current_game_id
-    _current_game_id = game_id
+    session_id = get_current_session_id()
+    if session_id:
+        _session_game_map[session_id] = game_id
+    else:
+        _session_game_map["default"] = game_id
 
 
 def get_current_game() -> Optional[str]:
-    global _current_game_id
-    if _current_game_id is None:
-        _current_game_id = get_current_game_id()
-    return _current_game_id
+    session_id = get_current_session_id()
+    if session_id and session_id in _session_game_map:
+        return _session_game_map[session_id]
+    if "default" in _session_game_map:
+        return _session_game_map["default"]
+    return get_current_game_id()
 
 
 def require_game_id() -> str:
@@ -39,9 +49,9 @@ def require_game_id() -> str:
 
 
 def init_new_game(world_setting: str = "") -> dict:
-    global _current_game_id
     paths = create_game_structure(world_setting=world_setting)
-    _current_game_id = paths["game_dir"].split("/")[-1]
+    game_id = paths["game_dir"].split("/")[-1]
+    set_current_game(game_id)
     return paths
 
 

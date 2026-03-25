@@ -57,21 +57,15 @@ async def random_player(request: Optional[PlayerRandomRequest] = None):
 async def generate_player(request: Optional[PlayerRandomRequest] = None):
     """使用LLM根据世界观生成主角"""
     import asyncio
-    from app.services.player_service import PlayerService
     
     try:
         world_setting = request.world_setting if request else ""
         
-        # 使用LLM生成主角
-        async def generate_with_timeout():
-            return await asyncio.get_event_loop().run_in_executor(
-                None, 
-                player_service.generate_player_with_llm, 
-                world_setting
-            )
-        
         try:
-            player = await asyncio.wait_for(generate_with_timeout(), timeout=60.0)
+            player = await asyncio.wait_for(
+                player_service.generate_player_with_llm(world_setting),
+                timeout=60.0,
+            )
             if player:
                 return JSONResponse(content={"success": True, "player": player.model_dump()})
             else:

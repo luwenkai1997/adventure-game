@@ -1,75 +1,111 @@
 import json
 import re
-import time
-import requests
-from requests.exceptions import (
-    RequestException,
-    ChunkedEncodingError,
-    Timeout,
-    ConnectionError,
+import os
+from typing import Any, Optional
+from datetime import datetime
+from app.config import (
+    API_BASE_URL,
+    API_MODEL,
+    API_KEY,
+    API_TIMEOUT,
 )
-from typing import Any
-from app.config import API_BASE_URL, API_MODEL, API_KEY
-
-MAX_TOKENS_LIMIT = 8192
-MAX_RETRIES = 3
-RETRY_DELAY = 2
+from app.services.llm_gateway import call_llm_with_retry
 
 
-def call_llm(
+MAX_TOKENS_LIMIT = 16384
+
+
+def get_llm_log_path() -> str:
+    try:
+        from app.utils.file_storage import get_current_game, get_game_dir
+        game_id = get_current_game()
+        if game_id:
+            game_dir = get_game_dir(game_id)
+            return os.path.join(game_dir, "llm-log.md")
+    except:
+        pass
+    return None
+
+
+def log_llm_call(
+    method_name: str,
+    request_messages: list,
+    request_params: dict,
+    response_content: str,
+    response_usage: Optional[dict] = None,
+    error: Optional[str] = None,
+):
+    log_path = get_llm_log_path()
+    if not log_path:
+        return
+
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
+    log_entry = f"""
+---
+
+## {timestamp}
+
+### 方法名称
+`{method_name}`
+
+### 请求参数
+```json
+{json.dumps(request_params, ensure_ascii=False, indent=2)}
+```
+
+### 发送消息
+```json
+{json.dumps(request_messages, ensure_ascii=False, indent=2)}
+```
+
+### 响应内容
+```
+{response_content[:2000] if response_content else '(无)'}
+```
+"""
+
+    if response_usage:
+        log_entry += f"""
+### Token使用统计
+```json
+{json.dumps(response_usage, ensure_ascii=False, indent=2)}
+```
+"""
+
+    if error:
+        log_entry += f"""
+### 错误信息
+```
+{error}
+```
+"""
+
+    try:
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(log_entry)
+    except Exception as e:
+        print(f"[LLM日志] 写入失败: {e}")
+
+
+async def call_llm(
     prompt: str,
     system_prompt: str = None,
-    timeout: int = 120,
+    timeout: int = API_TIMEOUT,
     max_tokens: int = MAX_TOKENS_LIMIT,
+    method_name: str = "call_llm",
+    request_id: Optional[str] = None,
+    max_retries: int = 2,
 ) -> str:
-    if system_prompt is None:
-        system_prompt = "你是一个AI助手。"
-
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": prompt},
-    ]
-
-    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {API_KEY}"}
-
-    payload = {
-        "model": API_MODEL,
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "stream": False,
-    }
-
-    last_error = None
-    for attempt in range(MAX_RETRIES):
-        try:
-            response = requests.post(
-                f"{API_BASE_URL}/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=timeout,
-                stream=False,
-            )
-
-            if response.status_code != 200:
-                raise Exception(
-                    f"API请求失败: {response.status_code} - {response.text[:500]}"
-                )
-
-            result = response.json()
-            return result["choices"][0]["message"]["content"]
-
-        except (ChunkedEncodingError, Timeout, ConnectionError, RequestException) as e:
-            last_error = e
-            print(
-                f"API请求失败 (尝试 {attempt + 1}/{MAX_RETRIES}): {type(e).__name__}: {str(e)[:100]}"
-            )
-            if attempt < MAX_RETRIES - 1:
-                time.sleep(RETRY_DELAY * (attempt + 1))
-            continue
-        except Exception as e:
-            raise e
-
-    raise Exception(f"API请求失败，已重试{MAX_RETRIES}次: {last_error}")
+    # max_tokens reserved for future API payload support
+    _ = max_tokens
+    return await call_llm_with_retry(
+        prompt=prompt,
+        system_prompt=system_prompt,
+        request_id=request_id,
+        max_retries=max_retries,
+        timeout=timeout,
+    )
 
 
 def parse_json_response(content: str) -> Any:

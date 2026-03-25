@@ -67,7 +67,7 @@ class CharacterService:
         
         return []
 
-    def generate_npcs_with_llm(
+    async def generate_npcs_with_llm(
         self, 
         world_setting: str, 
         protagonist_info: dict,
@@ -91,7 +91,7 @@ class CharacterService:
         
         system_prompt = "你是一个专业的角色设计师，擅长创造与主角和故事设定相契合的NPC角色。请严格按照JSON数组格式返回结果。"
         
-        response = call_llm(prompt, system_prompt, timeout=180, max_tokens=8000)
+        response = await call_llm(prompt, system_prompt, timeout=180, max_tokens=8000)
         
         try:
             npcs_data = parse_json_response(response)
@@ -161,7 +161,7 @@ class CharacterService:
         print(f"成功生成 {len(npcs)} 个NPC")
         return npcs
 
-    def generate_characters_batch(
+    async def generate_characters_batch(
         self,
         world_setting: str,
         role_type: str,
@@ -182,7 +182,7 @@ class CharacterService:
 
         system_prompt = "你是一个专业的角色设计师，擅长创造生动有趣的角色。请严格按照JSON格式返回结果。"
 
-        response = call_llm(prompt, system_prompt, timeout=180)
+        response = await call_llm(prompt, system_prompt, timeout=180)
         characters = parse_json_response(response)
 
         for char in characters:
@@ -207,28 +207,28 @@ class CharacterService:
 
         return characters
 
-    def generate_all_characters(self, config: CharacterGenerationConfig) -> List[dict]:
+    async def generate_all_characters(self, config: CharacterGenerationConfig) -> List[dict]:
         all_characters = []
 
-        protagonists = self.generate_characters_batch(
+        protagonists = await self.generate_characters_batch(
             config.world_setting, "protagonist", config.protagonist_count,
             config.genre, config.power_level
         )
         all_characters.extend(protagonists)
 
-        antagonists = self.generate_characters_batch(
+        antagonists = await self.generate_characters_batch(
             config.world_setting, "antagonist", config.antagonist_count,
             config.genre, config.power_level
         )
         all_characters.extend(antagonists)
 
-        supporting = self.generate_characters_batch(
+        supporting = await self.generate_characters_batch(
             config.world_setting, "supporting", config.supporting_count,
             config.genre, config.power_level
         )
         all_characters.extend(supporting)
 
-        npcs = self.generate_characters_batch(
+        npcs = await self.generate_characters_batch(
             config.world_setting, "npc", config.npc_count,
             config.genre, config.power_level
         )
@@ -236,7 +236,7 @@ class CharacterService:
 
         return all_characters
 
-    def generate_relations(self, characters: List[dict], world_setting: str) -> List[dict]:
+    async def generate_relations(self, characters: List[dict], world_setting: str) -> List[dict]:
         char_summaries = []
         for char in characters:
             char_summaries.append({
@@ -253,7 +253,7 @@ class CharacterService:
 
         system_prompt = "你是一个关系网络设计师，擅长构建复杂的人物关系网络。请严格按照JSON格式返回结果。"
 
-        response = call_llm(prompt, system_prompt, timeout=120)
+        response = await call_llm(prompt, system_prompt, timeout=120)
         relations = parse_json_response(response)
 
         name_to_id = {char['name']: char['id'] for char in characters}

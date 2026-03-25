@@ -1,5 +1,4 @@
-from typing import List, Dict
-import requests
+from typing import List, Dict, Tuple, Optional
 from app.config import (
     API_BASE_URL,
     API_MODEL,
@@ -11,13 +10,24 @@ from app.utils.file_storage import (
     load_memory,
     save_memory_text,
 )
+from app.services.chat_parser import (
+    parse_chat_output,
+    get_repair_prompt,
+    ParseError,
+    ChatTurnContent,
+)
+from app.services.prompt_composer import PromptComposer
+from app.utils.llm_client import call_llm
+
+
+MAX_REPAIR_ATTEMPTS = 2
 
 
 class GameService:
     def __init__(self):
-        pass
+        self.composer = PromptComposer()
 
-    def update_memory(self, scene: str, selected_choice: str, log_summary: str, ending_type: str = "") -> str:
+    async def update_memory(self, scene: str, selected_choice: str, log_summary: str, ending_type: str = "") -> str:
         memory_content = load_memory()
 
         prompt = MEMORY_UPDATE_PROMPT.format(
@@ -28,37 +38,46 @@ class GameService:
             ending_type=ending_type or "无"
         )
 
-        from app.utils.llm_client import call_llm
-        new_memory = call_llm(prompt)
+        new_memory = await call_llm(prompt, method_name="update_memory")
         save_memory_text(new_memory)
         return new_memory
 
-    def chat(self, messages: List[Dict], extra_prompt: str = "") -> str:
-        system_prompt = SYSTEM_PROMPT
-        if extra_prompt:
-            system_prompt = SYSTEM_PROMPT + "\n\n" + extra_prompt
-
-        full_messages = [{"role": "system", "content": system_prompt}] + messages
-
-        headers = {
-            'Content-Type': 'application/json',
-            'Authorization': f'Bearer {API_KEY}'
-        }
-
-        payload = {
-            'model': API_MODEL,
-            'messages': full_messages
-        }
-
-        response = requests.post(
-            f'{API_BASE_URL}/chat/completions',
-            headers=headers,
-            json=payload,
-            timeout=60
+    async def chat(
+        self,
+        messages: List[Dict],
+        extra_prompt: str = "",
+        turn_context: Optional[Dict] = None,
+    ) -> Tuple[ChatTurnContent, str]:
+        full_messages = self.composer.compose(
+            messages=messages,
+            extra_prompt=extra_prompt,
+            turn_context=turn_context,
         )
 
-        if response.status_code != 200:
-            raise Exception(f"API请求失败: {response.status_code}")
+        content = await call_llm(
+            "\n".join([msg["content"] for msg in full_messages]),
+            system_prompt=None,
+            method_name="game_chat"
+        )
 
-        result = response.json()
-        return result['choices'][0]['message']['content']
+        parsed_content, repaired = await self.validate_or_repair(content)
+        return parsed_content, content
+
+    async def validate_or_repair(self, raw_content: str) -> Tuple[ChatTurnContent, bool]:
+        attempts = 0
+        last_error = None
+
+        while attempts <= MAX_REPAIR_ATTEMPTS:
+            try:
+                content, _ = parse_chat_output(raw_content)
+                return content, attempts > 0
+            except ParseError as e:
+                last_error = e
+                attempts += 1
+                if attempts > MAX_REPAIR_ATTEMPTS:
+                    break
+
+                repair_prompt = get_repair_prompt(raw_content)
+                raw_content = await call_llm(repair_prompt, method_name="chat_repair")
+
+        raise last_error

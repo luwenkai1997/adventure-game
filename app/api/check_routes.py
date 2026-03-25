@@ -15,6 +15,8 @@ async def perform_check(request: CheckRequest):
         result = check_service.perform_check(request)
         return JSONResponse(content={"success": True, "result": result.model_dump()})
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": f"检定失败: {str(e)}"})
 
 

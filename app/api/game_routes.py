@@ -1,8 +1,10 @@
-from fastapi import APIRouter
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, List
 import os
+import uuid
+import json
 from app.config import BASE_DIR, STORY_EXPANSION_PROMPT
 from app.utils.game_manager import (
     create_game_structure,
@@ -21,11 +23,24 @@ from app.utils.file_storage import (
     load_memory,
 )
 from app.services.game_service import GameService
+from app.services.prompt_composer import PromptComposer
+from app.services.chat_parser import (
+    parse_chat_output,
+    ParseError,
+)
+from app.services.llm_gateway import (
+    stream_llm,
+    cancel_request,
+    is_cancelled,
+)
+from app.models.chat import ChatRequestV2, ChatResponseV2, ChatTurnContent
 from app.utils.llm_client import call_llm
+from app.errors import AppError
 
 
 router = APIRouter()
 game_service = GameService()
+composer = PromptComposer()
 
 
 class CreateGameRequest(BaseModel):
@@ -67,12 +82,28 @@ async def index():
 
 
 @router.post("/api/chat")
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequestV2):
     try:
-        content = game_service.chat(request.messages, request.extraPrompt)
-        return JSONResponse(content={'content': content})
+        request_id = str(uuid.uuid4())
+        parsed_content, raw_content = await game_service.chat(
+            request.messages,
+            request.extraPrompt,
+            request.turn_context,
+        )
+        response = ChatResponseV2(
+            success=True,
+            content=parsed_content,
+            raw_content=raw_content,
+            meta={
+                "request_id": request_id,
+                "repaired": False,
+            }
+        )
+        return JSONResponse(content=response.model_dump())
     except Exception as e:
-        return JSONResponse(status_code=500, content={'error': f'服务器错误: {str(e)}'})
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={'success': False, 'error': f'服务器错误: {str(e)}'})
 
 
 @router.post("/api/save-memory")
@@ -87,7 +118,7 @@ async def api_save_memory(request: MemoryRequest):
 @router.post("/api/update-memory")
 async def api_update_memory(request: UpdateMemoryRequest):
     try:
-        game_service.update_memory(
+        await game_service.update_memory(
             request.scene,
             request.selectedChoice,
             request.logSummary,
@@ -102,11 +133,15 @@ async def api_update_memory(request: UpdateMemoryRequest):
 async def api_expand_story(request: StoryExpansionRequest):
     try:
         if not request.user_input or not request.user_input.strip():
-            return JSONResponse(status_code=400, content={'error': '请输入故事设定'})
+            raise AppError(
+                code="validation_error",
+                message="请输入故事设定",
+                status_code=400,
+            )
         
         prompt = STORY_EXPANSION_PROMPT.format(user_input=request.user_input)
         
-        expanded_story = call_llm(
+        expanded_story = await call_llm(
             prompt, 
             "你是一个专业的游戏世界观设计师，擅长创造丰富、引人入胜的故事设定。",
             timeout=120
@@ -116,6 +151,8 @@ async def api_expand_story(request: StoryExpansionRequest):
             'success': True,
             'expanded_story': expanded_story
         })
+    except AppError:
+        raise
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -203,3 +240,133 @@ async def api_delete_game(game_id: str):
         return JSONResponse(status_code=404, content={"error": "游戏不存在"})
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"删除游戏失败: {str(e)}"})
+
+
+@router.post("/api/chat/stream")
+async def chat_stream(request: ChatRequestV2):
+    request_id = str(uuid.uuid4())
+    full_messages = composer.compose(
+        messages=request.messages,
+        extra_prompt=request.extraPrompt,
+        turn_context=request.turn_context,
+    )
+    prompt = "\n".join([msg["content"] for msg in full_messages])
+    system_prompt = None
+
+    async def event_generator():
+        full_content = ""
+        async for chunk in stream_llm(prompt, system_prompt, request_id):
+            full_content += chunk
+            if is_cancelled(request_id):
+                yield f"data: {{\"type\": \"cancelled\"}}\n\n"
+                break
+            yield f"data: {json.dumps({'type': 'chunk', 'content': chunk}, ensure_ascii=False)}\n\n"
+
+        if not is_cancelled(request_id):
+            try:
+                parsed_content, _ = parse_chat_output(full_content)
+                result = {
+                    "type": "done",
+                    "success": True,
+                    "content": parsed_content.model_dump(),
+                    "request_id": request_id,
+                }
+            except ParseError as e:
+                result = {
+                    "type": "error",
+                    "success": False,
+                    "error": f"解析失败: {e.message}",
+                    "request_id": request_id,
+                }
+            yield f"data: {json.dumps(result, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+@router.websocket("/ws/chat/stream")
+async def ws_chat_stream(websocket: WebSocket):
+    """Stream chat completion over WebSocket (optional alternative to SSE).
+
+    Connect with query param: ``?session_id=<tab_session_id>`` so the correct
+    game workspace is used (same as ``X-Adventure-Session-ID`` on HTTP).
+
+    First message from client: JSON body matching ``ChatRequestV2``
+    (``messages``, ``extraPrompt``, ``turn_context``).
+    Server sends JSON frames: ``chunk``, ``done``, ``error``, or ``cancelled``.
+    """
+    from app.request_context import set_current_session_id
+
+    session_id = websocket.query_params.get("session_id")
+    set_current_session_id(session_id)
+    await websocket.accept()
+    try:
+        data = await websocket.receive_json()
+        req = ChatRequestV2.model_validate(data)
+    except Exception as e:
+        await websocket.send_json(
+            {"type": "error", "success": False, "error": f"无效请求: {e}"}
+        )
+        try:
+            await websocket.close()
+        except Exception:
+            pass
+        return
+
+    request_id = str(uuid.uuid4())
+    full_messages = composer.compose(
+        messages=req.messages,
+        extra_prompt=req.extraPrompt,
+        turn_context=req.turn_context,
+    )
+    prompt = "\n".join([msg["content"] for msg in full_messages])
+    full_content = ""
+    try:
+        async for chunk in stream_llm(prompt, None, request_id):
+            full_content += chunk
+            if is_cancelled(request_id):
+                await websocket.send_json({"type": "cancelled", "request_id": request_id})
+                return
+            await websocket.send_json({"type": "chunk", "content": chunk})
+
+        parsed_content, _ = parse_chat_output(full_content)
+        await websocket.send_json(
+            {
+                "type": "done",
+                "success": True,
+                "content": parsed_content.model_dump(),
+                "request_id": request_id,
+            }
+        )
+    except WebSocketDisconnect:
+        cancel_request(request_id)
+    except ParseError as e:
+        await websocket.send_json(
+            {
+                "type": "error",
+                "success": False,
+                "error": f"解析失败: {e.message}",
+                "request_id": request_id,
+            }
+        )
+    except Exception as e:
+        await websocket.send_json(
+            {
+                "type": "error",
+                "success": False,
+                "error": str(e),
+                "request_id": request_id,
+            }
+        )
+
+
+@router.post("/api/chat/cancel/{request_id}")
+async def cancel_chat(request_id: str):
+    cancel_request(request_id)
+    return JSONResponse(content={"success": True, "request_id": request_id})

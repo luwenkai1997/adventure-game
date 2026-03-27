@@ -5,9 +5,9 @@ from typing import Optional, List
 import os
 import uuid
 import json
+from datetime import datetime
 from app.config import BASE_DIR, STORY_EXPANSION_PROMPT
 from app.utils.game_manager import (
-    create_game_structure,
     list_all_games,
     get_game_info,
     delete_game,
@@ -19,8 +19,6 @@ from app.utils.file_storage import (
     get_current_game,
     init_new_game,
     save_memory,
-    save_memory_text,
-    load_memory,
 )
 from app.services.game_service import GameService
 from app.services.prompt_composer import PromptComposer
@@ -33,7 +31,7 @@ from app.services.llm_gateway import (
     cancel_request,
     is_cancelled,
 )
-from app.models.chat import ChatRequestV2, ChatResponseV2, ChatTurnContent
+from app.models.chat import ChatRequestV2, ChatResponseV2
 from app.utils.llm_client import call_llm
 from app.errors import AppError
 
@@ -50,11 +48,6 @@ class CreateGameRequest(BaseModel):
 class UpdateGameRequest(BaseModel):
     status: Optional[str] = None
     world_setting: Optional[str] = None
-
-
-class ChatRequest(BaseModel):
-    messages: List[dict]
-    extraPrompt: str = ""
 
 
 class MemoryRequest(BaseModel):
@@ -90,6 +83,10 @@ async def chat(request: ChatRequestV2):
             request.extraPrompt,
             request.turn_context,
         )
+        
+        if parsed_content.relationship_changes:
+            await _update_relationships(parsed_content.relationship_changes)
+        
         response = ChatResponseV2(
             success=True,
             content=parsed_content,
@@ -104,6 +101,47 @@ async def chat(request: ChatRequestV2):
         import traceback
         traceback.print_exc()
         return JSONResponse(status_code=500, content={'success': False, 'error': f'服务器错误: {str(e)}'})
+
+
+async def _update_relationships(relationship_changes):
+    from app.utils.file_storage import load_relations, save_relations, load_characters
+    
+    relations = load_relations()
+    
+    for change in relationship_changes:
+        char_name = change.character_name
+        change_value = change.value
+        change_type = change.change_type
+        
+        characters = load_characters()
+        target_char = None
+        for char in characters:
+            if char.get('name') == char_name:
+                target_char = char
+                break
+        
+        if not target_char:
+            continue
+            
+        char_id = target_char.get('id')
+        
+        for rel in relations:
+            if rel.get('source_id') == char_id or rel.get('target_id') == char_id:
+                old_strength = rel.get('strength', 50)
+                if change_type == '+':
+                    rel['strength'] = min(100, old_strength + change_value)
+                else:
+                    rel['strength'] = max(0, old_strength - change_value)
+                if 'events' not in rel:
+                    rel['events'] = []
+                rel['events'].append({
+                    'type': change_type,
+                    'value': change_value,
+                    'reason': change.reason or '',
+                    'timestamp': datetime.now().isoformat()
+                })
+    
+    save_relations(relations)
 
 
 @router.post("/api/save-memory")

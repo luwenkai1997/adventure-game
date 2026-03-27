@@ -1,8 +1,5 @@
 from typing import List, Dict, Tuple, Optional
 from app.config import (
-    API_BASE_URL,
-    API_MODEL,
-    API_KEY,
     SYSTEM_PROMPT,
     MEMORY_UPDATE_PROMPT,
 )

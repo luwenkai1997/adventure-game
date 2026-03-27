@@ -10,7 +10,6 @@ from app.config import (
     ROLE_TYPE_CN,
     ROLE_IMPORTANCE,
     RELATION_TYPES,
-    BASE_DIR,
 )
 from app.models.character import (
     AttributesModel,
@@ -19,19 +18,14 @@ from app.models.character import (
     PersonalityModel,
     StatusModel,
     CharacterGenerationConfig,
-    StateEffect,
 )
 from app.utils.file_storage import (
     load_characters,
     save_character,
     load_character,
-    delete_character,
     save_characters_batch,
     load_relations,
     save_relations,
-    add_relation,
-    update_relation,
-    delete_relation,
     get_or_create_snapshots_dir,
     get_snapshot_path,
 )

@@ -11,6 +11,7 @@ from app.models.character import (
     CharacterGenerationConfig,
     BatchUpdateRequest,
 )
+from app.models.chat import NPCDialogueRequest
 from app.services.character_service import CharacterService
 from app.utils.file_storage import (
     load_characters,
@@ -23,9 +24,12 @@ from app.utils.file_storage import (
     update_relation,
     delete_relation,
     save_relations,
+    load_player,
+    load_memory,
 )
-from app.config import RELATION_TYPES
+from app.config import RELATION_TYPES, NPC_DIALOGUE_PROMPT
 from app.utils.file_storage import get_snapshot_path
+from app.utils.llm_client import call_llm
 
 
 router = APIRouter()
@@ -337,3 +341,73 @@ async def del_relation(rel_id: str):
 @router.get("/api/relation-types")
 async def get_relation_types():
     return JSONResponse(content={'types': RELATION_TYPES})
+
+
+@router.post("/api/characters/{char_id}/dialogue")
+async def npc_dialogue(char_id: str, request: NPCDialogueRequest):
+    try:
+        npc = load_character(char_id)
+        if not npc:
+            return JSONResponse(status_code=404, content={'error': 'NPC不存在'})
+        
+        player = load_player()
+        memory = load_memory()
+        relations = load_relations()
+        
+        npc_relations = [r for r in relations if r.get('source_id') == char_id or r.get('target_id') == char_id]
+        
+        prompt = NPC_DIALOGUE_PROMPT.format(
+            npc_name=npc.get('name', '未知NPC'),
+            npc_title=npc.get('title', ''),
+            npc_personality=npc.get('personality', {}).get('traits', []) if isinstance(npc.get('personality'), dict) else npc.get('personality', '神秘'),
+            npc_background=npc.get('background', {}).get('backstory', '背景未知') if isinstance(npc.get('background'), dict) else npc.get('background', '背景未知'),
+            npc_relation=_get_relation_description(npc, npc_relations, player),
+            context=request.context or '',
+            player_message=request.message
+        )
+        
+        response = await call_llm(prompt, method_name="npc_dialogue")
+        
+        import json as json_lib
+        try:
+            start = response.find('{')
+            end = response.rfind('}')
+            if start != -1 and end != -1:
+                json_str = response[start:end+1]
+                data = json_lib.loads(json_str)
+            else:
+                data = json_lib.loads(response)
+        except:
+            data = {"dialogue": response, "mood": "平静", "relationship_hint": ""}
+        
+        return JSONResponse(content={
+            'success': True,
+            'dialogue': data.get('dialogue', response),
+            'mood': data.get('mood', '平静'),
+            'relationship_hint': data.get('relationship_hint', '')
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={'error': f'NPC对话失败: {str(e)}'})
+
+
+def _get_relation_description(npc: dict, npc_relations: list, player: dict) -> str:
+    if not npc_relations:
+        return "陌生人"
+    
+    player_name = player.get('name', '玩家') if player else '玩家'
+    
+    for rel in npc_relations:
+        if rel.get('source_id') == npc.get('id'):
+            target_name = rel.get('target_name', '')
+            rel_type = rel.get('relation_type', 'acquaintance')
+            strength = rel.get('strength', 50)
+            return f"与{target_name}的关系: {rel_type}（强度{strength}）"
+        elif rel.get('target_id') == npc.get('id'):
+            source_name = rel.get('source_name', '')
+            rel_type = rel.get('relation_type', 'acquaintance')
+            strength = rel.get('strength', 50)
+            return f"被{source_name}视为{rel_type}（强度{strength}）"
+    
+    return "陌生人"

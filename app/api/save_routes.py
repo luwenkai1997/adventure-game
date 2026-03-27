@@ -1,6 +1,5 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter
 from fastapi.responses import JSONResponse
-from typing import Optional
 from app.models.save import SaveCreateRequest
 from app.services.save_service import SaveService
 

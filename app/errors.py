@@ -40,7 +40,6 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     )
     return JSONResponse(status_code=exc.status_code, content=body.model_dump())
 
-
 async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     if isinstance(exc, AppError):
         return await app_error_handler(request, exc)
@@ -52,3 +51,4 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
         )
     )
     return JSONResponse(status_code=500, content=body.model_dump())
+

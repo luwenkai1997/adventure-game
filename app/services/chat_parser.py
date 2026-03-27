@@ -1,8 +1,8 @@
 import json
 import re
-from typing import Tuple, Optional, List, Any
+from typing import Tuple, Optional, List
 from pydantic import ValidationError
-from app.models.chat import ChatTurnContent, ChoiceItem, CheckSpec
+from app.models.chat import ChatTurnContent, ChoiceItem
 
 
 class ParseError(Exception):
@@ -132,6 +132,9 @@ def get_repair_prompt(raw_content: str) -> str:
   "choices": [
     {{
       "text": "选项文本",
+      "tendency": ["倾向标签1", "倾向标签2"],
+      "is_key_decision": false,
+      "consequence_hint": "后果预览（可选）",
       "check": null 或者 {{
         "attribute": "属性名如strength",
         "skill": "技能名（可选）",
@@ -141,13 +144,25 @@ def get_repair_prompt(raw_content: str) -> str:
       "check_optional": true,
       "check_prompt": "提示文字（可选）"
     }}
+  ],
+  "relationship_changes": [
+    {{
+      "character_name": "NPC名称",
+      "change_type": "+",
+      "value": 10,
+      "reason": "原因"
+    }}
   ]
+}}
+
 如果是结局，返回：
 {{
   "scene": "完整结局描述",
   "log": "冒险终章",
   "ending": "好结局/中立结局/坏结局"
 }}
+
+倾向标签从以下维度选择：勇敢/谨慎、善良/冷酷、理性/感性、正义/自利、仁慈/残忍、坦诚/狡诈
 
 请直接输出JSON，不要用markdown代码块包裹，不要有任何解释。
 """

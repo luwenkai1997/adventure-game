@@ -14,8 +14,6 @@ from app.utils.file_storage import (
     load_history,
     get_novel_path,
     get_or_create_novels_dir,
-    require_game_id,
-    get_novel_dir,
 )
 from app.utils.llm_client import call_llm, parse_json_response
 

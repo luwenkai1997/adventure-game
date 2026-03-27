@@ -18,6 +18,12 @@ uv.lock
 .trae/
 *.bak
 
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+
 IMPLEMENTATION_PLAN.md
 requirements.txt
 

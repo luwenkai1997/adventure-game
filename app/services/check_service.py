@@ -4,7 +4,6 @@ from app.models.check import (
     CheckRequest,
     CheckResult,
     get_difficulty_name,
-    get_difficulty_color,
 )
 from app.utils.file_storage import load_player
 

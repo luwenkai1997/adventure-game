@@ -3,12 +3,7 @@ import re
 import os
 from typing import Any, Optional
 from datetime import datetime
-from app.config import (
-    API_BASE_URL,
-    API_MODEL,
-    API_KEY,
-    API_TIMEOUT,
-)
+from app.config import API_TIMEOUT
 from app.services.llm_gateway import call_llm_with_retry
 
 

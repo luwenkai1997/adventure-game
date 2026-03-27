@@ -1,11 +1,8 @@
-import os
-import json
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from app.models.save import GameSave, HistorySnapshot, SaveCreateRequest
+from app.models.save import SaveCreateRequest
 from app.config import MAX_SAVE_SLOTS, MAX_HISTORY_STEPS
 from app.utils.file_storage import (
-    get_or_create_saves_dir,
     list_saves,
     save_game_state,
     load_game_state,

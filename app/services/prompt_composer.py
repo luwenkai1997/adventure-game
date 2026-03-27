@@ -102,16 +102,60 @@ class PromptComposer:
 """
         return result
 
+    def get_tendency_section(self, tendency_data: Optional[Dict] = None) -> str:
+        if not tendency_data:
+            return ""
+
+        dimensions = [
+            ("勇敢", "谨慎"),
+            ("善良", "冷酷"),
+            ("理性", "感性"),
+            ("正义", "自利"),
+            ("仁慈", "残忍"),
+            ("坦诚", "狡诈"),
+        ]
+
+        lines = ["## 玩家性格画像\n"]
+        lines.append("根据玩家之前的选择，其性格倾向如下：")
+
+        for pos, neg in dimensions:
+            pos_score = tendency_data.get(pos, 0)
+            neg_score = tendency_data.get(neg, 0)
+            if pos_score > neg_score:
+                diff = pos_score - neg_score
+                if diff >= 10:
+                    lines.append(f"- **{pos}**（强烈）: 得分 +{diff}")
+                elif diff >= 5:
+                    lines.append(f"- **{pos}**（明显）: 得分 +{diff}")
+                else:
+                    lines.append(f"- **{pos}**（轻微）: 得分 +{diff}")
+            elif neg_score > pos_score:
+                diff = neg_score - pos_score
+                if diff >= 10:
+                    lines.append(f"- **{neg}**（强烈）: 得分 +{diff}")
+                elif diff >= 5:
+                    lines.append(f"- **{neg}**（明显）: 得分 +{diff}")
+                else:
+                    lines.append(f"- **{neg}**（轻微）: 得分 +{diff}")
+            else:
+                lines.append(f"- {pos}/{neg}: 中立")
+
+        lines.append("\n请根据玩家的性格倾向调整剧情走向和NPC的反应。")
+        result = "\n".join(lines)
+        return self.truncate_text(result, 500)
+
     def compose(
         self,
         messages: List[Dict],
         extra_prompt: str = "",
         turn_context: Optional[Dict] = None,
+        tendency_data: Optional[Dict] = None,
     ) -> List[Dict]:
         memory_section = self.get_memory_section()
         player_section = self.get_player_section()
         characters_section = self.get_characters_section()
         check_section = self.get_last_check_context(turn_context)
+        tendency_section = self.get_tendency_section(tendency_data)
 
         context_parts = []
         if memory_section:
@@ -120,6 +164,8 @@ class PromptComposer:
             context_parts.append(player_section)
         if characters_section:
             context_parts.append(characters_section)
+        if tendency_section:
+            context_parts.append(tendency_section)
         if check_section:
             context_parts.append(check_section)
 

@@ -880,6 +880,9 @@
                 resultText.textContent = '';
                 resultText.className = 'check-result';
                 
+                const closeBtn = document.getElementById('check-continue-btn');
+                if (closeBtn) closeBtn.style.display = 'none';
+                
                 currentCheckCallback = resolve;
                 
                 setTimeout(async () => {
@@ -923,7 +926,10 @@
                                 if (result.growth) {
                                     const growthMsg = [];
                                     if (result.growth.exp_gain) growthMsg.push(`经验+${result.growth.exp_gain}`);
-                                    if (result.growth.hp_effect) growthMsg.push(`HP${result.growth.hp_effect > 0 ? '+' : ''}${result.growth.hp_effect}`);
+                                    if (result.growth.hp_effect && result.growth.hp_effect.hp_change) {
+                                        const hp_change = result.growth.hp_effect.hp_change;
+                                        growthMsg.push(`HP${hp_change > 0 ? '+' : ''}${hp_change}`);
+                                    }
                                     if (result.growth.leveled_up) growthMsg.push(`等级提升至Lv.${result.growth.new_level}`);
                                     
                                     if (growthMsg.length > 0) {
@@ -940,10 +946,21 @@
                                 resultText.textContent = result.narrative;
                                 resultText.className = 'check-result ' + (result.success ? 'success' : 'failure');
                                 
-                                setTimeout(() => {
-                                    modal.classList.remove('active');
-                                    resolve(result);
-                                }, 2000);
+                                const closeBtn = document.getElementById('check-continue-btn');
+                                if (closeBtn) {
+                                    closeBtn.style.display = 'block';
+                                    closeBtn.onclick = () => {
+                                        modal.classList.remove('active');
+                                        closeBtn.style.display = 'none';
+                                        resolve(result);
+                                        currentCheckCallback = null;
+                                    };
+                                } else {
+                                    setTimeout(() => {
+                                        modal.classList.remove('active');
+                                        resolve(result);
+                                    }, 2000);
+                                }
                             }
                         } catch (error) {
                             console.error('检定请求失败:', error);

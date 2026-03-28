@@ -4,6 +4,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import Response
 
 from app.api.game_routes import router as game_router
 from app.api.character_routes import router as character_router
@@ -49,3 +50,8 @@ app.include_router(save_router)
 _static_dir = os.path.join(BASE_DIR, "static")
 if os.path.isdir(_static_dir):
     app.mount("/static", StaticFiles(directory=_static_dir), name="static")
+
+
+@app.get("/favicon.ico")
+async def favicon():
+    return Response(status_code=204)

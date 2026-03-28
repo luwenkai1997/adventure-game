@@ -169,7 +169,7 @@ async def api_generate_characters(request: GenerateCharactersRequest):
         try:
             all_characters = await asyncio.wait_for(
                 character_service.generate_all_characters(config),
-                timeout=100.0,
+                timeout=120.0,
             )
         except asyncio.TimeoutError:
             return JSONResponse(
@@ -190,7 +190,7 @@ async def api_generate_characters(request: GenerateCharactersRequest):
         try:
             relations = await asyncio.wait_for(
                 character_service.generate_relations(all_characters, config.world_setting),
-                timeout=60.0,
+                timeout=120.0,
             )
             for rel in relations:
                 add_relation(rel)
@@ -234,7 +234,7 @@ async def api_generate_npcs(request: Request):
                 character_service.generate_npcs_with_llm(
                     world_setting, protagonist_info, npc_count
                 ),
-                timeout=180.0,
+                timeout=120.0,
             )
         except asyncio.TimeoutError:
             return JSONResponse(
@@ -253,7 +253,7 @@ async def api_generate_npcs(request: Request):
         try:
             relations = await asyncio.wait_for(
                 character_service.generate_relations(npcs, world_setting),
-                timeout=60.0,
+                timeout=120.0,
             )
             for rel in relations:
                 add_relation(rel)

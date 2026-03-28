@@ -256,6 +256,110 @@ class PlayerService:
 
         return self.update_player({"current_hp": new_hp})
 
+    def apply_check_growth(self, skill_name: str, success: bool, critical: bool, fumble: bool) -> dict:
+        if not skill_name:
+            return {}
+        player = self.get_player()
+        if not player:
+            return {}
+
+        exp_gain = 0
+        if critical:
+            exp_gain = 20
+        elif success:
+            exp_gain = 10
+        elif fumble:
+            exp_gain = 0
+        else:
+            exp_gain = 5 # Learn from failure
+
+        if exp_gain == 0:
+            return {"skill": skill_name, "exp_gained": 0, "leveled_up": False}
+
+        current_exp = player.skill_exp.get(skill_name, 0)
+        new_exp = current_exp + exp_gain
+        
+        # update exp
+        player.skill_exp[skill_name] = new_exp
+
+        # check level up
+        new_level = self.recalculate_skill_level(skill_name, new_exp)
+        
+        skill_index = -1
+        old_level = 0
+        for i, s in enumerate(player.skills):
+            if s.name == skill_name:
+                skill_index = i
+                old_level = s.level
+                break
+
+        leveled_up = False
+        if skill_index >= 0 and new_level > old_level:
+            player.skills[skill_index].level = new_level
+            leveled_up = True
+            msg = f"技能【{skill_name}】升级到了Lv.{new_level}！"
+            if player.growth_log is None:
+                player.growth_log = []
+            player.growth_log.append(msg)
+        else:
+            msg = f"技能【{skill_name}】经验 +{exp_gain}"
+            if player.growth_log is None:
+                player.growth_log = []
+            player.growth_log.append(msg)
+
+        self.update_player({
+            "skill_exp": player.skill_exp,
+            "skills": [s.model_dump() for s in player.skills],
+            "growth_log": player.growth_log
+        })
+
+        return {
+            "skill": skill_name,
+            "exp_gained": exp_gain,
+            "leveled_up": leveled_up,
+            "new_level": new_level if leveled_up else old_level
+        }
+
+    def apply_hp_effect_from_check(self, success: bool, critical: bool, fumble: bool) -> dict:
+        player = self.get_player()
+        if not player:
+            return {}
+
+        hp_change = 0
+        msg = ""
+        if critical:
+            hp_change = 2
+            msg = f"大成功让你士气大振，恢复 {hp_change} 点HP。"
+        elif fumble:
+            hp_change = -3
+            msg = f"严重的失误导致你受伤，扣除 {-hp_change} 点HP。"
+        elif not success:
+            hp_change = -1
+            msg = f"行动受挫，扣除 {-hp_change} 点HP。"
+
+        if hp_change != 0:
+            new_player = self.update_hp(hp_change)
+            if new_player:
+                if new_player.growth_log is None:
+                    new_player.growth_log = []
+                new_player.growth_log.append(msg)
+                self.update_player({"growth_log": new_player.growth_log})
+            return {"hp_change": hp_change, "current_hp": new_player.current_hp if new_player else player.current_hp}
+        return {"hp_change": 0, "current_hp": player.current_hp}
+
+    def recalculate_skill_level(self, skill_name: str, exp: int) -> int:
+        thresholds = [0, 20, 50, 100, 200, 400]
+        level = 1
+        for i, threshold in enumerate(thresholds):
+            if exp >= threshold:
+                level = i + 1
+        return level
+
+    def clear_growth_log(self):
+        player = self.get_player()
+        if player and player.growth_log:
+            self.update_player({"growth_log": []})
+
     def _find_skill_by_name(self, name: str) -> Optional[PlayerSkill]:
         for category, skills in PRESET_SKILLS.items():
             for skill_data in skills:
@@ -342,7 +446,7 @@ class PlayerService:
             response = await call_llm(
                 prompt, 
                 "你是一个专业的角色设计师，擅长创造符合故事设定的有趣角色。请严格按照JSON格式返回。",
-                timeout=90,
+                timeout=120,
                 max_tokens=2500
             )
             

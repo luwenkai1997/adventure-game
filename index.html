@@ -252,6 +252,7 @@
                 <button class="player-panel-btn" id="player-panel-btn" onclick="togglePlayerPanel()">👤 角色</button>
                 <button class="characters-btn" onclick="toggleCharacterPanel()">👥 NPC</button>
                 <button class="player-panel-btn" onclick="showSaveModal()">💾 存档</button>
+                <button class="player-panel-btn" id="novel-btn" onclick="showNovelModal()" style="background: rgba(255,170,0,0.15); border-color: rgba(255,170,0,0.4); color: #ffaa00;">📖 小说</button>
                 <button class="end-game-btn" id="end-game-btn" onclick="triggerEnding()">结束游戏</button>
             </div>
             <div id="player-panel" class="player-panel">
@@ -279,6 +280,29 @@
             </div>
         </div>
 
+        <div id="novel-modal" class="ending-select-container" style="display: none;">
+            <div class="ending-select-box" style="max-width: 600px; max-height: 80vh; overflow-y: auto; position: relative;">
+                <button onclick="closeNovelModal()" style="position:absolute; right:10px; top:10px; background:none; border:none; color:rgba(255,255,255,0.5); font-size:1.5rem; cursor:pointer; z-index:1;">&times;</button>
+                <div class="ending-select-title" style="font-size: 1.2rem; margin-bottom: 15px;">📖 小说生成</div>
+                <div id="novel-modal-status" style="color: #aaffcc; font-size: 0.9rem; margin-bottom: 15px; line-height: 1.6;">加载中...</div>
+                <div id="novel-modal-progress" style="display: none; margin-bottom: 15px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                        <span id="novel-modal-progress-status" style="color: #00ff88; font-size: 0.85rem;">准备中...</span>
+                        <span id="novel-modal-progress-percent" style="color: #00ff88; font-size: 0.85rem;">0%</span>
+                    </div>
+                    <div style="background: rgba(0,255,136,0.1); border-radius: 4px; height: 6px; overflow: hidden;">
+                        <div id="novel-modal-progress-fill" style="background: #00ff88; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                    </div>
+                    <div id="novel-modal-progress-time" style="color: rgba(0,255,136,0.5); font-size: 0.8rem; margin-top: 5px;"></div>
+                </div>
+                <div id="novel-modal-result" style="display: none; max-height: 400px; overflow-y: auto; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 6px; margin-bottom: 15px; font-size: 0.85rem; line-height: 1.8; color: #ccffdd;"></div>
+                <div style="display: flex; gap: 10px; justify-content: center;">
+                    <button class="ending-confirm-btn" id="novel-modal-generate-btn" onclick="generateNovelIncremental()" style="flex:1;">生成 / 续写小说</button>
+                    <button class="ending-cancel-btn" id="novel-modal-close-btn" onclick="closeNovelModal()" style="flex:1;">关闭</button>
+                </div>
+            </div>
+        </div>
+
         <div id="ending-screen" class="screen">
             <div class="title">
                 <h1>冒险终章</h1>
@@ -299,7 +323,8 @@
         </div>
 
         <div class="ending-select-container" id="ending-select-container" style="display: none;">
-            <div class="ending-select-box">
+            <div class="ending-select-box" style="position: relative;">
+                <button onclick="cancelEnding()" style="position:absolute; right:10px; top:10px; background:none; border:none; color:rgba(255,255,255,0.5); font-size:1.5rem; cursor:pointer;">&times;</button>
                 <div class="ending-select-title">选择结局类型</div>
                 <select id="ending-type-select">
                     <option value="好结局">好结局</option>
@@ -335,7 +360,8 @@
         </div>
 
         <div class="character-detail-modal" id="character-detail-modal">
-            <div class="character-detail-content">
+            <div class="character-detail-content" style="position: relative;">
+                <button onclick="closeCharacterDetail()" style="position:absolute; right:15px; top:15px; background:none; border:none; color:rgba(255,255,255,0.5); font-size:1.5rem; cursor:pointer; z-index:1;">&times;</button>
                 <div class="character-detail-header">
                     <div class="character-detail-avatar" id="detail-avatar">👤</div>
                     <div class="character-detail-info">

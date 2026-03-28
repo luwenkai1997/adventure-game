@@ -85,6 +85,20 @@ class CheckService:
             request.description or "",
         )
 
+        from app.services.player_service import PlayerService
+        player_service = PlayerService()
+        
+        # Apply growth & HP effect
+        growth_summary = {}
+        if request.skill:
+            growth_summary["skill_growth"] = player_service.apply_check_growth(
+                request.skill, success, critical, fumble
+            )
+            
+        hp_effect = player_service.apply_hp_effect_from_check(success, critical, fumble)
+        if hp_effect:
+            growth_summary["hp_effect"] = hp_effect
+
         return CheckResult(
             roll=roll,
             modifier=modifier,
@@ -95,6 +109,7 @@ class CheckService:
             critical=critical,
             fumble=fumble,
             narrative=narrative,
+            growth=growth_summary
         )
 
     def _generate_narrative(

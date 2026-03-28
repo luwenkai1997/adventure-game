@@ -31,6 +31,8 @@ class PlayerCharacter(BaseModel):
     current_hp: int = 10
 
     skills: List[PlayerSkill] = []
+    skill_exp: Dict[str, int] = {}
+    growth_log: List[str] = []
     inventory: List[str] = []
 
     created_at: str = ""

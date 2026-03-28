@@ -32,6 +32,8 @@ class ChatTurnContent(BaseModel):
     choices: Optional[List[ChoiceItem]] = None
     ending: Optional[str] = None
     relationship_changes: Optional[List[RelationshipChange]] = None
+    ending_omen: Optional[str] = None
+    route_hint: Optional[str] = None
 
 
 class ChatRequestV2(BaseModel):

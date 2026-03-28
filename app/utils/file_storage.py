@@ -413,3 +413,9 @@ def get_snapshot_path(chapter: int) -> str:
     game_id = require_game_id()
     snapshots_dir = get_snapshots_dir(game_id)
     return os.path.join(snapshots_dir, f"chapter_{chapter:03d}.json")
+
+
+def get_game_round_count() -> int:
+    """Return the current game round count based on history length."""
+    history = load_history()
+    return len(history)

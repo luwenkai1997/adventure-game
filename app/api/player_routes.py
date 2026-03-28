@@ -64,12 +64,11 @@ async def generate_player(request: Optional[PlayerRandomRequest] = None):
         try:
             player = await asyncio.wait_for(
                 player_service.generate_player_with_llm(world_setting),
-                timeout=60.0,
+                timeout=120.0,
             )
             if player:
                 return JSONResponse(content={"success": True, "player": player.model_dump()})
             else:
-                # LLM生成失败，回退到随机生成
                 player = player_service.random_player(request)
                 return JSONResponse(content={
                     "success": True, 
@@ -77,7 +76,6 @@ async def generate_player(request: Optional[PlayerRandomRequest] = None):
                     "warning": "LLM生成失败，已使用随机角色"
                 })
         except asyncio.TimeoutError:
-            # 超时，回退到随机生成
             player = player_service.random_player(request)
             return JSONResponse(content={
                 "success": True, 

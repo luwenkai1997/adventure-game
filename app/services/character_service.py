@@ -85,7 +85,7 @@ class CharacterService:
         
         system_prompt = "你是一个专业的角色设计师，擅长创造与主角和故事设定相契合的NPC角色。请严格按照JSON数组格式返回结果。"
         
-        response = await call_llm(prompt, system_prompt, timeout=180, max_tokens=8000)
+        response = await call_llm(prompt, system_prompt, timeout=360, max_tokens=8000)
         
         try:
             npcs_data = parse_json_response(response)
@@ -176,7 +176,7 @@ class CharacterService:
 
         system_prompt = "你是一个专业的角色设计师，擅长创造生动有趣的角色。请严格按照JSON格式返回结果。"
 
-        response = await call_llm(prompt, system_prompt, timeout=180)
+        response = await call_llm(prompt, system_prompt, timeout=360)
         characters = parse_json_response(response)
 
         for char in characters:
@@ -247,7 +247,7 @@ class CharacterService:
 
         system_prompt = "你是一个关系网络设计师，擅长构建复杂的人物关系网络。请严格按照JSON格式返回结果。"
 
-        response = await call_llm(prompt, system_prompt, timeout=120)
+        response = await call_llm(prompt, system_prompt, timeout=360)
         relations = parse_json_response(response)
 
         name_to_id = {char['name']: char['id'] for char in characters}

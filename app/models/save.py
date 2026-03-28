@@ -1,5 +1,5 @@
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class GameSave(BaseModel):
@@ -11,7 +11,7 @@ class GameSave(BaseModel):
     messages: List[Dict[str, Any]] = []
     logs: List[Any] = []
     current_scene: Optional[str] = ""
-    current_choices: List[Any] = []
+    current_choices: Optional[List[Any]] = []
     player: Optional[Dict[str, Any]] = None
     characters: List[Dict[str, Any]] = []
     relations: List[Dict[str, Any]] = []
@@ -19,6 +19,9 @@ class GameSave(BaseModel):
     ending_countdown: int = 0
     selected_ending_type: str = ""
     preview_scene: str = ""
+    route_scores: Optional[Dict[str, int]] = Field(default_factory=dict)
+    key_decisions: Optional[List[Any]] = Field(default_factory=list)
+    ending_omen_state: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
 class HistorySnapshot(BaseModel):
@@ -27,8 +30,11 @@ class HistorySnapshot(BaseModel):
     messages: List[Dict[str, Any]]
     chapter: int
     current_scene: Optional[str]
-    current_choices: List[Any]
+    current_choices: Optional[List[Any]] = []
     player: Optional[Dict[str, Any]] = None
+    route_scores: Optional[Dict[str, int]] = Field(default_factory=dict)
+    key_decisions: Optional[List[Any]] = Field(default_factory=list)
+    ending_omen_state: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
 class SaveListResponse(BaseModel):
@@ -48,7 +54,7 @@ class SaveCreateRequest(BaseModel):
     messages: List[Dict[str, Any]]
     logs: List[Any]
     current_scene: Optional[str] = ""
-    current_choices: List[Any] = []
+    current_choices: Optional[List[Any]] = []
     player: Optional[Dict[str, Any]] = None
     characters: List[Dict[str, Any]] = []
     relations: List[Dict[str, Any]] = []
@@ -56,3 +62,6 @@ class SaveCreateRequest(BaseModel):
     ending_countdown: int = 0
     selected_ending_type: str = ""
     preview_scene: str = ""
+    route_scores: Optional[Dict[str, int]] = Field(default_factory=dict)
+    key_decisions: Optional[List[Any]] = Field(default_factory=list)
+    ending_omen_state: Optional[Dict[str, Any]] = Field(default_factory=dict)

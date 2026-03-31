@@ -62,11 +62,31 @@ def set_current_game(game_id: str) -> None:
 
 def get_current_game() -> Optional[str]:
     session_id = get_current_session_id()
+    
+    def is_valid_game(g_id: Optional[str]) -> bool:
+        if not g_id:
+            return False
+        from app.utils.game_manager import get_games_dir
+        return os.path.exists(os.path.join(get_games_dir(), g_id))
+
+    game_id = None
     if session_id and session_id in _session_game_map:
-        return _session_game_map[session_id]
-    if "default" in _session_game_map:
-        return _session_game_map["default"]
-    return get_current_game_id()
+        g_id = _session_game_map[session_id]
+        if is_valid_game(g_id):
+            game_id = g_id
+        else:
+            del _session_game_map[session_id]
+            _persist_session_games()
+            
+    if not game_id and "default" in _session_game_map:
+        g_id = _session_game_map["default"]
+        if is_valid_game(g_id):
+            game_id = g_id
+        else:
+            del _session_game_map["default"]
+            _persist_session_games()
+            
+    return game_id or get_current_game_id()
 
 
 def require_game_id() -> str:
@@ -209,10 +229,13 @@ def save_character(character: dict) -> str:
 
 
 def load_character(char_id: str) -> Optional[dict]:
+    from app.utils.path_security import validate_char_id
+
+    cid = validate_char_id(char_id)
     get_or_create_characters_dir()
     game_id = require_game_id()
     char_dir = get_character_dir(game_id)
-    filepath = os.path.join(char_dir, f"{char_id}.json")
+    filepath = os.path.join(char_dir, f"{cid}.json")
     if os.path.exists(filepath):
         with open(filepath, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -220,10 +243,13 @@ def load_character(char_id: str) -> Optional[dict]:
 
 
 def delete_character(char_id: str) -> bool:
+    from app.utils.path_security import validate_char_id
+
+    cid = validate_char_id(char_id)
     get_or_create_characters_dir()
     game_id = require_game_id()
     char_dir = get_character_dir(game_id)
-    filepath = os.path.join(char_dir, f"{char_id}.json")
+    filepath = os.path.join(char_dir, f"{cid}.json")
     if os.path.exists(filepath):
         os.remove(filepath)
         return True

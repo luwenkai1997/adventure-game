@@ -30,6 +30,7 @@ from app.utils.file_storage import (
 from app.config import RELATION_TYPES, NPC_DIALOGUE_PROMPT
 from app.utils.file_storage import get_snapshot_path
 from app.utils.llm_client import call_llm
+from app.errors import AppError
 
 
 router = APIRouter()
@@ -114,6 +115,8 @@ async def get_character(char_id: str):
         if not character:
             return JSONResponse(status_code=404, content={'error': '角色不存在'})
         return JSONResponse(content={'character': character})
+    except AppError:
+        raise
     except Exception as e:
         return JSONResponse(status_code=500, content={'error': f'获取角色失败: {str(e)}'})
 
@@ -140,6 +143,8 @@ async def update_character(char_id: str, request: CharacterUpdate):
         save_character(character)
 
         return JSONResponse(content={'success': True, 'character': character})
+    except AppError:
+        raise
     except Exception as e:
         return JSONResponse(status_code=500, content={'error': f'更新角色失败: {str(e)}'})
 
@@ -153,6 +158,8 @@ async def del_character(char_id: str):
             save_relations(relations)
             return JSONResponse(content={'success': True})
         return JSONResponse(status_code=404, content={'error': '角色不存在'})
+    except AppError:
+        raise
     except Exception as e:
         return JSONResponse(status_code=500, content={'error': f'删除角色失败: {str(e)}'})
 

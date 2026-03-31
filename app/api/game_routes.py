@@ -78,25 +78,27 @@ async def index():
 async def chat(request: ChatRequestV2):
     try:
         request_id = str(uuid.uuid4())
-        parsed_content, raw_content = await game_service.chat(
+        parsed_content, raw_content, repaired = await game_service.chat(
             request.messages,
             request.extraPrompt,
             request.turn_context,
         )
-        
+
         if parsed_content.relationship_changes:
             await _update_relationships(parsed_content.relationship_changes)
-        
+
         response = ChatResponseV2(
             success=True,
             content=parsed_content,
             raw_content=raw_content,
             meta={
                 "request_id": request_id,
-                "repaired": False,
-            }
+                "repaired": repaired,
+            },
         )
         return JSONResponse(content=response.model_dump())
+    except AppError:
+        raise
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -228,6 +230,8 @@ async def api_get_current_game():
             game_info = get_game_info(game_id)
             return JSONResponse(content={"current_game": game_id, "game_info": game_info})
         return JSONResponse(content={"current_game": None, "game_info": None})
+    except AppError:
+        raise
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"获取当前游戏失败: {str(e)}"})
 
@@ -243,6 +247,8 @@ async def api_load_game(game_id: str):
             "game_id": game_id,
             "game_info": game_info
         })
+    except AppError:
+        raise
     except FileNotFoundError:
         return JSONResponse(status_code=404, content={"error": f"游戏不存在: {game_id}"})
     except Exception as e:
@@ -256,6 +262,8 @@ async def api_get_game(game_id: str):
         if game_info:
             return JSONResponse(content={"game_info": game_info})
         return JSONResponse(status_code=404, content={"error": "游戏不存在"})
+    except AppError:
+        raise
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"获取游戏信息失败: {str(e)}"})
 
@@ -266,6 +274,8 @@ async def api_update_game(game_id: str, request: UpdateGameRequest):
         updates = {k: v for k, v in request.model_dump().items() if v is not None}
         game_info = update_game_info(game_id, updates)
         return JSONResponse(content={"success": True, "game_info": game_info})
+    except AppError:
+        raise
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"更新游戏失败: {str(e)}"})
 
@@ -276,6 +286,8 @@ async def api_delete_game(game_id: str):
         if delete_game(game_id):
             return JSONResponse(content={"success": True})
         return JSONResponse(status_code=404, content={"error": "游戏不存在"})
+    except AppError:
+        raise
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"删除游戏失败: {str(e)}"})
 
@@ -283,17 +295,21 @@ async def api_delete_game(game_id: str):
 @router.post("/api/chat/stream")
 async def chat_stream(request: ChatRequestV2):
     request_id = str(uuid.uuid4())
+    tendency_data = None
+    if request.turn_context:
+        tendency_data = request.turn_context.get("tendency")
     full_messages = composer.compose(
         messages=request.messages,
         extra_prompt=request.extraPrompt,
         turn_context=request.turn_context,
+        tendency_data=tendency_data,
     )
-    prompt = "\n".join([msg["content"] for msg in full_messages])
-    system_prompt = None
 
     async def event_generator():
         full_content = ""
-        async for chunk in stream_llm(prompt, system_prompt, request_id):
+        async for chunk in stream_llm(
+            "", None, request_id, messages=full_messages
+        ):
             full_content += chunk
             if is_cancelled(request_id):
                 yield f"data: {{\"type\": \"cancelled\"}}\n\n"
@@ -358,15 +374,18 @@ async def ws_chat_stream(websocket: WebSocket):
         return
 
     request_id = str(uuid.uuid4())
+    tendency_data = None
+    if req.turn_context:
+        tendency_data = req.turn_context.get("tendency")
     full_messages = composer.compose(
         messages=req.messages,
         extra_prompt=req.extraPrompt,
         turn_context=req.turn_context,
+        tendency_data=tendency_data,
     )
-    prompt = "\n".join([msg["content"] for msg in full_messages])
     full_content = ""
     try:
-        async for chunk in stream_llm(prompt, None, request_id):
+        async for chunk in stream_llm("", None, request_id, messages=full_messages):
             full_content += chunk
             if is_cancelled(request_id):
                 await websocket.send_json({"type": "cancelled", "request_id": request_id})

@@ -3,6 +3,7 @@ import json
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 
+from app.utils.path_security import assert_path_under_root, validate_game_id
 
 GAMES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "games")
 
@@ -78,7 +79,10 @@ def get_current_game_id() -> Optional[str]:
 
 
 def get_game_dir(game_id: str) -> str:
-    game_dir = os.path.join(get_games_dir(), game_id)
+    gid = validate_game_id(game_id)
+    games_root = os.path.realpath(get_games_dir())
+    game_dir = os.path.join(games_root, gid)
+    assert_path_under_root(game_dir, games_root)
     if not os.path.exists(game_dir):
         raise FileNotFoundError(f"游戏目录不存在: {game_id}")
     return game_dir
@@ -139,7 +143,10 @@ def get_game_info(game_id: str) -> Optional[Dict[str, Any]]:
 
 def delete_game(game_id: str) -> bool:
     import shutil
-    game_dir = os.path.join(get_games_dir(), game_id)
+    gid = validate_game_id(game_id)
+    games_root = os.path.realpath(get_games_dir())
+    game_dir = os.path.join(games_root, gid)
+    assert_path_under_root(game_dir, games_root)
     if os.path.exists(game_dir):
         shutil.rmtree(game_dir)
         return True

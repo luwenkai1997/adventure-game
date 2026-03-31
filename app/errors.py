@@ -4,6 +4,7 @@ from typing import Any, Optional
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
 class ErrorBody(BaseModel):
@@ -43,6 +44,8 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
 async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     if isinstance(exc, AppError):
         return await app_error_handler(request, exc)
+    if isinstance(exc, StarletteHTTPException):
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
     body = ErrorResponse(
         error=ErrorBody(
             code="internal_error",

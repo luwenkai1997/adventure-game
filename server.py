@@ -4,6 +4,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import Response
 
 from app.api.game_routes import router as game_router
 from app.api.character_routes import router as character_router
@@ -12,14 +13,17 @@ from app.api.player_routes import router as player_router
 from app.api.check_routes import router as check_router
 from app.api.save_routes import router as save_router
 from app.middleware.session_middleware import SessionMiddleware
+from app.middleware.request_lifecycle_middleware import RequestLifecycleMiddleware
 from app.config import BASE_DIR
 from app.http_client import init_http_client, close_http_client
 from app.utils.file_storage import load_session_games_from_disk
-from app.errors import AppError, app_error_handler
+from app.errors import AppError, app_error_handler, generic_exception_handler
+from app.logging_config import configure_logging
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    configure_logging()
     load_session_games_from_disk()
     await init_http_client()
     yield
@@ -29,6 +33,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 app.add_exception_handler(AppError, app_error_handler)
+app.add_exception_handler(Exception, generic_exception_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,6 +43,7 @@ app.add_middleware(
 )
 
 app.add_middleware(SessionMiddleware)
+app.add_middleware(RequestLifecycleMiddleware)
 
 app.include_router(game_router)
 app.include_router(character_router)
@@ -49,3 +55,8 @@ app.include_router(save_router)
 _static_dir = os.path.join(BASE_DIR, "static")
 if os.path.isdir(_static_dir):
     app.mount("/static", StaticFiles(directory=_static_dir), name="static")
+
+
+@app.get("/favicon.ico")
+async def favicon():
+    return Response(status_code=204)

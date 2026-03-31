@@ -144,6 +144,29 @@ class PromptComposer:
         result = "\n".join(lines)
         return self.truncate_text(result, 500)
 
+    def get_route_section(self, turn_context: Optional[Dict]) -> str:
+        if not turn_context or "route_scores" not in turn_context:
+            return ""
+
+        scores = turn_context["route_scores"]
+        leader = turn_context.get("route_leader", "")
+
+        if not scores:
+            return ""
+
+        lines = ["## 结局路线追踪\n"]
+        lines.append("当前五个结局路线的积分为：")
+        lines.append(f"- 救赎(redemption): {scores.get('redemption', 0)}")
+        lines.append(f"- 权力(power): {scores.get('power', 0)}")
+        lines.append(f"- 牺牲(sacrifice): {scores.get('sacrifice', 0)}")
+        lines.append(f"- 背叛(betrayal): {scores.get('betrayal', 0)}")
+        lines.append(f"- 隐退(retreat): {scores.get('retreat', 0)}")
+
+        if leader:
+            lines.append(f"\n当前主导路线为：{leader}。如果主导路线分数较高，请务必在返回JSON中加入`ending_omen`字段返回一段沉浸式的结局前兆暗示，以及`route_hint`字段一句话说明该路线的核心特质。")
+
+        return "\n".join(lines)
+
     def compose(
         self,
         messages: List[Dict],
@@ -156,6 +179,7 @@ class PromptComposer:
         characters_section = self.get_characters_section()
         check_section = self.get_last_check_context(turn_context)
         tendency_section = self.get_tendency_section(tendency_data)
+        route_section = self.get_route_section(turn_context)
 
         context_parts = []
         if memory_section:
@@ -168,6 +192,8 @@ class PromptComposer:
             context_parts.append(tendency_section)
         if check_section:
             context_parts.append(check_section)
+        if route_section:
+            context_parts.append(route_section)
 
         context_text = "\n\n".join(context_parts)
 

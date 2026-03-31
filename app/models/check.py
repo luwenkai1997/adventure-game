@@ -19,6 +19,7 @@ class CheckResult(BaseModel):
     critical: bool = False
     fumble: bool = False
     narrative: Optional[str] = ""
+    growth: Optional[dict] = None
 
 
 DIFFICULTY_NAMES = {

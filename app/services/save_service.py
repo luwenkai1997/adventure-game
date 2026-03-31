@@ -72,6 +72,9 @@ class SaveService:
             "ending_countdown": request.ending_countdown,
             "selected_ending_type": request.selected_ending_type,
             "preview_scene": request.preview_scene,
+            "route_scores": request.route_scores if request.route_scores else {},
+            "key_decisions": request.key_decisions if request.key_decisions else [],
+            "ending_omen_state": request.ending_omen_state if request.ending_omen_state else {},
         }
 
         filepath = save_game_state(request.slot_id, save_data)

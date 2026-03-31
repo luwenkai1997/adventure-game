@@ -42,6 +42,36 @@
             charisma: 10
         };
 
+        let routeScores = { redemption: 0, power: 0, sacrifice: 0, betrayal: 0, retreat: 0 };
+        let keyDecisions = [];
+        let endingOmenState = {};
+
+        const tendencyToRouteMap = {
+            "善良": "redemption",
+            "正义": "redemption",
+            "勇敢": "power",
+            "冷酷": "power",
+            "仁慈": "sacrifice",
+            "理性": "sacrifice",
+            "自利": "betrayal",
+            "狡诈": "betrayal",
+            "谨慎": "retreat",
+            "坦诚": "retreat",
+            "感性": "redemption"
+        };
+
+        function getRouteLeader() {
+            let leader = null;
+            let maxScore = 0;
+            for (const [route, score] of Object.entries(routeScores)) {
+                if (score > maxScore) {
+                    maxScore = score;
+                    leader = route;
+                }
+            }
+            return leader;
+        }
+
         async function loadPresetSkills() {
             try {
                 const response = await apiFetch('/api/player/skills');
@@ -317,7 +347,7 @@
 
         async function loadCharacterForReview() {
             try {
-                const response = await fetch('/api/player');
+                const response = await apiFetch('/api/player');
                 const data = await response.json();
                 
                 if (data.exists && data.player) {
@@ -417,9 +447,8 @@
             
             try {
                 // 保存主角信息
-                const response = await fetch('/api/player', {
+                const response = await apiFetch('/api/player', {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(playerData)
                 });
                 
@@ -453,11 +482,10 @@
             
             try {
                 const npcController = new AbortController();
-                const npcTimeout = setTimeout(() => npcController.abort(), 180000); // 3分钟超时
+                const npcTimeout = setTimeout(() => npcController.abort(), 120000);
                 
-                const npcResponse = await fetch('/api/npcs/generate', {
+                const npcResponse = await apiFetch('/api/npcs/generate', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         world_setting: worldSetting,
                         protagonist_info: playerCharacter,
@@ -494,9 +522,8 @@
             
             try {
                 // 使用LLM重新生成主角
-                const response = await fetch('/api/player/generate', {
+                const response = await apiFetch('/api/player/generate', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ world_setting: worldSetting })
                 });
                 
@@ -516,6 +543,7 @@
         function togglePlayerPanel() {
             const panel = document.getElementById('player-panel');
             panel.classList.toggle('open');
+            document.getElementById('character-panel').classList.remove('open');
             if (panel.classList.contains('open')) {
                 updatePlayerPanel();
             }
@@ -630,6 +658,9 @@
                     endingCountdown: endingCountdown,
                     worldSetting: worldSetting,
                     selectedEndingType: selectedEndingType,
+                    routeScores: routeScores,
+                    keyDecisions: keyDecisions,
+                    endingOmenState: endingOmenState,
                     timestamp: Date.now()
                 };
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
@@ -685,38 +716,20 @@
             endingCountdown = gameState.endingCountdown || 0;
             worldSetting = gameState.worldSetting || "";
             selectedEndingType = gameState.selectedEndingType || "";
+            routeScores = gameState.routeScores || { redemption: 0, power: 0, sacrifice: 0, betrayal: 0, retreat: 0 };
+            keyDecisions = gameState.keyDecisions || [];
+            endingOmenState = gameState.endingOmenState || {};
 
             document.getElementById('chapter-num').textContent = chapter;
             
-            const logContainer = document.getElementById('log-container');
-            logContainer.innerHTML = '';
-            logs.forEach(log => {
-                const entry = document.createElement('div');
-                entry.className = 'log-entry';
-                if (log.log) {
-                    const chapterNum = logs.indexOf(log) + 1;
-                    entry.innerHTML = `<span class="log-chapter-num">【第${chapterNum}轮】</span> ${log.log}`;
-                } else {
-                    entry.textContent = log;
-                }
-                logContainer.appendChild(entry);
-            });
-            logContainer.scrollTop = logContainer.scrollHeight;
+            _renderLogEntries(logs);
 
             if (currentScene) {
                 document.getElementById('scene-text').textContent = currentScene;
             }
 
             if (currentChoices && currentChoices.length > 0) {
-                const choicesContainer = document.getElementById('choices-container');
-                choicesContainer.innerHTML = '';
-                currentChoices.forEach((choice, index) => {
-                    const btn = document.createElement('button');
-                    btn.className = 'choice-btn';
-                    btn.textContent = `${index + 1}. ${choice}`;
-                    btn.onclick = () => makeChoice(choice);
-                    choicesContainer.appendChild(btn);
-                });
+                _renderChoiceItems(currentChoices);
             }
 
             if (endingTriggered) {
@@ -726,6 +739,123 @@
             }
 
             console.log('游戏状态已恢复');
+        }
+
+        // ── Shared rendering helpers for restore flows ──────
+
+        function _renderLogEntries(logsList) {
+            const logContainer = document.getElementById('log-container');
+            logContainer.innerHTML = '';
+            logsList.forEach((log, idx) => {
+                const entry = document.createElement('div');
+                entry.className = 'log-entry';
+                if (log && typeof log === 'object' && log.log) {
+                    entry.innerHTML = `<span class="log-chapter-num">【第${idx + 1}轮】</span> ${log.log}`;
+                } else if (typeof log === 'string') {
+                    entry.textContent = log;
+                } else {
+                    entry.textContent = JSON.stringify(log);
+                }
+                logContainer.appendChild(entry);
+            });
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function _renderChoiceItems(choices) {
+            const choicesContainer = document.getElementById('choices-container');
+            choicesContainer.innerHTML = '';
+
+            choices.forEach((choice, index) => {
+                // Handle both ChoiceItem objects and plain strings
+                if (typeof choice === 'string') {
+                    const btn = document.createElement('button');
+                    btn.className = 'choice-btn';
+                    btn.textContent = `${index + 1}. ${choice}`;
+                    btn.onclick = () => makeChoice(choice);
+                    choicesContainer.appendChild(btn);
+                    return;
+                }
+
+                // ChoiceItem object with .text, .check, .tendency, etc.
+                if (choice.check && choice.check_optional) {
+                    const container = document.createElement('div');
+                    container.className = 'choice-with-check';
+                    container.style.cssText = 'display: flex; flex-direction: column; gap: 8px; padding: 10px; background: rgba(0, 255, 136, 0.05); border-radius: 6px; border: 1px solid rgba(0, 255, 136, 0.2);';
+
+                    const textDiv = document.createElement('div');
+                    textDiv.style.cssText = 'color: #00ff88; font-size: 1rem; line-height: 1.5;';
+                    textDiv.textContent = `${index + 1}. ${choice.text}`;
+                    if (choice.check_prompt) {
+                        const promptDiv = document.createElement('div');
+                        promptDiv.style.cssText = 'font-size: 0.8rem; color: rgba(0, 200, 255, 0.7); margin-top: 4px;';
+                        promptDiv.textContent = choice.check_prompt;
+                        textDiv.appendChild(promptDiv);
+                    }
+                    container.appendChild(textDiv);
+
+                    const btnGroup = document.createElement('div');
+                    btnGroup.style.cssText = 'display: flex; gap: 10px;';
+
+                    const directBtn = document.createElement('button');
+                    directBtn.className = 'btn btn-secondary';
+                    directBtn.style.cssText = 'flex: 1; padding: 10px 20px;';
+                    directBtn.textContent = '直接行动';
+                    directBtn.onclick = () => makeChoiceWithCheck(choice.text, null, choice);
+                    btnGroup.appendChild(directBtn);
+
+                    const checkBtn = document.createElement('button');
+                    checkBtn.className = 'choice-btn has-check';
+                    checkBtn.style.cssText = 'flex: 1;';
+                    checkBtn.textContent = '🎲 进行检定';
+                    checkBtn.onclick = () => {
+                        const checkData = choice.check || {};
+                        performDiceCheck(
+                            checkData.attribute || 'strength',
+                            checkData.skill || '',
+                            checkData.difficulty || 12,
+                            checkData.description || ''
+                        ).then(result => {
+                            lastCheckResult = result;
+                            if (result.success) {
+                                makeChoiceWithCheck(choice.text + `（检定成功：${result.total} ≥ ${checkData.difficulty || 12}）`, result, choice);
+                            } else {
+                                makeChoiceWithCheck(choice.text + `（检定失败：${result.total} < ${checkData.difficulty || 12}）`, result, choice);
+                            }
+                        });
+                    };
+                    btnGroup.appendChild(checkBtn);
+
+                    container.appendChild(btnGroup);
+                    choicesContainer.appendChild(container);
+                } else if (choice.check) {
+                    const btn = document.createElement('button');
+                    btn.className = 'choice-btn has-check';
+                    btn.textContent = `${index + 1}. ${choice.text}`;
+                    btn.onclick = () => {
+                        const checkData = choice.check || {};
+                        performDiceCheck(
+                            checkData.attribute || 'strength',
+                            checkData.skill || '',
+                            checkData.difficulty || 12,
+                            checkData.description || ''
+                        ).then(result => {
+                            lastCheckResult = result;
+                            if (result.success) {
+                                makeChoiceWithCheck(choice.text + `（检定成功：${result.total} ≥ ${checkData.difficulty || 12}）`, result, choice);
+                            } else {
+                                makeChoiceWithCheck(choice.text + `（检定失败：${result.total} < ${checkData.difficulty || 12}）`, result, choice);
+                            }
+                        });
+                    };
+                    choicesContainer.appendChild(btn);
+                } else {
+                    const btn = document.createElement('button');
+                    btn.className = 'choice-btn';
+                    btn.textContent = `${index + 1}. ${choice.text || choice}`;
+                    btn.onclick = () => makeChoiceWithCheck(choice.text || choice, null, typeof choice === 'object' ? choice : null);
+                    choicesContainer.appendChild(btn);
+                }
+            });
         }
 
         let currentCheckCallback = null;
@@ -749,6 +879,9 @@
                 diceDC.textContent = difficulty;
                 resultText.textContent = '';
                 resultText.className = 'check-result';
+                
+                const closeBtn = document.getElementById('check-continue-btn');
+                if (closeBtn) closeBtn.style.display = 'none';
                 
                 currentCheckCallback = resolve;
                 
@@ -790,13 +923,44 @@
                                     diceDisplay.textContent = '1';
                                 }
                                 
+                                if (result.growth) {
+                                    const growthMsg = [];
+                                    if (result.growth.exp_gain) growthMsg.push(`经验+${result.growth.exp_gain}`);
+                                    if (result.growth.hp_effect && result.growth.hp_effect.hp_change) {
+                                        const hp_change = result.growth.hp_effect.hp_change;
+                                        growthMsg.push(`HP${hp_change > 0 ? '+' : ''}${hp_change}`);
+                                    }
+                                    if (result.growth.leveled_up) growthMsg.push(`等级提升至Lv.${result.growth.new_level}`);
+                                    
+                                    if (growthMsg.length > 0) {
+                                        result.narrative += ` [${growthMsg.join(", ")}]`;
+                                    }
+                                    
+                                    loadPlayerCharacter().then(() => {
+                                        if (document.getElementById('player-panel').classList.contains('open')) {
+                                            updatePlayerPanel();
+                                        }
+                                    });
+                                }
+
                                 resultText.textContent = result.narrative;
                                 resultText.className = 'check-result ' + (result.success ? 'success' : 'failure');
                                 
-                                setTimeout(() => {
-                                    modal.classList.remove('active');
-                                    resolve(result);
-                                }, 2000);
+                                const closeBtn = document.getElementById('check-continue-btn');
+                                if (closeBtn) {
+                                    closeBtn.style.display = 'block';
+                                    closeBtn.onclick = () => {
+                                        modal.classList.remove('active');
+                                        closeBtn.style.display = 'none';
+                                        resolve(result);
+                                        currentCheckCallback = null;
+                                    };
+                                } else {
+                                    setTimeout(() => {
+                                        modal.classList.remove('active');
+                                        resolve(result);
+                                    }, 2000);
+                                }
                             }
                         } catch (error) {
                             console.error('检定请求失败:', error);
@@ -817,7 +981,7 @@
             }
         }
 
-        function makeChoiceWithCheck(choice, checkInfo) {
+        function makeChoiceWithCheck(choiceText, checkInfo, choiceObj = null) {
             if (checkInfo && checkInfo.attribute) {
                 const checkData = checkInfo || {};
                 performDiceCheck(
@@ -827,13 +991,13 @@
                     checkData.description || ''
                 ).then(result => {
                     if (result.success) {
-                        makeChoice(choice + '（检定成功）');
+                        makeChoice(choiceText + '（检定成功）', choiceObj);
                     } else {
-                        makeChoice(choice + '（检定失败）');
+                        makeChoice(choiceText + '（检定失败）', choiceObj);
                     }
                 });
             } else {
-                makeChoice(choice);
+                makeChoice(choiceText, choiceObj);
             }
         }
 
@@ -855,7 +1019,7 @@
 
         async function getPlayerCheckInfo() {
             try {
-                const response = await fetch('/api/check/info');
+                const response = await apiFetch('/api/check/info');
                 const data = await response.json();
                 return data.info || {};
             } catch (error) {
@@ -945,7 +1109,7 @@
 
             try {
                 const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), 30000);
+                const timeout = setTimeout(() => controller.abort(), 120000);
 
                 const response = await apiFetch('/api/story/expand', {
                     method: 'POST',
@@ -1028,14 +1192,14 @@
                 }
 
                 // 步骤2: 生成主角（使用LLM）
-                document.getElementById('loading-detail').textContent = '正在使用AI生成主角（约需30-60秒）...';
+                document.getElementById('loading-detail').textContent = '正在使用AI生成主角（约需1-2分钟）...';
 
                 const playerResponse = await apiFetch('/api/player');
                 const playerData = await playerResponse.json();
 
                 if (!playerData.exists) {
                     const playerController = new AbortController();
-                    const playerTimeout = setTimeout(() => playerController.abort(), 90000);
+                    const playerTimeout = setTimeout(() => playerController.abort(), 120000);
 
                     const playerGenResponse = await apiFetch('/api/player/generate', {
                         method: 'POST',
@@ -1045,6 +1209,7 @@
                     clearTimeout(playerTimeout);
                     
                     const playerGenData = await playerGenResponse.json();
+
                     if (playerGenData.success) {
                         playerCharacter = playerGenData.player;
                         if (playerGenData.warning) {
@@ -1107,7 +1272,7 @@
             document.getElementById('log-container').innerHTML = '';
             document.getElementById('custom-choice-container').style.display = 'flex';
             
-            await fetch('/api/history', { method: 'DELETE' }).catch(() => {});
+            await apiFetch('/api/history', { method: 'DELETE' }).catch(() => {});
             
             const undoBtn = document.getElementById('undo-btn');
             if (undoBtn) {
@@ -1140,9 +1305,24 @@
             await sendMessage();
         }
 
-        async function makeChoice(choice) {
+        async function makeChoice(choiceText, choiceObj = null) {
+            if (choiceObj) {
+                if (choiceObj.tendency) {
+                    let points = choiceObj.is_key_decision ? 3 : 1;
+                    choiceObj.tendency.forEach(t => {
+                        const route = tendencyToRouteMap[t];
+                        if (route) {
+                            routeScores[route] += points;
+                        }
+                    });
+                }
+                if (choiceObj.is_key_decision) {
+                    keyDecisions.push(choiceText);
+                }
+            }
+
             if (logs.length > 0) {
-                logs[logs.length - 1].selectedChoice = choice;
+                logs[logs.length - 1].selectedChoice = choiceText;
             }
             
             pushHistory({
@@ -1150,16 +1330,18 @@
                 chapter: chapter,
                 current_scene: currentScene,
                 current_choices: currentChoices ? JSON.parse(JSON.stringify(currentChoices)) : null,
-                player: playerCharacter ? JSON.parse(JSON.stringify(playerCharacter)) : null
+                player: playerCharacter ? JSON.parse(JSON.stringify(playerCharacter)) : null,
+                route_scores: JSON.parse(JSON.stringify(routeScores)),
+                key_decisions: JSON.parse(JSON.stringify(keyDecisions)),
+                ending_omen_state: JSON.parse(JSON.stringify(endingOmenState))
             });
             
             if (logs.length > 0) {
-                fetch('/api/update-memory', {
+                apiFetch('/api/update-memory', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         scene: logs[logs.length - 1].scene,
-                        selectedChoice: choice,
+                        selectedChoice: choiceText,
                         logSummary: logs[logs.length - 1].log,
                         endingType: ''
                     })
@@ -1171,7 +1353,7 @@
             
             messages.push({
                 role: 'user',
-                content: choice
+                content: choiceText
             });
 
             saveGameState();
@@ -1199,7 +1381,11 @@
                     body: JSON.stringify({
                         messages: messages,
                         extraPrompt: extraPrompt,
-                        turn_context: lastCheckResult ? { last_check: lastCheckResult } : null
+                        turn_context: {
+                            last_check: lastCheckResult,
+                            route_scores: routeScores,
+                            route_leader: getRouteLeader()
+                        }
                     })
                 });
 
@@ -1270,11 +1456,57 @@
                 container.scrollTop = container.scrollHeight;
             }
 
+            if (data.ending_omen) {
+                const container = document.getElementById('log-container');
+                const omenEntry = document.createElement('div');
+                omenEntry.className = 'log-entry';
+                omenEntry.style.cssText = 'color: #ffaa00; font-style: italic; background: rgba(255, 170, 0, 0.1); border-left: 3px solid #ffaa00;';
+                omenEntry.innerHTML = `🌟 命运前兆: ${data.ending_omen}`;
+                container.appendChild(omenEntry);
+                container.scrollTop = container.scrollHeight;
+                
+                logs.push({
+                    scene: '',
+                    choices: null,
+                    selectedChoice: null,
+                    log: `🌟 命运前兆: ${data.ending_omen}`
+                });
+            }
+
+            if (data.route_hint) {
+                const container = document.getElementById('log-container');
+                const hintEntry = document.createElement('div');
+                hintEntry.className = 'log-entry';
+                hintEntry.style.cssText = 'color: #00ffff; font-style: italic; background: rgba(0, 255, 255, 0.1); border-left: 3px solid #00ffff;';
+                hintEntry.innerHTML = `🧭 路线关注: ${data.route_hint}`;
+                container.appendChild(hintEntry);
+                container.scrollTop = container.scrollHeight;
+                
+                logs.push({
+                    scene: '',
+                    choices: null,
+                    selectedChoice: null,
+                    log: `🧭 路线关注: ${data.route_hint}`
+                });
+            }
+
             saveGameState();
 
             if (data.ending) {
                 setTimeout(() => {
                     showEnding(data);
+                }, 2000);
+                setLoading(false);
+                return;
+            }
+
+            if (playerCharacter && playerCharacter.current_hp <= 0) {
+                setTimeout(() => {
+                    showEnding({
+                        scene: data.scene + '\n\n' + (playerCharacter.name || '主角') + '的生命值已耗尽，冒险至此无奈落幕……',
+                        ending: '坏结局',
+                        log: '冒险终章（HP归零）'
+                    });
                 }, 2000);
                 setLoading(false);
                 return;
@@ -1305,7 +1537,7 @@
                         directBtn.className = 'btn btn-secondary';
                         directBtn.style.cssText = 'flex: 1; padding: 10px 20px;';
                         directBtn.textContent = '直接行动';
-                        directBtn.onclick = () => makeChoiceWithCheck(choice.text, null);
+                        directBtn.onclick = () => makeChoiceWithCheck(choice.text, null, choice);
                         btnGroup.appendChild(directBtn);
 
                         const checkBtn = document.createElement('button');
@@ -1322,9 +1554,9 @@
                             ).then(result => {
                                 lastCheckResult = result;
                                 if (result.success) {
-                                    makeChoiceWithCheck(choice.text + `（检定成功：${result.total} ≥ ${checkData.difficulty || 12}）`, result);
+                                    makeChoiceWithCheck(choice.text + `（检定成功：${result.total} ≥ ${checkData.difficulty || 12}）`, result, choice);
                                 } else {
-                                    makeChoiceWithCheck(choice.text + `（检定失败：${result.total} < ${checkData.difficulty || 12}）`, result);
+                                    makeChoiceWithCheck(choice.text + `（检定失败：${result.total} < ${checkData.difficulty || 12}）`, result, choice);
                                 }
                             });
                         };
@@ -1346,9 +1578,9 @@
                             ).then(result => {
                                 lastCheckResult = result;
                                 if (result.success) {
-                                    makeChoiceWithCheck(choice.text + `（检定成功：${result.total} ≥ ${checkData.difficulty || 12}）`, result);
+                                    makeChoiceWithCheck(choice.text + `（检定成功：${result.total} ≥ ${checkData.difficulty || 12}）`, result, choice);
                                 } else {
-                                    makeChoiceWithCheck(choice.text + `（检定失败：${result.total} < ${checkData.difficulty || 12}）`, result);
+                                    makeChoiceWithCheck(choice.text + `（检定失败：${result.total} < ${checkData.difficulty || 12}）`, result, choice);
                                 }
                             });
                         };
@@ -1357,7 +1589,7 @@
                         const btn = document.createElement('button');
                         btn.className = 'choice-btn';
                         btn.textContent = `${index + 1}. ${choice.text}`;
-                        btn.onclick = () => makeChoiceWithCheck(choice.text, null);
+                        btn.onclick = () => makeChoiceWithCheck(choice.text, null, choice);
                         choicesContainer.appendChild(btn);
                     }
                 });
@@ -1386,9 +1618,8 @@
                 container.appendChild(entry);
                 container.scrollTop = container.scrollHeight;
 
-                fetch('/api/update-memory', {
+                apiFetch('/api/update-memory', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         scene: data.scene,
                         selectedChoice: '',
@@ -1430,6 +1661,9 @@
             endingTriggered = false;
             endingCountdown = 0;
             selectedEndingType = "";
+            routeScores = { redemption: 0, power: 0, sacrifice: 0, betrayal: 0, retreat: 0 };
+            keyDecisions = [];
+            endingOmenState = {};
             document.getElementById('world-setting').value = '';
             document.getElementById('scene-text').textContent = '';
             document.getElementById('choices-container').innerHTML = '';
@@ -1494,7 +1728,158 @@
             }
         });
 
+        // ── Novel Modal (incremental generation) ──────────────
+
+        async function showNovelModal() {
+            const modal = document.getElementById('novel-modal');
+            const statusDiv = document.getElementById('novel-modal-status');
+            const progressDiv = document.getElementById('novel-modal-progress');
+            const resultDiv = document.getElementById('novel-modal-result');
+            const generateBtn = document.getElementById('novel-modal-generate-btn');
+
+            modal.style.display = 'flex';
+            progressDiv.style.display = 'none';
+            resultDiv.style.display = 'none';
+            generateBtn.disabled = false;
+            generateBtn.style.display = 'inline-block';
+            statusDiv.textContent = '加载中...';
+
+            try {
+                const resp = await apiFetch(`/api/novel/progress?current_round=${chapter}`);
+                const data = await resp.json();
+
+                if (data.has_novel) {
+                    statusDiv.innerHTML = `
+                        <div style="margin-bottom:8px;"><strong>📖 《${data.title}》</strong></div>
+                        <div>已有 <span style="color:#00ff88;">${data.chapters_count}</span> 章，覆盖到第 <span style="color:#00ff88;">${data.last_covered_round}</span> 轮</div>
+                        <div>当前游戏已进行 <span style="color:#ffaa00;">${data.current_round}</span> 轮</div>
+                        ${data.can_continue
+                            ? `<div style="color:#ffaa00;margin-top:8px;">📝 有 <strong>${data.new_rounds}</strong> 轮新剧情待续写</div>`
+                            : `<div style="color:#888;margin-top:8px;">✅ 小说已覆盖全部已有剧情</div>`
+                        }
+                    `;
+                    generateBtn.textContent = data.can_continue ? '📝 续写小说' : '📖 查看小说';
+
+                    // If nothing to continue and novel exists, show read button
+                    if (!data.can_continue) {
+                        generateBtn.onclick = async () => {
+                            const contentResp = await apiFetch('/api/novel/content');
+                            const contentData = await contentResp.json();
+                            if (contentData.has_novel) {
+                                resultDiv.style.display = 'block';
+                                resultDiv.innerHTML = contentData.content.replace(/\n/g, '<br>');
+                            }
+                        };
+                    } else {
+                        generateBtn.onclick = () => generateNovelIncremental();
+                    }
+                } else {
+                    if (data.current_round > 0) {
+                        statusDiv.innerHTML = `
+                            <div>当前游戏已进行 <span style="color:#ffaa00;">${data.current_round}</span> 轮</div>
+                            <div style="color:#aaffcc;margin-top:8px;">📝 点击下方按钮为已有剧情生成小说</div>
+                        `;
+                        generateBtn.textContent = '📝 生成小说';
+                        generateBtn.onclick = () => generateNovelIncremental();
+                    } else {
+                        statusDiv.innerHTML = '<div style="color:#888;">还没有游戏记录，请先开始游戏。</div>';
+                        generateBtn.disabled = true;
+                    }
+                }
+            } catch (e) {
+                statusDiv.textContent = '获取进度失败: ' + e.message;
+            }
+        }
+
+        function closeNovelModal() {
+            document.getElementById('novel-modal').style.display = 'none';
+        }
+
+        async function generateNovelIncremental(endingType = '') {
+            const statusDiv = document.getElementById('novel-modal-status');
+            const progressDiv = document.getElementById('novel-modal-progress');
+            const progressFill = document.getElementById('novel-modal-progress-fill');
+            const progressPercent = document.getElementById('novel-modal-progress-percent');
+            const progressStatus = document.getElementById('novel-modal-progress-status');
+            const progressTime = document.getElementById('novel-modal-progress-time');
+            const resultDiv = document.getElementById('novel-modal-result');
+            const generateBtn = document.getElementById('novel-modal-generate-btn');
+
+            generateBtn.disabled = true;
+            generateBtn.style.display = 'none';
+            statusDiv.textContent = '正在生成小说，请勿关闭此窗口...';
+            progressDiv.style.display = 'block';
+            resultDiv.style.display = 'none';
+
+            // Fake progress animation
+            progressFill.style.width = '10%';
+            progressPercent.textContent = '10%';
+            progressStatus.textContent = '正在规划章节结构...';
+            progressTime.textContent = '这可能需要几分钟';
+
+            let fakeProgress = 10;
+            const fakeInterval = setInterval(() => {
+                if (fakeProgress < 85) {
+                    fakeProgress += Math.random() * 5;
+                    progressFill.style.width = `${Math.round(fakeProgress)}%`;
+                    progressPercent.textContent = `${Math.round(fakeProgress)}%`;
+                    if (fakeProgress > 30) progressStatus.textContent = '正在生成章节内容...';
+                    if (fakeProgress > 60) progressStatus.textContent = '正在合并章节...';
+                }
+            }, 3000);
+
+            try {
+                const resp = await apiFetch('/api/novel/incremental', {
+                    method: 'POST',
+                    body: JSON.stringify({ ending_type: endingType, current_round: chapter })
+                });
+                const data = await resp.json();
+                clearInterval(fakeInterval);
+
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                progressFill.style.width = '100%';
+                progressPercent.textContent = '100%';
+
+                if (data.mode === 'no_change') {
+                    progressStatus.textContent = '没有新内容需要续写';
+                    statusDiv.textContent = data.message;
+                } else {
+                    const modeText = data.mode === 'fresh' ? '全新生成' : '续写';
+                    progressStatus.textContent = `${modeText}完成！共 ${data.total_chapters} 章`;
+                    statusDiv.innerHTML = `<div style="color:#00ff88;">✅ 小说《${data.title}》${modeText}完成，共 ${data.total_chapters} 章</div>`;
+                }
+
+                if (data.novel_content) {
+                    resultDiv.style.display = 'block';
+                    resultDiv.innerHTML = data.novel_content.replace(/\n/g, '<br>');
+                }
+
+                generateBtn.disabled = false;
+                generateBtn.style.display = 'inline-block';
+                generateBtn.textContent = '📖 刷新/续写';
+                generateBtn.onclick = () => generateNovelIncremental();
+
+            } catch (error) {
+                clearInterval(fakeInterval);
+                progressStatus.textContent = '生成失败';
+                statusDiv.innerHTML = `<div style="color:#ff4444;">❌ ${error.message}</div>`;
+                generateBtn.disabled = false;
+                generateBtn.style.display = 'inline-block';
+                generateBtn.textContent = '🔄 重试';
+                generateBtn.onclick = () => generateNovelIncremental(endingType);
+            }
+        }
+
+        // ── Ending-screen novel generation (uses incremental with ending_type) ──
+
         async function generateNovel() {
+            // Determine ending type from the ending screen
+            const endingTypeEl = document.getElementById('ending-type');
+            const endingType = endingTypeEl ? endingTypeEl.textContent : '';
+
             const loading = document.getElementById('novel-loading');
             const resultContainer = document.getElementById('novel-result');
             const generateBtn = document.getElementById('generate-novel-btn');
@@ -1507,7 +1892,7 @@
             progressContainer.className = 'progress-container';
             progressContainer.innerHTML = `
                 <div class="progress-header">
-                    <span class="progress-title">正在规划小说结构...</span>
+                    <span class="progress-title">正在生成小说...</span>
                     <span class="progress-percent">0%</span>
                 </div>
                 <div class="progress-bar">
@@ -1515,7 +1900,7 @@
                 </div>
                 <div class="progress-info">
                     <span class="progress-status">分析游戏记忆...</span>
-                    <span class="progress-time">预计剩余时间: --</span>
+                    <span class="progress-time">这可能需要几分钟</span>
                 </div>
             `;
             resultContainer.appendChild(progressContainer);
@@ -1523,108 +1908,52 @@
             const progressFill = progressContainer.querySelector('.progress-fill');
             const progressPercent = progressContainer.querySelector('.progress-percent');
             const progressStatus = progressContainer.querySelector('.progress-status');
-            const progressTime = progressContainer.querySelector('.progress-time');
             const progressTitle = progressContainer.querySelector('.progress-title');
 
+            let fakeProgress = 10;
+            const fakeInterval = setInterval(() => {
+                if (fakeProgress < 85) {
+                    fakeProgress += Math.random() * 5;
+                    progressFill.style.width = `${Math.round(fakeProgress)}%`;
+                    progressPercent.textContent = `${Math.round(fakeProgress)}%`;
+                    if (fakeProgress > 30) progressStatus.textContent = '正在生成章节...';
+                    if (fakeProgress > 60) progressStatus.textContent = '正在合并章节...';
+                }
+            }, 3000);
+
             try {
-                progressStatus.textContent = '正在规划小说结构...';
-                
-                const planResponse = await fetch('/api/novel/plan', {
+                const resp = await apiFetch('/api/novel/incremental', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    body: JSON.stringify({ ending_type: endingType, current_round: chapter })
                 });
-                const planData = await planResponse.json();
-                
-                if (planData.error) {
-                    throw new Error(planData.error);
-                }
+                const data = await resp.json();
+                clearInterval(fakeInterval);
 
-                const novelFolder = planData.novel_folder;
-                const plan = planData.plan;
-                
-                if (!plan || !plan.chapters || !Array.isArray(plan.chapters)) {
-                    throw new Error('小说规划数据格式错误：缺少 chapters 字段或格式不正确');
-                }
-                
-                const totalChapters = plan.total_chapters || plan.chapters.length;
-
-                progressTitle.textContent = `《${plan.title}》`;
-                progressStatus.textContent = `规划完成，共 ${totalChapters} 章`;
-
-                await new Promise(resolve => setTimeout(resolve, 500));
-
-                for (let i = 0; i < plan.chapters.length; i++) {
-                    const chapter = plan.chapters[i];
-                    const progress = ((i + 1) / totalChapters) * 100;
-                    
-                    progressFill.style.width = `${progress}%`;
-                    progressPercent.textContent = `${Math.round(progress)}%`;
-                    progressStatus.textContent = `正在生成第 ${chapter.chapter_num} 章: ${chapter.title}`;
-                    
-                    const remainingChapters = totalChapters - i;
-                    const estimatedSeconds = remainingChapters * 30;
-                    const minutes = Math.floor(estimatedSeconds / 60);
-                    const seconds = estimatedSeconds % 60;
-                    progressTime.textContent = `预计剩余时间: ${minutes}分${seconds}秒`;
-
-                    const chapterResponse = await fetch('/api/novel/chapter', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            novel_folder: novelFolder,
-                            chapter_num: chapter.chapter_num,
-                            chapter_title: chapter.title,
-                            chapter_summary: chapter.summary
-                        })
-                    });
-                    
-                    const chapterResult = await chapterResponse.json();
-                    if (chapterResult.error) {
-                        console.error(`第 ${chapter.chapter_num} 章生成失败:`, chapterResult.error);
-                    }
-
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                }
-
-                progressStatus.textContent = '正在合并章节...';
-                
-                const mergeResponse = await fetch(`/api/novel/merge?novel_folder=${novelFolder}`, {
-                    method: 'POST'
-                });
-                const mergeData = await mergeResponse.json();
-                
-                if (mergeData.error) {
-                    throw new Error(mergeData.error);
+                if (data.error) {
+                    throw new Error(data.error);
                 }
 
                 progressFill.style.width = '100%';
                 progressPercent.textContent = '100%';
                 progressStatus.textContent = '生成完成！';
-                progressTime.textContent = `共 ${mergeData.total_chapters} 章`;
+                progressTitle.textContent = `《${data.title}》`;
 
                 setTimeout(() => {
                     resultContainer.innerHTML = `
                         <div class="novel-content">
-                            <h3>《${plan.title}》生成完成</h3>
-                            <p>共 ${mergeData.total_chapters} 章 | 保存路径: ${mergeData.novel_path}</p>
-                            <div class="novel-text">${mergeData.novel_content.replace(/\n/g, '<br>')}</div>
+                            <h3>《${data.title}》生成完成</h3>
+                            <p>共 ${data.total_chapters} 章</p>
+                            <div class="novel-text">${data.novel_content.replace(/\n/g, '<br>')}</div>
                         </div>
                     `;
                     generateBtn.style.display = 'none';
                 }, 500);
 
             } catch (error) {
-                let errorDetail = '';
-                if (error.message.includes('504')) {
-                    errorDetail = '小说生成超时，请稍后重试。';
-                } else if (error.message.includes('502') || error.message.includes('网络请求错误')) {
-                    errorDetail = '网络连接失败，请检查您的网络设置后重试。';
-                } else if (error.message.includes('memory.md不存在')) {
-                    errorDetail = '游戏记忆文档不存在，请先开始一局游戏。';
-                } else {
-                    errorDetail = '生成失败: ' + error.message;
-                }
-                
+                clearInterval(fakeInterval);
+                let errorDetail = error.message.includes('memory.md不存在')
+                    ? '游戏记忆文档不存在，请先开始一局游戏。'
+                    : '生成失败: ' + error.message;
                 showError('小说生成失败', errorDetail);
                 generateBtn.disabled = false;
             } finally {
@@ -1662,15 +1991,15 @@
 
         async function loadCharactersList() {
             try {
-                const response = await fetch('/api/characters');
+                const response = await apiFetch('/api/characters');
                 const data = await response.json();
                 charactersData = data.characters || [];
                 
-                const relResponse = await fetch('/api/relations');
+                const relResponse = await apiFetch('/api/relations');
                 const relData = await relResponse.json();
                 relationsData = relData.relations || [];
                 
-                const typesResponse = await fetch('/api/relation-types');
+                const typesResponse = await apiFetch('/api/relation-types');
                 const typesData = await typesResponse.json();
                 relationTypes = typesData.types || {};
                 
@@ -1684,6 +2013,7 @@
         function toggleCharacterPanel() {
             const panel = document.getElementById('character-panel');
             panel.classList.toggle('open');
+            document.getElementById('player-panel').classList.remove('open');
             if (panel.classList.contains('open')) {
                 loadCharactersList();
             }
@@ -1873,15 +2203,13 @@
             try {
                 let response;
                 if (charId) {
-                    response = await fetch(`/api/characters/${charId}`, {
+                    response = await apiFetch(`/api/characters/${charId}`, {
                         method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(character)
                     });
                 } else {
-                    response = await fetch('/api/characters', {
+                    response = await apiFetch('/api/characters', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(character)
                     });
                 }
@@ -1910,7 +2238,7 @@
             if (!confirm('确定要删除这个角色吗？相关的所有关系也会被删除。')) return;
             
             try {
-                const response = await fetch(`/api/characters/${currentCharacterId}`, { method: 'DELETE' });
+                const response = await apiFetch(`/api/characters/${currentCharacterId}`, { method: 'DELETE' });
                 const data = await response.json();
                 if (data.success) {
                     closeCharacterDetail();
@@ -1962,9 +2290,8 @@
             }
             
             try {
-                const response = await fetch('/api/relations', {
+                const response = await apiFetch('/api/relations', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(relation)
                 });
                 const data = await response.json();
@@ -1992,7 +2319,7 @@
 
         async function renderRelationshipGraph() {
             try {
-                const response = await fetch('/api/characters/graph');
+                const response = await apiFetch('/api/characters/graph');
                 const data = await response.json();
                 const { nodes, edges } = data;
                 
@@ -2120,7 +2447,7 @@
 
         async function loadSaveSlots() {
             try {
-                const response = await fetch('/api/save/list');
+                const response = await apiFetch('/api/save/list');
                 const data = await response.json();
                 if (data.success) {
                     saveSlots = data.saves;
@@ -2191,7 +2518,7 @@
 
         async function loadGamesList() {
             try {
-                const response = await fetch('/api/games');
+                const response = await apiFetch('/api/games');
                 const data = await response.json();
                 renderGamesList(data.games);
             } catch (error) {
@@ -2233,7 +2560,7 @@
 
         async function loadGame(gameId) {
             try {
-                const response = await fetch(`/api/games/load/${gameId}`, {
+                const response = await apiFetch(`/api/games/load/${gameId}`, {
                     method: 'POST'
                 });
                 const data = await response.json();
@@ -2243,7 +2570,7 @@
                     worldSetting = data.game_info?.world_setting || '';
                     document.getElementById('world-setting').value = worldSetting;
                     
-                    const playerResponse = await fetch('/api/player');
+                    const playerResponse = await apiFetch('/api/player');
                     const playerData = await playerResponse.json();
                     if (playerData.exists) {
                         playerCharacter = playerData.player;
@@ -2264,7 +2591,7 @@
             }
             
             try {
-                const response = await fetch(`/api/games/${gameId}`, {
+                const response = await apiFetch(`/api/games/${gameId}`, {
                     method: 'DELETE'
                 });
                 const data = await response.json();
@@ -2278,7 +2605,21 @@
         }
 
         function showSaveDialog(slotId) {
-            const saveName = prompt('请输入存档名称:', `存档 ${slotId}`);
+            // Find existing save name, or default
+            const savesContainer = document.getElementById('save-slots');
+            const slotElement = Array.from(savesContainer.querySelectorAll('.save-slot')).find(el => {
+                const btn = el.querySelector('.btn-save');
+                return btn && btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(`'${slotId}'`);
+            });
+            let defaultName = `存档 ${slotId}`;
+            if (slotElement) {
+                const nameStr = slotElement.querySelector('h3').textContent;
+                if (nameStr && nameStr !== '空存档') {
+                    defaultName = nameStr;
+                }
+            }
+
+            const saveName = prompt('请输入存档名称:', defaultName);
             if (saveName) {
                 saveGame(slotId, saveName);
             }
@@ -2294,19 +2635,21 @@
                     messages: messages,
                     logs: logs,
                     current_scene: currentScene,
-                    current_choices: currentChoices,
+                    current_choices: currentChoices || [],
                     player: playerCharacter,
                     characters: window.charactersData || [],
                     relations: window.relationsData || [],
                     ending_triggered: endingTriggered,
                     ending_countdown: endingCountdown,
                     selected_ending_type: selectedEndingType,
-                    preview_scene: currentScene ? currentScene.substring(0, 100) : ''
+                    preview_scene: currentScene ? currentScene.substring(0, 100) : '',
+                    route_scores: routeScores,
+                    key_decisions: keyDecisions,
+                    ending_omen_state: endingOmenState
                 };
 
-                const response = await fetch(`/api/save/${slotId}`, {
+                const response = await apiFetch(`/api/save/${slotId}`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(saveData)
                 });
 
@@ -2317,7 +2660,7 @@
                     pushHistory({
                         chapter: chapter,
                         current_scene: currentScene,
-                        current_choices: currentChoices,
+                        current_choices: currentChoices || [],
                         player: playerCharacter
                     });
                 }
@@ -2329,7 +2672,7 @@
 
         async function loadSave(slotId) {
             try {
-                const response = await fetch(`/api/save/load/${slotId}`);
+                const response = await apiFetch(`/api/save/load/${slotId}`);
                 const data = await response.json();
                 
                 if (data.success && data.save) {
@@ -2345,26 +2688,24 @@
                     endingCountdown = save.ending_countdown || 0;
                     selectedEndingType = save.selected_ending_type || '';
                     playerCharacter = save.player || null;
+                    routeScores = save.route_scores || { redemption: 0, power: 0, sacrifice: 0, betrayal: 0, retreat: 0 };
+                    keyDecisions = save.key_decisions || [];
+                    endingOmenState = save.ending_omen_state || {};
                     window.charactersData = save.characters || [];
                     window.relationsData = save.relations || [];
 
                     showScreen('game-screen');
                     document.getElementById('chapter-num').textContent = chapter;
                     
-                    const logContainer = document.getElementById('log-container');
-                    logContainer.innerHTML = '';
-                    logs.forEach(log => {
-                        const entry = document.createElement('div');
-                        entry.className = 'log-entry';
-                        entry.textContent = log;
-                        logContainer.appendChild(entry);
-                    });
+                    _renderLogEntries(logs);
 
                     if (currentScene) {
                         document.getElementById('scene-text').textContent = currentScene;
                     }
 
-                    renderChoices(currentChoices, null);
+                    if (currentChoices && currentChoices.length > 0) {
+                        _renderChoiceItems(currentChoices);
+                    }
 
                     closeSaveModal();
                     updatePlayerPanel();
@@ -2379,7 +2720,7 @@
         async function deleteSave(slotId) {
             if (confirm('确定要删除这个存档吗?')) {
                 try {
-                    const response = await fetch(`/api/save/${slotId}`, {
+                    const response = await apiFetch(`/api/save/${slotId}`, {
                         method: 'DELETE'
                     });
                     const data = await response.json();
@@ -2396,9 +2737,8 @@
 
         async function pushHistory(snapshot) {
             try {
-                await fetch('/api/history', {
+                await apiFetch('/api/history', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(snapshot)
                 });
                 updateUndoButton();
@@ -2409,7 +2749,7 @@
 
         async function undoMove() {
             try {
-                const response = await fetch('/api/history/undo', {
+                const response = await apiFetch('/api/history/undo', {
                     method: 'POST'
                 });
                 const data = await response.json();
@@ -2422,6 +2762,9 @@
                     currentScene = snapshot.current_scene;
                     currentChoices = snapshot.current_choices || [];
                     playerCharacter = snapshot.player || null;
+                    routeScores = snapshot.route_scores || { redemption: 0, power: 0, sacrifice: 0, betrayal: 0, retreat: 0 };
+                    keyDecisions = snapshot.key_decisions || [];
+                    endingOmenState = snapshot.ending_omen_state || {};
 
                     logs = logs.slice(0, chapter - 1);
                     
@@ -2454,7 +2797,7 @@
 
         async function updateUndoButton() {
             try {
-                const response = await fetch('/api/history/count');
+                const response = await apiFetch('/api/history/count');
                 const data = await response.json();
                 if (data.success) {
                     const count = data.count;

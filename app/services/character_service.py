@@ -3,8 +3,10 @@ import json
 import uuid
 from typing import Optional, List, Dict
 from datetime import datetime
+import asyncio
 from app.config import (
-    CHARACTER_GENERATION_PROMPT,
+    CHARACTER_LIST_GENERATION_PROMPT,
+    CHARACTER_DETAIL_GENERATION_PROMPT,
     RELATION_GENERATION_PROMPT,
     ROLE_DESCRIPTIONS,
     ROLE_TYPE_CN,
@@ -67,73 +69,98 @@ class CharacterService:
         protagonist_info: dict,
         count: int = 10
     ) -> List[dict]:
-        from app.config import NPC_GENERATION_PROMPT
+        from app.config import NPC_LIST_GENERATION_PROMPT, NPC_DETAIL_GENERATION_PROMPT
         from app.utils.llm_client import call_llm, parse_json_response
         
         protagonist_summary = f"""
 姓名: {protagonist_info.get('name', '未知')}
 种族: {protagonist_info.get('race', '未知')}
 称号: {protagonist_info.get('title', '无')}
-背景: {protagonist_info.get('background', '未知')[:200]}...
+背景: {protagonist_info.get('background', '未知')}
 性格: {protagonist_info.get('personality', '未知')}
 """.strip()
         
-        prompt = NPC_GENERATION_PROMPT.format(
+        list_prompt = NPC_LIST_GENERATION_PROMPT.format(
             world_setting=world_setting,
             protagonist_info=protagonist_summary
         )
         
-        system_prompt = "你是一个专业的角色设计师，擅长创造与主角和故事设定相契合的NPC角色。请严格按照JSON数组格式返回结果。"
+        system_prompt_list = "你是一个专业的角色设计师，擅长角色设计。请严格按照JSON数组格式返回简练的名录。"
         
-        response = await call_llm(prompt, system_prompt, timeout=180, max_tokens=8000)
+        response_list = await call_llm(list_prompt, system_prompt_list, timeout=120)
         
         try:
-            npcs_data = parse_json_response(response)
+            npcs_list = parse_json_response(response_list)
         except Exception as e:
-            print(f"NPC JSON解析失败，尝试修复: {str(e)[:200]}")
-            npcs_data = self._try_fix_truncated_json(response)
+            print(f"NPC名录 JSON解析失败，尝试修复: {str(e)[:200]}")
+            npcs_list = self._try_fix_truncated_json(response_list)
         
-        if not npcs_data:
-            print("LLM返回格式错误，无法解析NPC数据")
+        if not npcs_list or not isinstance(npcs_list, list):
+            print("LLM返回格式错误，无法解析NPC名录数据")
             return []
+            
+        npcs_list = npcs_list[:count]
         
-        if not isinstance(npcs_data, list):
-            npcs_data = [npcs_data]
+        semaphore = asyncio.Semaphore(5)
+        
+        async def fetch_npc_detail(npc_basic):
+            async with semaphore:
+                detail_prompt = NPC_DETAIL_GENERATION_PROMPT.format(
+                    world_setting=world_setting,
+                    protagonist_info=protagonist_summary,
+                    npc_name=npc_basic.get('name', '未知'),
+                    npc_title=npc_basic.get('title', ''),
+                    role_type=npc_basic.get('role_type', 'npc'),
+                    relation_to_protagonist=npc_basic.get('relation_to_protagonist', ''),
+                    story_role=npc_basic.get('story_role', '')
+                )
+                system_prompt_detail = "你是一个专业的角色设计师。请严格按照JSON格式返回角色详细设定。"
+                try:
+                    res = await call_llm(detail_prompt, system_prompt_detail, timeout=180)
+                    detail_data = parse_json_response(res)
+                    if isinstance(detail_data, dict):
+                        return detail_data
+                except Exception as e:
+                    print(f"生成NPC {npc_basic.get('name')} 详细信息失败: {e}")
+                return None
+
+        print(f"开始并发生成 {len(npcs_list)} 个NPC详细信息...")
+        details_results = await asyncio.gather(*(fetch_npc_detail(npc) for npc in npcs_list))
         
         npcs = []
-        for npc_data in npcs_data[:count]:
-            if not isinstance(npc_data, dict):
+        for detail_data in details_results:
+            if not detail_data:
                 continue
             
-            attributes = npc_data.get('attributes', {})
+            attributes = detail_data.get('attributes', {})
             
             npc = {
                 'id': f"char_{uuid.uuid4().hex[:8]}",
-                'name': npc_data.get('name', '未知NPC'),
-                'age': npc_data.get('age', 25),
-                'gender': npc_data.get('gender', '其他'),
-                'race': npc_data.get('race', '人类'),
-                'role_type': npc_data.get('role_type', 'npc'),
-                'importance': 3 if npc_data.get('role_type') == 'antagonist' else 2,
-                'title': npc_data.get('title', ''),
-                'description': npc_data.get('background', '')[:100],
+                'name': detail_data.get('name', '未知NPC'),
+                'age': detail_data.get('age', 25),
+                'gender': detail_data.get('gender', '其他'),
+                'race': detail_data.get('race', '人类'),
+                'role_type': detail_data.get('role_type', 'npc'),
+                'importance': 3 if detail_data.get('role_type') == 'antagonist' else (2 if detail_data.get('role_type') == 'supporting' else 1),
+                'title': detail_data.get('title', ''),
+                'description': detail_data.get('appearance', '')[:100] if not detail_data.get('background') else detail_data.get('background', '')[:100],
                 'appearance': {
-                    'full_description': npc_data.get('appearance', '外貌普通')
+                    'full_description': detail_data.get('appearance', '外貌普通')
                 },
                 'background': {
-                    'backstory': npc_data.get('background', ''),
-                    'occupation': npc_data.get('title', '')
+                    'backstory': detail_data.get('background', ''),
+                    'occupation': detail_data.get('title', '')
                 },
                 'personality': {
-                    'traits': npc_data.get('personality', '').split('、') if npc_data.get('personality') else []
+                    'traits': detail_data.get('personality', '').split('、') if detail_data.get('personality') else []
                 },
                 'attributes': {
                     'health': 100,
                     'mana': 100,
-                    'strength': attributes.get('strength', 10),
-                    'agility': attributes.get('agility', 10),
-                    'intelligence': attributes.get('intelligence', 10),
-                    'charisma': attributes.get('charisma', 10),
+                    'strength': attributes.get('strength', 10) if isinstance(attributes, dict) else 10,
+                    'agility': attributes.get('agility', 10) if isinstance(attributes, dict) else 10,
+                    'intelligence': attributes.get('intelligence', 10) if isinstance(attributes, dict) else 10,
+                    'charisma': attributes.get('charisma', 10) if isinstance(attributes, dict) else 10,
                     'luck': 10
                 },
                 'status': {
@@ -141,11 +168,11 @@ class CharacterService:
                     'mood': 'neutral',
                     'conditions': []
                 },
-                'skills': npc_data.get('skills', []),
+                'skills': detail_data.get('skills', []),
                 'tags': [],
-                'relation_to_protagonist': npc_data.get('relation_to_protagonist', ''),
-                'story_role': npc_data.get('story_role', ''),
-                'plot_connection': npc_data.get('plot_connection', ''),
+                'relation_to_protagonist': detail_data.get('relation_to_protagonist', ''),
+                'story_role': detail_data.get('story_role', ''),
+                'plot_connection': detail_data.get('plot_connection', ''),
                 'generated_by': 'auto',
                 'created_at': datetime.now().isoformat(),
                 'updated_at': datetime.now().isoformat()
@@ -163,23 +190,65 @@ class CharacterService:
         genre: str = "fantasy",
         power_level: str = "medium"
     ) -> List[dict]:
-        prompt = CHARACTER_GENERATION_PROMPT.format(
+        from app.utils.llm_client import call_llm, parse_json_response
+        if count <= 0:
+            return []
+            
+        list_prompt = CHARACTER_LIST_GENERATION_PROMPT.format(
             count=count,
             role_type=role_type,
             role_type_cn=ROLE_TYPE_CN.get(role_type, role_type),
             world_setting=world_setting,
             genre=genre,
             power_level=power_level,
-            role_description=ROLE_DESCRIPTIONS.get(role_type, ""),
-            importance=ROLE_IMPORTANCE.get(role_type, 1)
+            role_description=ROLE_DESCRIPTIONS.get(role_type, "")
         )
 
-        system_prompt = "你是一个专业的角色设计师，擅长创造生动有趣的角色。请严格按照JSON格式返回结果。"
+        system_prompt_list = "你是一个专业的角色设计师，擅长创造生动有趣的角色名录。请严格按照JSON数组格式返回结果。"
 
-        response = await call_llm(prompt, system_prompt, timeout=180)
-        characters = parse_json_response(response)
+        response_list = await call_llm(list_prompt, system_prompt_list, timeout=120)
+        try:
+            characters_list = parse_json_response(response_list)
+        except Exception as e:
+            print(f"{role_type} 名录 JSON解析失败，尝试修复: {str(e)[:200]}")
+            characters_list = self._try_fix_truncated_json(response_list)
 
-        for char in characters:
+        if not characters_list or not isinstance(characters_list, list):
+            return []
+            
+        semaphore = asyncio.Semaphore(5)
+        
+        async def fetch_character_detail(char_basic):
+            async with semaphore:
+                detail_prompt = CHARACTER_DETAIL_GENERATION_PROMPT.format(
+                    world_setting=world_setting,
+                    genre=genre,
+                    power_level=power_level,
+                    role_type_cn=ROLE_TYPE_CN.get(role_type, role_type),
+                    role_description=ROLE_DESCRIPTIONS.get(role_type, ""),
+                    character_name=char_basic.get('name', '未知'),
+                    character_title=char_basic.get('title', ''),
+                    character_description=char_basic.get('description', ''),
+                    role_type=role_type,
+                    importance=ROLE_IMPORTANCE.get(role_type, 1)
+                )
+                system_prompt_detail = "你是一个专业的角色设计师。请严格按照JSON格式返回角色详细设定。"
+                try:
+                    res = await call_llm(detail_prompt, system_prompt_detail, timeout=180)
+                    detail_data = parse_json_response(res)
+                    if isinstance(detail_data, dict):
+                        return detail_data
+                except Exception as e:
+                    print(f"生成角色 {char_basic.get('name')} 详细信息失败: {e}")
+                return None
+
+        print(f"开始并发生成 {len(characters_list[:count])} 个 {role_type} 详细信息...")
+        details_results = await asyncio.gather(*(fetch_character_detail(char) for char in characters_list[:count]))
+        
+        characters = []
+        for char in details_results:
+            if not char:
+                continue
             char['id'] = f"char_{uuid.uuid4().hex[:8]}"
             char['generated_by'] = "auto"
             char['created_at'] = datetime.now().isoformat()
@@ -198,35 +267,35 @@ class CharacterService:
                 char['skills'] = []
             if 'tags' not in char:
                 char['tags'] = []
+            characters.append(char)
 
         return characters
 
     async def generate_all_characters(self, config: CharacterGenerationConfig) -> List[dict]:
         all_characters = []
 
-        protagonists = await self.generate_characters_batch(
-            config.world_setting, "protagonist", config.protagonist_count,
-            config.genre, config.power_level
+        results = await asyncio.gather(
+            self.generate_characters_batch(
+                config.world_setting, "protagonist", config.protagonist_count,
+                config.genre, config.power_level
+            ),
+            self.generate_characters_batch(
+                config.world_setting, "antagonist", config.antagonist_count,
+                config.genre, config.power_level
+            ),
+            self.generate_characters_batch(
+                config.world_setting, "supporting", config.supporting_count,
+                config.genre, config.power_level
+            ),
+            self.generate_characters_batch(
+                config.world_setting, "npc", config.npc_count,
+                config.genre, config.power_level
+            )
         )
-        all_characters.extend(protagonists)
-
-        antagonists = await self.generate_characters_batch(
-            config.world_setting, "antagonist", config.antagonist_count,
-            config.genre, config.power_level
-        )
-        all_characters.extend(antagonists)
-
-        supporting = await self.generate_characters_batch(
-            config.world_setting, "supporting", config.supporting_count,
-            config.genre, config.power_level
-        )
-        all_characters.extend(supporting)
-
-        npcs = await self.generate_characters_batch(
-            config.world_setting, "npc", config.npc_count,
-            config.genre, config.power_level
-        )
-        all_characters.extend(npcs)
+        
+        for batch in results:
+            if batch:
+                all_characters.extend(batch)
 
         return all_characters
 
@@ -247,7 +316,7 @@ class CharacterService:
 
         system_prompt = "你是一个关系网络设计师，擅长构建复杂的人物关系网络。请严格按照JSON格式返回结果。"
 
-        response = await call_llm(prompt, system_prompt, timeout=120)
+        response = await call_llm(prompt, system_prompt, timeout=360)
         relations = parse_json_response(response)
 
         name_to_id = {char['name']: char['id'] for char in characters}

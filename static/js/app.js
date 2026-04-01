@@ -72,6 +72,46 @@
             return leader;
         }
 
+        function setChoiceButtonLabel(btn, text) {
+            let label = btn.querySelector('.choice-btn-label');
+            if (!label) {
+                label = document.createElement('span');
+                label.className = 'choice-btn-label';
+                btn.appendChild(label);
+            }
+            label.textContent = text;
+        }
+
+        function decorateChoiceExtras(btn, choice) {
+            if (!choice || typeof choice !== 'object') return;
+            if (choice.is_key_decision) {
+                const badge = document.createElement('span');
+                badge.className = 'key-decision-badge';
+                badge.textContent = '命运转折点';
+                btn.insertBefore(badge, btn.firstChild);
+            }
+            if (choice.tendency && choice.tendency.length > 0) {
+                const tagsDiv = document.createElement('div');
+                tagsDiv.className = 'choice-tendency-tags';
+                choice.tendency.forEach(t => {
+                    const tag = document.createElement('span');
+                    tag.className = 'tendency-tag';
+                    tag.textContent = t;
+                    tagsDiv.appendChild(tag);
+                });
+                btn.appendChild(tagsDiv);
+            }
+            const wis = playerCharacter != null
+                ? (typeof playerCharacter.wisdom === 'number' ? playerCharacter.wisdom : (parseInt(playerCharacter.wisdom, 10) || 0))
+                : 0;
+            if (choice.consequence_hint && playerCharacter && wis >= 14) {
+                const hint = document.createElement('div');
+                hint.className = 'consequence-hint';
+                hint.textContent = choice.consequence_hint;
+                btn.appendChild(hint);
+            }
+        }
+
         async function loadPresetSkills() {
             try {
                 const response = await apiFetch('/api/player/skills');
@@ -99,7 +139,6 @@
             for (const [category, skills] of Object.entries(presetSkills)) {
                 const categoryLabel = document.createElement('div');
                 categoryLabel.className = 'skill-category-label';
-                categoryLabel.style.cssText = 'grid-column: 1 / -1; color: #00ff88; margin-top: 10px; font-size: 0.9rem;';
                 categoryLabel.textContent = categoryNames[category] || category;
                 container.appendChild(categoryLabel);
                 
@@ -472,12 +511,12 @@
             document.getElementById('loading-overlay')?.remove();
             const overlay = document.createElement('div');
             overlay.id = 'loading-overlay';
+            overlay.className = 'loading-overlay';
             overlay.innerHTML = `
                 <div class="loading-spinner"></div>
                 <div id="loading-text">正在生成配角NPC，请稍候...</div>
                 <div id="loading-detail" style="margin-top: 10px; font-size: 0.8rem; opacity: 0.7;">正在使用AI生成10个NPC角色...</div>
             `;
-            overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);color:#00ff88;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:monospace;';
             document.body.appendChild(overlay);
             
             try {
@@ -739,6 +778,12 @@
             }
 
             console.log('游戏状态已恢复');
+
+            const undoBtn = document.getElementById('undo-btn');
+            if (undoBtn) {
+                undoBtn.style.display = 'flex';
+            }
+            updateUndoButton();
         }
 
         // ── Shared rendering helpers for restore flows ──────
@@ -770,7 +815,7 @@
                 if (typeof choice === 'string') {
                     const btn = document.createElement('button');
                     btn.className = 'choice-btn';
-                    btn.textContent = `${index + 1}. ${choice}`;
+                    setChoiceButtonLabel(btn, `${index + 1}. ${choice}`);
                     btn.onclick = () => makeChoice(choice);
                     choicesContainer.appendChild(btn);
                     return;
@@ -780,33 +825,30 @@
                 if (choice.check && choice.check_optional) {
                     const container = document.createElement('div');
                     container.className = 'choice-with-check';
-                    container.style.cssText = 'display: flex; flex-direction: column; gap: 8px; padding: 10px; background: rgba(0, 255, 136, 0.05); border-radius: 6px; border: 1px solid rgba(0, 255, 136, 0.2);';
 
                     const textDiv = document.createElement('div');
-                    textDiv.style.cssText = 'color: #00ff88; font-size: 1rem; line-height: 1.5;';
+                    textDiv.className = 'choice-with-check-text';
                     textDiv.textContent = `${index + 1}. ${choice.text}`;
                     if (choice.check_prompt) {
                         const promptDiv = document.createElement('div');
-                        promptDiv.style.cssText = 'font-size: 0.8rem; color: rgba(0, 200, 255, 0.7); margin-top: 4px;';
+                        promptDiv.className = 'choice-with-check-prompt';
                         promptDiv.textContent = choice.check_prompt;
                         textDiv.appendChild(promptDiv);
                     }
                     container.appendChild(textDiv);
 
                     const btnGroup = document.createElement('div');
-                    btnGroup.style.cssText = 'display: flex; gap: 10px;';
+                    btnGroup.className = 'choice-with-check-actions';
 
                     const directBtn = document.createElement('button');
                     directBtn.className = 'btn btn-secondary';
-                    directBtn.style.cssText = 'flex: 1; padding: 10px 20px;';
                     directBtn.textContent = '直接行动';
                     directBtn.onclick = () => makeChoiceWithCheck(choice.text, null, choice);
                     btnGroup.appendChild(directBtn);
 
                     const checkBtn = document.createElement('button');
                     checkBtn.className = 'choice-btn has-check';
-                    checkBtn.style.cssText = 'flex: 1;';
-                    checkBtn.textContent = '🎲 进行检定';
+                    setChoiceButtonLabel(checkBtn, '🎲 进行检定');
                     checkBtn.onclick = () => {
                         const checkData = choice.check || {};
                         performDiceCheck(
@@ -830,7 +872,8 @@
                 } else if (choice.check) {
                     const btn = document.createElement('button');
                     btn.className = 'choice-btn has-check';
-                    btn.textContent = `${index + 1}. ${choice.text}`;
+                    setChoiceButtonLabel(btn, `${index + 1}. ${choice.text}`);
+                    decorateChoiceExtras(btn, choice);
                     btn.onclick = () => {
                         const checkData = choice.check || {};
                         performDiceCheck(
@@ -851,7 +894,8 @@
                 } else {
                     const btn = document.createElement('button');
                     btn.className = 'choice-btn';
-                    btn.textContent = `${index + 1}. ${choice.text || choice}`;
+                    setChoiceButtonLabel(btn, `${index + 1}. ${choice.text || choice}`);
+                    decorateChoiceExtras(btn, choice);
                     btn.onclick = () => makeChoiceWithCheck(choice.text || choice, null, typeof choice === 'object' ? choice : null);
                     choicesContainer.appendChild(btn);
                 }
@@ -914,13 +958,12 @@
                                 diceRoll.textContent = result.roll;
                                 diceModifier.textContent = (result.modifier >= 0 ? '+' : '') + result.modifier + (result.skill_bonus > 0 ? `+${result.skill_bonus}` : '');
                                 diceTotal.textContent = result.total;
-                                
+                                diceDisplay.textContent = result.roll;
+
                                 if (result.critical) {
                                     diceDisplay.classList.add('critical');
-                                    diceDisplay.textContent = '20';
                                 } else if (result.fumble) {
                                     diceDisplay.classList.add('fumble');
-                                    diceDisplay.textContent = '1';
                                 }
                                 
                                 if (result.growth) {
@@ -1011,7 +1054,7 @@
                 if (checks && checks[index]) {
                     btn.className += ' has-check';
                 }
-                btn.textContent = `${index + 1}. ${choice}`;
+                setChoiceButtonLabel(btn, `${index + 1}. ${choice}`);
                 btn.onclick = () => makeChoiceWithCheck(choice, checks ? checks[index] : null);
                 choicesContainer.appendChild(btn);
             });
@@ -1273,7 +1316,7 @@
             document.getElementById('custom-choice-container').style.display = 'flex';
             
             await apiFetch('/api/history', { method: 'DELETE' }).catch(() => {});
-            
+
             const undoBtn = document.getElementById('undo-btn');
             if (undoBtn) {
                 undoBtn.style.display = 'flex';
@@ -1333,7 +1376,8 @@
                 player: playerCharacter ? JSON.parse(JSON.stringify(playerCharacter)) : null,
                 route_scores: JSON.parse(JSON.stringify(routeScores)),
                 key_decisions: JSON.parse(JSON.stringify(keyDecisions)),
-                ending_omen_state: JSON.parse(JSON.stringify(endingOmenState))
+                ending_omen_state: JSON.parse(JSON.stringify(endingOmenState)),
+                logs: JSON.parse(JSON.stringify(logs))
             });
             
             if (logs.length > 0) {
@@ -1459,8 +1503,7 @@
             if (data.ending_omen) {
                 const container = document.getElementById('log-container');
                 const omenEntry = document.createElement('div');
-                omenEntry.className = 'log-entry';
-                omenEntry.style.cssText = 'color: #ffaa00; font-style: italic; background: rgba(255, 170, 0, 0.1); border-left: 3px solid #ffaa00;';
+                omenEntry.className = 'log-entry log-entry--omen';
                 omenEntry.innerHTML = `🌟 命运前兆: ${data.ending_omen}`;
                 container.appendChild(omenEntry);
                 container.scrollTop = container.scrollHeight;
@@ -1476,8 +1519,7 @@
             if (data.route_hint) {
                 const container = document.getElementById('log-container');
                 const hintEntry = document.createElement('div');
-                hintEntry.className = 'log-entry';
-                hintEntry.style.cssText = 'color: #00ffff; font-style: italic; background: rgba(0, 255, 255, 0.1); border-left: 3px solid #00ffff;';
+                hintEntry.className = 'log-entry log-entry--route-hint';
                 hintEntry.innerHTML = `🧭 路线关注: ${data.route_hint}`;
                 container.appendChild(hintEntry);
                 container.scrollTop = container.scrollHeight;
@@ -1488,6 +1530,18 @@
                     selectedChoice: null,
                     log: `🧭 路线关注: ${data.route_hint}`
                 });
+            }
+
+            if (data.relationship_changes && data.relationship_changes.length > 0) {
+                const container = document.getElementById('log-container');
+                data.relationship_changes.forEach(rc => {
+                    const entry = document.createElement('div');
+                    entry.className = 'log-entry log-entry--relation';
+                    const reason = rc.reason ? `（${rc.reason}）` : '';
+                    entry.textContent = `与「${rc.character_name}」的关系 ${rc.change_type}${rc.value}${reason}`;
+                    container.appendChild(entry);
+                });
+                container.scrollTop = container.scrollHeight;
             }
 
             saveGameState();
@@ -1517,33 +1571,30 @@
                     if (choice.check && choice.check_optional) {
                         const container = document.createElement('div');
                         container.className = 'choice-with-check';
-                        container.style.cssText = 'display: flex; flex-direction: column; gap: 8px; padding: 10px; background: rgba(0, 255, 136, 0.05); border-radius: 6px; border: 1px solid rgba(0, 255, 136, 0.2);';
 
                         const textDiv = document.createElement('div');
-                        textDiv.style.cssText = 'color: #00ff88; font-size: 1rem; line-height: 1.5;';
+                        textDiv.className = 'choice-with-check-text';
                         textDiv.textContent = `${index + 1}. ${choice.text}`;
                         if (choice.check_prompt) {
                             const promptDiv = document.createElement('div');
-                            promptDiv.style.cssText = 'font-size: 0.8rem; color: rgba(0, 200, 255, 0.7); margin-top: 4px;';
+                            promptDiv.className = 'choice-with-check-prompt';
                             promptDiv.textContent = choice.check_prompt;
                             textDiv.appendChild(promptDiv);
                         }
                         container.appendChild(textDiv);
 
                         const btnGroup = document.createElement('div');
-                        btnGroup.style.cssText = 'display: flex; gap: 10px;';
+                        btnGroup.className = 'choice-with-check-actions';
 
                         const directBtn = document.createElement('button');
                         directBtn.className = 'btn btn-secondary';
-                        directBtn.style.cssText = 'flex: 1; padding: 10px 20px;';
                         directBtn.textContent = '直接行动';
                         directBtn.onclick = () => makeChoiceWithCheck(choice.text, null, choice);
                         btnGroup.appendChild(directBtn);
 
                         const checkBtn = document.createElement('button');
                         checkBtn.className = 'choice-btn has-check';
-                        checkBtn.style.cssText = 'flex: 1;';
-                        checkBtn.textContent = '🎲 进行检定';
+                        setChoiceButtonLabel(checkBtn, '🎲 进行检定');
                         checkBtn.onclick = () => {
                             const checkData = choice.check || {};
                             performDiceCheck(
@@ -1567,7 +1618,8 @@
                     } else if (choice.check) {
                         const btn = document.createElement('button');
                         btn.className = 'choice-btn has-check';
-                        btn.textContent = `${index + 1}. ${choice.text}`;
+                        setChoiceButtonLabel(btn, `${index + 1}. ${choice.text}`);
+                        decorateChoiceExtras(btn, choice);
                         btn.onclick = () => {
                             const checkData = choice.check || {};
                             performDiceCheck(
@@ -1588,7 +1640,8 @@
                     } else {
                         const btn = document.createElement('button');
                         btn.className = 'choice-btn';
-                        btn.textContent = `${index + 1}. ${choice.text}`;
+                        setChoiceButtonLabel(btn, `${index + 1}. ${choice.text}`);
+                        decorateChoiceExtras(btn, choice);
                         btn.onclick = () => makeChoiceWithCheck(choice.text, null, choice);
                         choicesContainer.appendChild(btn);
                     }
@@ -1676,6 +1729,10 @@
             endBtn.disabled = false;
             endBtn.textContent = '结束游戏';
             clearGameState();
+            const undoBtn = document.getElementById('undo-btn');
+            if (undoBtn) {
+                undoBtn.style.display = 'none';
+            }
             showScreen('start-screen');
         }
 
@@ -2657,12 +2714,6 @@
                 if (data.success) {
                     alert('存档成功!');
                     loadSaveSlots();
-                    pushHistory({
-                        chapter: chapter,
-                        current_scene: currentScene,
-                        current_choices: currentChoices || [],
-                        player: playerCharacter
-                    });
                 }
             } catch (error) {
                 console.error('保存失败:', error);
@@ -2672,7 +2723,7 @@
 
         async function loadSave(slotId) {
             try {
-                const response = await apiFetch(`/api/save/load/${slotId}`);
+                const response = await apiFetch(`/api/save/load/${slotId}`, { method: 'POST' });
                 const data = await response.json();
                 
                 if (data.success && data.save) {
@@ -2708,6 +2759,11 @@
                     }
 
                     closeSaveModal();
+                    const undoBtnLoad = document.getElementById('undo-btn');
+                    if (undoBtnLoad) {
+                        undoBtnLoad.style.display = 'flex';
+                    }
+                    updateUndoButton();
                     updatePlayerPanel();
                     alert('加载成功!');
                 }
@@ -2766,26 +2822,23 @@
                     keyDecisions = snapshot.key_decisions || [];
                     endingOmenState = snapshot.ending_omen_state || {};
 
-                    logs = logs.slice(0, chapter - 1);
-                    
+                    logs = snapshot.logs != null ? JSON.parse(JSON.stringify(snapshot.logs)) : logs.slice(0, chapter - 1);
+
                     document.getElementById('chapter-num').textContent = chapter;
-                    
-                    const logContainer = document.getElementById('log-container');
-                    if (logs.length > 0) {
-                        logContainer.innerHTML = '';
-                        logs.forEach(log => {
-                            const entry = document.createElement('div');
-                            entry.className = 'log-entry';
-                            entry.textContent = log;
-                            logContainer.appendChild(entry);
-                        });
-                    }
+
+                    _renderLogEntries(logs);
 
                     if (currentScene) {
                         document.getElementById('scene-text').textContent = currentScene;
                     }
 
-                    renderChoices(currentChoices, null);
+                    if (currentChoices && currentChoices.length > 0) {
+                        _renderChoiceItems(currentChoices);
+                    } else {
+                        document.getElementById('choices-container').innerHTML = '';
+                    }
+
+                    saveGameState();
                     updatePlayerPanel();
                     updateUndoButton();
                 }

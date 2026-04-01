@@ -60,6 +60,7 @@ async def load_save_get(slot_id: str):
         save = save_service.load_save(slot_id)
         if not save:
             return JSONResponse(status_code=404, content={"error": "存档不存在"})
+        save_service.restore_history(save.get("history") or [])
         return JSONResponse(content={"success": True, "save": save})
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"加载失败: {str(e)}"})
@@ -71,6 +72,9 @@ async def load_save(slot_id: str):
         save = save_service.load_save(slot_id)
         if not save:
             return JSONResponse(status_code=404, content={"error": "存档不存在"})
+        # Restore the undo history that was active when this save was created.
+        # Falls back to clearing history if the save predates history snapshots.
+        save_service.restore_history(save.get("history") or [])
         return JSONResponse(content={"success": True, "save": save})
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"加载失败: {str(e)}"})

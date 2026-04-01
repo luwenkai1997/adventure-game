@@ -31,7 +31,8 @@ from app.utils.file_storage import (
     get_or_create_snapshots_dir,
     get_snapshot_path,
 )
-from app.utils.llm_client import call_llm, parse_json_response
+from app.services.llm_gateway import call_llm
+from app.utils.json_utils import parse_json_response
 
 
 class CharacterService:
@@ -70,7 +71,8 @@ class CharacterService:
         count: int = 10
     ) -> List[dict]:
         from app.config import NPC_LIST_GENERATION_PROMPT, NPC_DETAIL_GENERATION_PROMPT
-        from app.utils.llm_client import call_llm, parse_json_response
+        from app.services.llm_gateway import call_llm
+        from app.utils.json_utils import parse_json_response
         
         protagonist_summary = f"""
 姓名: {protagonist_info.get('name', '未知')}
@@ -190,7 +192,8 @@ class CharacterService:
         genre: str = "fantasy",
         power_level: str = "medium"
     ) -> List[dict]:
-        from app.utils.llm_client import call_llm, parse_json_response
+        from app.services.llm_gateway import call_llm
+        from app.utils.json_utils import parse_json_response
         if count <= 0:
             return []
             

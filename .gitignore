@@ -14,7 +14,6 @@ env/
 *.log
 .DS_Store
 .uv/
-uv.lock
 .trae/
 *.bak
 

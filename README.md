@@ -124,6 +124,11 @@ adventure-game/
 ├── app/
 │   ├── __init__.py        # 包初始化
 │   ├── config.py          # 配置文件（Prompt模板、常量、API配置）
+│   ├── errors.py          # 业务异常扩展
+│   ├── http_client.py     # 共享异步 HTTP 客户端连接池
+│   ├── logging_config.py  # 项目日志配置
+│   ├── request_context.py # 并发安全请求上下文
+│   ├── middleware/        # 请求生命周期与 Session 相关中间件
 │   ├── api/               # API 路由层
 │   │   ├── __init__.py
 │   │   ├── game_routes.py       # 游戏核心路由（聊天、记忆、游戏管理、故事扩展）
@@ -148,11 +153,15 @@ adventure-game/
 │   │   ├── save_service.py      # 存档管理服务（存档列表、历史管理）
 │   │   ├── check_service.py     # 检定计算服务（D20检定、叙述生成）
 │   │   ├── prompt_composer.py   # Prompt 组合器（上下文、性格画像注入）
+│   │   ├── chat_parser.py       # JSON 解析与容错验证服务
+│   │   └── llm_gateway.py       # LLM 网关服务（并发限制机制、退避重试与取消流支持）
 │   └── utils/             # 工具层
 │       ├── __init__.py
 │       ├── game_manager.py      # 游戏管理（创建、加载、删除、目录管理）
 │       ├── file_storage.py      # 文件存储操作（角色、记忆、存档等）
-│       └── llm_client.py        # LLM API 调用封装（流式响应、重试、JSON解析）
+│       ├── atomic_io.py         # 跨平台防损原子文件写入器
+│       ├── path_security.py     # 目录穿越防御校验工具
+│       └── json_utils.py        # 去中心化的多容错 JSON 文本清洗与提取
 ├── games/                 # 游戏数据目录
 │   └── game_YYYYMMDDHHMMSS/     # 单个游戏目录
 │       ├── game_info.json       # 游戏元信息
@@ -565,7 +574,7 @@ python3 scripts/test_game_isolation.py
 ## 已知限制
 
 1. **前端状态管理**: 使用内存状态，页面刷新会丢失未保存的进度
-2. **并发处理**: 单进程架构，大量并发请求可能需要排队
+2. **并发限制**: 尽管后端已在诸如 NPC 批量生成中接入了 `asyncio.gather` 和网络连接池解决拥塞，但在处理巨量角色同时生成时，仍可能受限于 LLM 大模型提供商的并发速率限制（Rate Limit）。
 3. **文件存储**: 不适合超大规模游戏数据，建议定期清理旧游戏
 4. **LLM 响应**: 依赖外部 API，网络问题可能导致生成失败
 5. **JSON 解析**: 部分模型可能返回格式不正确的 JSON，已有自动修复机制
@@ -585,6 +594,13 @@ python3 scripts/test_game_isolation.py
 10. **自动快照**: 每轮游戏结束自动创建角色状态快照
 
 ## 更新日志
+
+### v0.5.0 (2026-04-01)
+- **架构并发优化**：破除单任务阻塞，引入 `httpx.AsyncClient` 全局复用池与 `asyncio.gather`，实现 NPC 等模块的安全高并发生成。
+- **网关鲁棒重塑**：上线含指数退避（Exponential Backoff）重试机制的 LLM 网关层（`llm_gateway.py`），稳定抵御500/502等偶发网络瞬连波动。
+- **存储操作加固**：整合目录防穿透（Path Traversal）安全组件与跨平台原子写入机制（`atomic_io`），杜绝极端竞态下本地游戏文件的数据破损危机。
+- **代码除冗重构**：切除了堆砌缠绕、相互循环引用的多余 `llm_client.py` 模块，将 JSON 自愈引擎收敛规范至 `json_utils.py`，实现全面降本增效。
+- **前端游玩修缮**：优化游戏交互反馈系统，修补读写游戏记录（存档名与422结构校验）时的崩溃白屏点，提升Modal关闭交互顺滑度。
 
 ### v0.4.0 (2025-03-27)
 - 新增选择倾向系统：6对性格维度（勇敢/谨慎、善良/冷酷等），每个选项标注倾向标签，累积形成玩家性格画像

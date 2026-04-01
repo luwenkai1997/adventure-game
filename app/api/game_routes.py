@@ -32,7 +32,7 @@ from app.services.llm_gateway import (
     is_cancelled,
 )
 from app.models.chat import ChatRequestV2, ChatResponseV2
-from app.utils.llm_client import call_llm
+from app.services.llm_gateway import call_llm
 from app.errors import AppError
 
 

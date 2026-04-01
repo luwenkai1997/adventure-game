@@ -437,7 +437,8 @@ class PlayerService:
     async def generate_player_with_llm(self, world_setting: str = "") -> Optional[PlayerCharacter]:
         """使用LLM根据故事设定生成主角"""
         from app.config import PLAYER_GENERATION_PROMPT
-        from app.utils.llm_client import call_llm, parse_json_response
+        from app.services.llm_gateway import call_llm
+        from app.utils.json_utils import parse_json_response
         from uuid import uuid4
         
         try:

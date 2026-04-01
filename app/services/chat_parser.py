@@ -3,6 +3,7 @@ import re
 from typing import Tuple, Optional, List
 from pydantic import ValidationError
 from app.models.chat import ChatTurnContent, ChoiceItem
+from app.utils.json_utils import extract_json, repair_json
 
 
 class ParseError(Exception):
@@ -12,83 +13,6 @@ class ParseError(Exception):
         self.raw_content = raw_content
         super().__init__(f"{error_type}: {message}")
 
-
-def repair_json(s: str) -> str:
-    s = re.sub(r",\s*([\]}])", r"\1", s)
-
-    last_comma = s.rfind(",")
-    last_quote_close = s.rfind('"')
-
-    if last_comma > 0 and (last_quote_close < last_comma or last_quote_close == -1):
-        s = s[:last_comma]
-
-    if s.rstrip().endswith(":"):
-        s = s.rstrip()[:-1]
-
-    if s.rstrip().endswith('"') and s.count('"') % 2 != 0:
-        s = s.rstrip()[:-1]
-
-    open_braces = s.count("{")
-    close_braces = s.count("}")
-    if open_braces > close_braces:
-        s += "}" * (open_braces - close_braces)
-
-    open_brackets = s.count("[")
-    close_brackets = s.count("]")
-    if open_brackets > close_brackets:
-        s += "]" * (open_brackets - close_brackets)
-
-    s = re.sub(r",\s*([\]}])", r"\1", s)
-
-    while s and s[-1] in [",", ":", " "]:
-        s = s[:-1]
-
-    return s
-
-
-def extract_json(content: str) -> str:
-    if not content or not content.strip():
-        return ""
-
-    content = content.strip()
-
-    content = re.sub(r"^```(?:json)?\s*\n?", "", content)
-    content = re.sub(r"^```\s*\n?", "", content)
-    content = re.sub(r"\n?\s*```$", "", content)
-
-    content = content.strip()
-
-    has_bracket = "[" in content
-    has_brace = "{" in content
-
-    if has_bracket and has_brace:
-        if content.find("[") < content.find("{"):
-            brace_start = content.find("[")
-            brace_end = content.rfind("]")
-            if brace_end > brace_start:
-                content = content[brace_start : brace_end + 1]
-        else:
-            brace_start = content.find("{")
-            brace_end = content.rfind("}")
-            if brace_end > brace_start:
-                content = content[brace_start : brace_end + 1]
-    elif has_bracket:
-        brace_start = content.find("[")
-        brace_end = content.rfind("]")
-        if brace_end > brace_start:
-            content = content[brace_start : brace_end + 1]
-    elif has_brace:
-        brace_start = content.find("{")
-        brace_end = content.rfind("}")
-        if brace_end > brace_start:
-            content = content[brace_start : brace_end + 1]
-
-    content = re.sub(r",\s*]", "]", content)
-    content = re.sub(r",\s*}", "}", content)
-
-    content = re.sub(r"[\x00-\x1f\x7f-\x9f]", "", content)
-
-    return content
 
 
 def convert_legacy_choices(choices: List[str]) -> List[ChoiceItem]:

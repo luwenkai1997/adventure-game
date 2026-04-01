@@ -88,8 +88,8 @@ def log_llm_call(method_name, request_messages, request_params, response_content
 def parse_json_response(content: str):
     if not content or not content.strip():
         raise ValueError("empty")
-    from app.utils import llm_client as _lc
-    return _lc.parse_json_response(content)
+    from app.utils.json_utils import parse_json_response as pjr
+    return pjr(content)
 
 
 async def call_llm_with_retry(

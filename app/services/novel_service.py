@@ -17,7 +17,8 @@ from app.utils.file_storage import (
     get_or_create_novels_dir,
     get_game_round_count,
 )
-from app.utils.llm_client import call_llm, parse_json_response
+from app.services.llm_gateway import call_llm
+from app.utils.json_utils import parse_json_response
 
 
 class NovelService:

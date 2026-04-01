@@ -29,7 +29,7 @@ from app.utils.file_storage import (
 )
 from app.config import RELATION_TYPES, NPC_DIALOGUE_PROMPT
 from app.utils.file_storage import get_snapshot_path
-from app.utils.llm_client import call_llm
+from app.services.llm_gateway import call_llm
 from app.errors import AppError
 
 

@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>文字冒险游戏</title>
     <link rel="apple-touch-icon" sizes="180x180" href="/static/images/apple-touch-icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/styles.css">
 </head>
 <body>
@@ -253,7 +256,7 @@
                 <button class="player-panel-btn" id="player-panel-btn" onclick="togglePlayerPanel()">👤 角色</button>
                 <button class="characters-btn" onclick="toggleCharacterPanel()">👥 NPC</button>
                 <button class="player-panel-btn" onclick="showSaveModal()">💾 存档</button>
-                <button class="player-panel-btn" id="novel-btn" onclick="showNovelModal()" style="background: rgba(255,170,0,0.15); border-color: rgba(255,170,0,0.4); color: #ffaa00;">📖 小说</button>
+                <button class="player-panel-btn btn-novel" id="novel-btn" onclick="showNovelModal()">📖 小说</button>
                 <button class="end-game-btn" id="end-game-btn" onclick="triggerEnding()">结束游戏</button>
             </div>
             <div id="player-panel" class="player-panel">

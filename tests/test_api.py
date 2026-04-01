@@ -49,7 +49,8 @@ def test_static_css():
     with TestClient(app) as client:
         r = client.get("/static/css/styles.css")
     assert r.status_code == 200
-    assert r.text.strip().startswith("html")
+    stripped = r.text.strip()
+    assert stripped.startswith(":root") or stripped.startswith("html")
 
 
 def test_static_js():

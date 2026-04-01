@@ -75,10 +75,14 @@ class SaveService:
             "route_scores": request.route_scores if request.route_scores else {},
             "key_decisions": request.key_decisions if request.key_decisions else [],
             "ending_omen_state": request.ending_omen_state if request.ending_omen_state else {},
+            "history": load_history(),
         }
 
         filepath = save_game_state(request.slot_id, save_data)
         return {"success": True, "filepath": filepath, "save": save_data}
+
+    def restore_history(self, history: list) -> None:
+        save_history(history)
 
     def delete_save(self, slot_id: str) -> bool:
         return delete_game_save(slot_id)

@@ -22,6 +22,8 @@ dist/
 build/
 .pytest_cache/
 .ruff_cache/
+.coverage
+tests/coverage_html/
 
 IMPLEMENTATION_PLAN.md
 requirements.txt

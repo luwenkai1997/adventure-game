@@ -1,23 +1,16 @@
 from typing import List, Optional, Dict, Any
 from datetime import datetime
+from app.game_context import GameContext
 from app.models.save import SaveCreateRequest
 from app.config import MAX_SAVE_SLOTS, MAX_HISTORY_STEPS
-from app.utils.file_storage import (
-    list_saves,
-    save_game_state,
-    load_game_state,
-    delete_game_save,
-    save_history,
-    load_history,
-)
 
 
 class SaveService:
-    def __init__(self):
-        pass
+    def __init__(self, save_repository):
+        self.save_repository = save_repository
 
-    def list_saves(self) -> List[Dict[str, Any]]:
-        saves = list_saves()
+    def list_saves(self, ctx: GameContext) -> List[Dict[str, Any]]:
+        saves = self.save_repository.list_saves(ctx)
 
         save_list = []
         for slot_id in range(1, MAX_SAVE_SLOTS + 1):
@@ -51,10 +44,10 @@ class SaveService:
 
         return save_list
 
-    def get_save(self, slot_id: str) -> Optional[Dict[str, Any]]:
-        return load_game_state(slot_id)
+    def get_save(self, ctx: Optional[GameContext], slot_id: str) -> Optional[Dict[str, Any]]:
+        return self.save_repository.load_game_state(ctx, slot_id)
 
-    def save_game(self, request: SaveCreateRequest) -> Dict[str, Any]:
+    def save_game(self, ctx: GameContext, request: SaveCreateRequest) -> Dict[str, Any]:
         save_data = {
             "slot_id": request.slot_id,
             "save_name": request.save_name,
@@ -75,23 +68,23 @@ class SaveService:
             "route_scores": request.route_scores if request.route_scores else {},
             "key_decisions": request.key_decisions if request.key_decisions else [],
             "ending_omen_state": request.ending_omen_state if request.ending_omen_state else {},
-            "history": load_history(),
+            "history": self.save_repository.load_history(ctx),
         }
 
-        filepath = save_game_state(request.slot_id, save_data)
+        filepath = self.save_repository.save_game_state(ctx, request.slot_id, save_data)
         return {"success": True, "filepath": filepath, "save": save_data}
 
-    def restore_history(self, history: list) -> None:
-        save_history(history)
+    def restore_history(self, ctx: GameContext, history: list) -> None:
+        self.save_repository.save_history(ctx, history)
 
-    def delete_save(self, slot_id: str) -> bool:
-        return delete_game_save(slot_id)
+    def delete_save(self, ctx: GameContext, slot_id: str) -> bool:
+        return self.save_repository.delete_game_state(ctx, slot_id)
 
-    def load_save(self, slot_id: str) -> Optional[Dict[str, Any]]:
-        return self.get_save(slot_id)
+    def load_save(self, ctx: Optional[GameContext], slot_id: str) -> Optional[Dict[str, Any]]:
+        return self.get_save(ctx, slot_id)
 
-    def push_history(self, snapshot: Dict[str, Any]) -> None:
-        history = load_history()
+    def push_history(self, ctx: GameContext, snapshot: Dict[str, Any]) -> None:
+        history = self.save_repository.load_history(ctx)
 
         snapshot["step"] = len(history) + 1
         snapshot["timestamp"] = datetime.now().isoformat()
@@ -101,21 +94,21 @@ class SaveService:
         if len(history) > MAX_HISTORY_STEPS:
             history = history[-MAX_HISTORY_STEPS:]
 
-        save_history(history)
+        self.save_repository.save_history(ctx, history)
 
-    def undo(self) -> Optional[Dict[str, Any]]:
-        history = load_history()
+    def undo(self, ctx: GameContext) -> Optional[Dict[str, Any]]:
+        history = self.save_repository.load_history(ctx)
 
         if not history:
             return None
 
         last_snapshot = history.pop()
-        save_history(history)
+        self.save_repository.save_history(ctx, history)
 
         return last_snapshot
 
-    def get_history(self) -> List[Dict[str, Any]]:
-        history = load_history()
+    def get_history(self, ctx: Optional[GameContext]) -> List[Dict[str, Any]]:
+        history = self.save_repository.load_history(ctx)
 
         return [
             {
@@ -127,8 +120,8 @@ class SaveService:
             for i, h in enumerate(history)
         ]
 
-    def clear_history(self) -> None:
-        save_history([])
+    def clear_history(self, ctx: GameContext) -> None:
+        self.save_repository.save_history(ctx, [])
 
-    def get_history_count(self) -> int:
-        return len(load_history())
+    def get_history_count(self, ctx: Optional[GameContext]) -> int:
+        return len(self.save_repository.load_history(ctx))

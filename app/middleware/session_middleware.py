@@ -2,7 +2,6 @@ from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 from typing import Callable
-from app.request_context import set_current_session_id
 
 
 class SessionMiddleware(BaseHTTPMiddleware):
@@ -16,8 +15,6 @@ class SessionMiddleware(BaseHTTPMiddleware):
 
         if not session_id:
             session_id = None
-
-        set_current_session_id(session_id)
 
         response = await call_next(request)
 

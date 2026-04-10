@@ -1,31 +1,36 @@
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
 from app.config import MEMORY_UPDATE_PROMPT
-from app.services.chat_parser import (
-    ChatTurnContent,
-    ParseError,
-    get_repair_prompt,
-    parse_chat_output,
-)
-from app.services.llm_gateway import call_llm
+from app.game_context import GameContext
+from app.models.chat import ChatTurnContent
 from app.services.prompt_composer import PromptComposer
-from app.utils.file_storage import load_memory, save_memory_text
-
-MAX_REPAIR_ATTEMPTS = 2
 
 
 class GameService:
-    def __init__(self):
-        self.composer = PromptComposer()
+    def __init__(
+        self,
+        prompt_composer: PromptComposer,
+        memory_repository,
+        character_repository,
+        relation_repository,
+        llm_adapter,
+    ):
+        self.composer = prompt_composer
+        self.memory_repository = memory_repository
+        self.character_repository = character_repository
+        self.relation_repository = relation_repository
+        self.llm_adapter = llm_adapter
 
     async def update_memory(
         self,
+        ctx: GameContext,
         scene: str,
         selected_choice: str,
         log_summary: str,
         ending_type: str = "",
     ) -> str:
-        memory_content = load_memory()
+        memory_content = self.memory_repository.load_text(ctx)
 
         prompt = MEMORY_UPDATE_PROMPT.format(
             memory_content=memory_content,
@@ -35,12 +40,17 @@ class GameService:
             ending_type=ending_type or "无",
         )
 
-        new_memory = await call_llm(prompt, method_name="update_memory")
-        save_memory_text(new_memory)
+        new_memory = await self.llm_adapter.generate_text(
+            ctx=ctx,
+            prompt=prompt,
+            method_name="update_memory",
+        )
+        self.memory_repository.save_text(ctx, new_memory)
         return new_memory
 
     async def chat(
         self,
+        ctx: Optional[GameContext],
         messages: List[Dict],
         extra_prompt: str = "",
         turn_context: Optional[Dict] = None,
@@ -49,57 +59,42 @@ class GameService:
         if turn_context:
             tendency_data = turn_context.get("tendency")
         full_messages = self.composer.compose(
+            ctx=ctx,
             messages=messages,
             extra_prompt=extra_prompt,
             turn_context=turn_context,
             tendency_data=tendency_data,
         )
+        return await self.llm_adapter.generate_chat_turn(ctx, full_messages)
 
-        content = await call_llm(
-            "",
-            system_prompt=None,
-            messages=full_messages,
-            method_name="game_chat",
-        )
+    async def apply_relationship_changes(
+        self, ctx: Optional[GameContext], relationship_changes
+    ) -> None:
+        if ctx is None or not relationship_changes:
+            return
 
-        parsed_content, repaired = await self.validate_or_repair(content)
-        return parsed_content, content, repaired
+        relations = self.relation_repository.load_all(ctx)
+        characters = self.character_repository.load_all(ctx)
+        characters_by_name = {char.get("name"): char for char in characters}
 
-    async def validate_or_repair(self, raw_content: str) -> Tuple[ChatTurnContent, bool]:
-        attempts = 0
-        last_error = None
+        for change in relationship_changes:
+            target_char = characters_by_name.get(change.character_name)
+            if not target_char:
+                continue
 
-        while attempts <= MAX_REPAIR_ATTEMPTS:
-            try:
-                content, _ = parse_chat_output(raw_content)
-                return content, attempts > 0
-            except ParseError as e:
-                last_error = e
-                attempts += 1
-                if attempts > MAX_REPAIR_ATTEMPTS:
-                    break
+            char_id = target_char.get("id")
+            for relation in relations:
+                if relation.get("source_id") == char_id or relation.get("target_id") == char_id:
+                    old_strength = relation.get("strength", 50)
+                    delta = change.value if change.change_type == "+" else -change.value
+                    relation["strength"] = max(0, min(100, old_strength + delta))
+                    relation.setdefault("events", []).append(
+                        {
+                            "type": change.change_type,
+                            "value": change.value,
+                            "reason": change.reason or "",
+                            "timestamp": datetime.now().isoformat(),
+                        }
+                    )
 
-                repair_prompt = get_repair_prompt(raw_content)
-                raw_content = await call_llm(repair_prompt, method_name="chat_repair")
-
-        raise last_error
-
-    async def parse_or_repair_stream(self, full_content: str) -> Tuple[ChatTurnContent, bool]:
-        attempts = 0
-        raw_content = full_content
-        last_error: Optional[ParseError] = None
-        while attempts <= MAX_REPAIR_ATTEMPTS:
-            try:
-                content, _ = parse_chat_output(raw_content)
-                return content, attempts > 0
-            except ParseError as e:
-                last_error = e
-                attempts += 1
-                if attempts > MAX_REPAIR_ATTEMPTS:
-                    break
-                raw_content = await call_llm(
-                    get_repair_prompt(raw_content), method_name="chat_repair_stream"
-                )
-        if last_error is not None:
-            raise last_error
-        raise ParseError("STREAM", "parse failed", raw_content)
+        self.relation_repository.save_all(ctx, relations)

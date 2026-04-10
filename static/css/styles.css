@@ -83,7 +83,14 @@
             bottom: 0;
             background: 
                 radial-gradient(ellipse at 20% 80%, rgba(0, 255, 136, 0.03) 0%, transparent 50%),
-                radial-gradient(ellipse at 80% 20%, rgba(0, 200, 255, 0.03) 0%, transparent 50%);
+                radial-gradient(ellipse at 80% 20%, rgba(0, 200, 255, 0.03) 0%, transparent 50%),
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(0, 0, 0, 0.1) 2px,
+                    rgba(0, 0, 0, 0.1) 4px
+                );
             pointer-events: none;
         }
 
@@ -112,6 +119,8 @@
             width: 100%;
             position: relative;
             z-index: 1;
+            margin-left: calc(50% - 560px - 40px);
+            margin-right: auto;
         }
 
         .screen {
@@ -509,10 +518,10 @@
         }
 
         .ending-select-box {
-            background: rgba(38, 38, 38, 0.72);
+            background: rgba(38, 38, 38, 0.6);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(73, 72, 71, 0.25);
+            border: 1px solid rgba(73, 72, 71, 0.15);
             border-radius: var(--radius-card);
             padding: 30px;
             text-align: center;
@@ -962,7 +971,7 @@
             right: -400px;
             width: 380px;
             height: 100vh;
-            background: rgba(38, 38, 38, 0.75);
+            background: rgba(38, 38, 38, 0.6);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             border-left: none;
@@ -1121,10 +1130,10 @@
         }
 
         .character-detail-content {
-            background: rgba(38, 38, 38, 0.72);
+            background: rgba(38, 38, 38, 0.6);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(73, 72, 71, 0.25);
+            border: 1px solid rgba(73, 72, 71, 0.15);
             border-radius: var(--radius-card);
             width: 90%;
             max-width: 500px;
@@ -1328,10 +1337,10 @@
         }
 
         .character-form-content {
-            background: rgba(38, 38, 38, 0.72);
+            background: rgba(38, 38, 38, 0.6);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(73, 72, 71, 0.25);
+            border: 1px solid rgba(73, 72, 71, 0.15);
             border-radius: var(--radius-card);
             width: 90%;
             max-width: 500px;
@@ -1830,7 +1839,7 @@
             right: -400px;
             width: 380px;
             height: 100vh;
-            background: rgba(38, 38, 38, 0.75);
+            background: rgba(38, 38, 38, 0.6);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             border-left: none;
@@ -1991,10 +2000,10 @@
         }
 
         .check-modal-content {
-            background: rgba(38, 38, 38, 0.72);
+            background: rgba(38, 38, 38, 0.6);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(73, 72, 71, 0.25);
+            border: 1px solid rgba(73, 72, 71, 0.15);
             border-radius: var(--radius-card);
             padding: 40px;
             text-align: center;
@@ -2132,10 +2141,10 @@
         }
 
         .save-modal-content {
-            background: rgba(38, 38, 38, 0.72);
+            background: rgba(38, 38, 38, 0.6);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(73, 72, 71, 0.25);
+            border: 1px solid rgba(73, 72, 71, 0.15);
             border-radius: var(--radius-card);
             padding: 30px;
             max-width: 700px;

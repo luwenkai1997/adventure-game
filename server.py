@@ -16,7 +16,6 @@ from app.middleware.session_middleware import SessionMiddleware
 from app.middleware.request_lifecycle_middleware import RequestLifecycleMiddleware
 from app.config import BASE_DIR
 from app.http_client import init_http_client, close_http_client
-from app.utils.file_storage import load_session_games_from_disk
 from app.errors import AppError, app_error_handler, generic_exception_handler
 from app.logging_config import configure_logging
 
@@ -24,7 +23,6 @@ from app.logging_config import configure_logging
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging()
-    load_session_games_from_disk()
     await init_http_client()
     yield
     await close_http_client()

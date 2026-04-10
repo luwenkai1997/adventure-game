@@ -59,3 +59,30 @@ def atomic_write_text(path: str, text: str, encoding: str = "utf-8") -> None:
             except OSError:
                 pass
             raise
+
+
+def atomic_append_text(path: str, text: str, encoding: str = "utf-8") -> None:
+    directory = os.path.dirname(path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    with _lock_for(path):
+        existing = ""
+        if os.path.exists(path):
+            with open(path, "r", encoding=encoding) as current:
+                existing = current.read()
+        fd, tmp_path = tempfile.mkstemp(
+            dir=directory or ".", prefix=".atomic_", suffix=".txt"
+        )
+        try:
+            with os.fdopen(fd, "w", encoding=encoding) as f:
+                f.write(existing)
+                f.write(text)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, path)
+        except BaseException:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise

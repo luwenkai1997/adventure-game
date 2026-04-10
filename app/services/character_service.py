@@ -1,6 +1,7 @@
 import os
 import json
 import uuid
+import logging
 from typing import Optional, List, Dict
 from datetime import datetime
 import asyncio
@@ -21,22 +22,24 @@ from app.models.character import (
     StatusModel,
     CharacterGenerationConfig,
 )
-from app.utils.file_storage import (
-    load_characters,
-    save_character,
-    load_character,
-    save_characters_batch,
-    load_relations,
-    save_relations,
-    get_or_create_snapshots_dir,
-    get_snapshot_path,
-)
-from app.utils.llm_client import call_llm, parse_json_response
+from app.game_context import GameContext
+
+
+logger = logging.getLogger(__name__)
 
 
 class CharacterService:
-    def __init__(self):
-        pass
+    def __init__(
+        self,
+        character_repository,
+        relation_repository,
+        snapshot_repository,
+        llm_adapter,
+    ):
+        self.character_repository = character_repository
+        self.relation_repository = relation_repository
+        self.snapshot_repository = snapshot_repository
+        self.llm_adapter = llm_adapter
 
     def _try_fix_truncated_json(self, content: str) -> List[dict]:
         import re
@@ -56,21 +59,21 @@ class CharacterService:
                 except:
                     continue
             if npcs:
-                print(f"成功从截断的JSON中提取了 {len(npcs)} 个NPC")
+                logger.info("成功从截断的JSON中提取了 %s 个NPC", len(npcs))
                 return npcs
         except Exception as e:
-            print(f"修复截断JSON失败: {str(e)[:100]}")
+            logger.warning("修复截断JSON失败: %s", str(e)[:100])
         
         return []
 
     async def generate_npcs_with_llm(
-        self, 
+        self,
+        ctx: Optional[GameContext],
         world_setting: str, 
         protagonist_info: dict,
         count: int = 10
     ) -> List[dict]:
         from app.config import NPC_LIST_GENERATION_PROMPT, NPC_DETAIL_GENERATION_PROMPT
-        from app.utils.llm_client import call_llm, parse_json_response
         
         protagonist_summary = f"""
 姓名: {protagonist_info.get('name', '未知')}
@@ -87,16 +90,22 @@ class CharacterService:
         
         system_prompt_list = "你是一个专业的角色设计师，擅长角色设计。请严格按照JSON数组格式返回简练的名录。"
         
-        response_list = await call_llm(list_prompt, system_prompt_list, timeout=120)
+        response_list = await self.llm_adapter.generate_json(
+            ctx=ctx,
+            prompt=list_prompt,
+            system_prompt=system_prompt_list,
+            timeout=120,
+            method_name="generate_npc_list",
+        )
         
         try:
-            npcs_list = parse_json_response(response_list)
+            npcs_list = response_list
         except Exception as e:
-            print(f"NPC名录 JSON解析失败，尝试修复: {str(e)[:200]}")
-            npcs_list = self._try_fix_truncated_json(response_list)
+            logger.warning("NPC名录 JSON解析失败，尝试修复: %s", str(e)[:200])
+            npcs_list = self._try_fix_truncated_json(str(response_list))
         
         if not npcs_list or not isinstance(npcs_list, list):
-            print("LLM返回格式错误，无法解析NPC名录数据")
+            logger.warning("LLM返回格式错误，无法解析NPC名录数据")
             return []
             
         npcs_list = npcs_list[:count]
@@ -116,15 +125,20 @@ class CharacterService:
                 )
                 system_prompt_detail = "你是一个专业的角色设计师。请严格按照JSON格式返回角色详细设定。"
                 try:
-                    res = await call_llm(detail_prompt, system_prompt_detail, timeout=180)
-                    detail_data = parse_json_response(res)
+                    detail_data = await self.llm_adapter.generate_json(
+                        ctx=ctx,
+                        prompt=detail_prompt,
+                        system_prompt=system_prompt_detail,
+                        timeout=180,
+                        method_name="generate_npc_detail",
+                    )
                     if isinstance(detail_data, dict):
                         return detail_data
                 except Exception as e:
-                    print(f"生成NPC {npc_basic.get('name')} 详细信息失败: {e}")
+                    logger.warning("生成NPC %s 详细信息失败: %s", npc_basic.get('name'), e)
                 return None
 
-        print(f"开始并发生成 {len(npcs_list)} 个NPC详细信息...")
+        logger.info("开始并发生成 %s 个NPC详细信息...", len(npcs_list))
         details_results = await asyncio.gather(*(fetch_npc_detail(npc) for npc in npcs_list))
         
         npcs = []
@@ -179,18 +193,18 @@ class CharacterService:
             }
             npcs.append(npc)
         
-        print(f"成功生成 {len(npcs)} 个NPC")
+        logger.info("成功生成 %s 个NPC", len(npcs))
         return npcs
 
     async def generate_characters_batch(
         self,
+        ctx: Optional[GameContext],
         world_setting: str,
         role_type: str,
         count: int,
         genre: str = "fantasy",
         power_level: str = "medium"
     ) -> List[dict]:
-        from app.utils.llm_client import call_llm, parse_json_response
         if count <= 0:
             return []
             
@@ -206,12 +220,18 @@ class CharacterService:
 
         system_prompt_list = "你是一个专业的角色设计师，擅长创造生动有趣的角色名录。请严格按照JSON数组格式返回结果。"
 
-        response_list = await call_llm(list_prompt, system_prompt_list, timeout=120)
+        response_list = await self.llm_adapter.generate_json(
+            ctx=ctx,
+            prompt=list_prompt,
+            system_prompt=system_prompt_list,
+            timeout=120,
+            method_name=f"generate_{role_type}_list",
+        )
         try:
-            characters_list = parse_json_response(response_list)
+            characters_list = response_list
         except Exception as e:
-            print(f"{role_type} 名录 JSON解析失败，尝试修复: {str(e)[:200]}")
-            characters_list = self._try_fix_truncated_json(response_list)
+            logger.warning("%s 名录 JSON解析失败，尝试修复: %s", role_type, str(e)[:200])
+            characters_list = self._try_fix_truncated_json(str(response_list))
 
         if not characters_list or not isinstance(characters_list, list):
             return []
@@ -234,15 +254,20 @@ class CharacterService:
                 )
                 system_prompt_detail = "你是一个专业的角色设计师。请严格按照JSON格式返回角色详细设定。"
                 try:
-                    res = await call_llm(detail_prompt, system_prompt_detail, timeout=180)
-                    detail_data = parse_json_response(res)
+                    detail_data = await self.llm_adapter.generate_json(
+                        ctx=ctx,
+                        prompt=detail_prompt,
+                        system_prompt=system_prompt_detail,
+                        timeout=180,
+                        method_name=f"generate_{role_type}_detail",
+                    )
                     if isinstance(detail_data, dict):
                         return detail_data
                 except Exception as e:
-                    print(f"生成角色 {char_basic.get('name')} 详细信息失败: {e}")
+                    logger.warning("生成角色 %s 详细信息失败: %s", char_basic.get('name'), e)
                 return None
 
-        print(f"开始并发生成 {len(characters_list[:count])} 个 {role_type} 详细信息...")
+        logger.info("开始并发生成 %s 个 %s 详细信息...", len(characters_list[:count]), role_type)
         details_results = await asyncio.gather(*(fetch_character_detail(char) for char in characters_list[:count]))
         
         characters = []
@@ -271,23 +296,29 @@ class CharacterService:
 
         return characters
 
-    async def generate_all_characters(self, config: CharacterGenerationConfig) -> List[dict]:
+    async def generate_all_characters(
+        self, ctx: Optional[GameContext], config: CharacterGenerationConfig
+    ) -> List[dict]:
         all_characters = []
 
         results = await asyncio.gather(
             self.generate_characters_batch(
+                ctx,
                 config.world_setting, "protagonist", config.protagonist_count,
                 config.genre, config.power_level
             ),
             self.generate_characters_batch(
+                ctx,
                 config.world_setting, "antagonist", config.antagonist_count,
                 config.genre, config.power_level
             ),
             self.generate_characters_batch(
+                ctx,
                 config.world_setting, "supporting", config.supporting_count,
                 config.genre, config.power_level
             ),
             self.generate_characters_batch(
+                ctx,
                 config.world_setting, "npc", config.npc_count,
                 config.genre, config.power_level
             )
@@ -299,7 +330,9 @@ class CharacterService:
 
         return all_characters
 
-    async def generate_relations(self, characters: List[dict], world_setting: str) -> List[dict]:
+    async def generate_relations(
+        self, ctx: Optional[GameContext], characters: List[dict], world_setting: str
+    ) -> List[dict]:
         char_summaries = []
         for char in characters:
             char_summaries.append({
@@ -316,8 +349,13 @@ class CharacterService:
 
         system_prompt = "你是一个关系网络设计师，擅长构建复杂的人物关系网络。请严格按照JSON格式返回结果。"
 
-        response = await call_llm(prompt, system_prompt, timeout=360)
-        relations = parse_json_response(response)
+        relations = await self.llm_adapter.generate_json(
+            ctx=ctx,
+            prompt=prompt,
+            system_prompt=system_prompt,
+            timeout=360,
+            method_name="generate_relations",
+        )
 
         name_to_id = {char['name']: char['id'] for char in characters}
 
@@ -347,8 +385,10 @@ class CharacterService:
 
         return valid_relations
 
-    def update_character_state(self, char_id: str, effects: List[Dict]) -> bool:
-        char = load_character(char_id)
+    def update_character_state(
+        self, ctx: Optional[GameContext], char_id: str, effects: List[Dict]
+    ) -> bool:
+        char = self.character_repository.load(ctx, char_id)
         if not char:
             return False
 
@@ -377,23 +417,21 @@ class CharacterService:
                     conditions = char['status'].get('conditions', [])
                     char['status']['conditions'] = [c for c in conditions if c != target]
 
-        save_character(char)
+        self.character_repository.save(ctx, char)
         return True
 
-    def batch_update(self, updates: List[Dict]) -> int:
+    def batch_update(self, ctx: Optional[GameContext], updates: List[Dict]) -> int:
         updated_count = 0
         for update in updates:
             char_id = update.get('character_id')
             effects = update.get('effects', [])
-            if self.update_character_state(char_id, effects):
+            if self.update_character_state(ctx, char_id, effects):
                 updated_count += 1
         return updated_count
 
-    def create_snapshot(self, chapter: int) -> str:
-        characters = load_characters()
-        relations = load_relations()
-
-        get_or_create_snapshots_dir()
+    def create_snapshot(self, ctx: GameContext, chapter: int) -> str:
+        characters = self.character_repository.load_all(ctx)
+        relations = self.relation_repository.load_all(ctx)
 
         snapshot = {
             'chapter': chapter,
@@ -402,15 +440,13 @@ class CharacterService:
             'relations': relations
         }
 
-        snapshot_path = get_snapshot_path(chapter)
-        with open(snapshot_path, 'w', encoding='utf-8') as f:
-            json.dump(snapshot, f, ensure_ascii=False, indent=2)
+        return self.snapshot_repository.save(ctx, chapter, snapshot)
 
-        return snapshot_path
-
-    def get_character_context(self, character_ids: List[str]) -> str:
-        characters = load_characters()
-        relations = load_relations()
+    def get_character_context(
+        self, ctx: Optional[GameContext], character_ids: List[str]
+    ) -> str:
+        characters = self.character_repository.load_all(ctx)
+        relations = self.relation_repository.load_all(ctx)
 
         selected_chars = [c for c in characters if c['id'] in character_ids]
 
@@ -448,9 +484,9 @@ class CharacterService:
         context = "\n".join(context_parts)
         return context
 
-    def get_character_graph(self) -> Dict:
-        characters = load_characters()
-        relations = load_relations()
+    def get_character_graph(self, ctx: Optional[GameContext]) -> Dict:
+        characters = self.character_repository.load_all(ctx)
+        relations = self.relation_repository.load_all(ctx)
 
         nodes = []
         for char in characters:

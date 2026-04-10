@@ -1,16 +1,17 @@
 import random
 from typing import Optional
+from app.game_context import GameContext
 from app.models.check import (
     CheckRequest,
     CheckResult,
     get_difficulty_name,
 )
-from app.utils.file_storage import load_player
 
 
 class CheckService:
-    def __init__(self):
-        pass
+    def __init__(self, player_repository, player_service):
+        self.player_repository = player_repository
+        self.player_service = player_service
 
     def roll_d20(self) -> int:
         return random.randint(1, 20)
@@ -18,8 +19,8 @@ class CheckService:
     def calculate_modifier(self, attribute: int) -> int:
         return (attribute - 10) // 2
 
-    def get_attribute_value(self, attribute: str) -> int:
-        player = load_player()
+    def get_attribute_value(self, ctx: Optional[GameContext], attribute: str) -> int:
+        player = self.player_repository.load(ctx)
         if not player:
             return 10
 
@@ -41,8 +42,8 @@ class CheckService:
         attr_key = attr_map.get(attribute.lower(), attribute)
         return player.get(attr_key, 10)
 
-    def get_skill_level(self, skill_name: str) -> int:
-        player = load_player()
+    def get_skill_level(self, ctx: Optional[GameContext], skill_name: str) -> int:
+        player = self.player_repository.load(ctx)
         if not player or not player.get("skills"):
             return 0
 
@@ -52,14 +53,14 @@ class CheckService:
 
         return 0
 
-    def perform_check(self, request: CheckRequest) -> CheckResult:
+    def perform_check(self, ctx: Optional[GameContext], request: CheckRequest) -> CheckResult:
         roll = self.roll_d20()
-        attribute_value = self.get_attribute_value(request.attribute)
+        attribute_value = self.get_attribute_value(ctx, request.attribute)
         modifier = self.calculate_modifier(attribute_value)
         skill_bonus = 0
 
         if request.skill:
-            skill_bonus = self.get_skill_level(request.skill)
+            skill_bonus = self.get_skill_level(ctx, request.skill)
 
         total = roll + modifier + skill_bonus
         difficulty = request.difficulty
@@ -85,17 +86,15 @@ class CheckService:
             request.description or "",
         )
 
-        from app.services.player_service import PlayerService
-        player_service = PlayerService()
-        
-        # Apply growth & HP effect
         growth_summary = {}
         if request.skill:
-            growth_summary["skill_growth"] = player_service.apply_check_growth(
-                request.skill, success, critical, fumble
+            growth_summary["skill_growth"] = self.player_service.apply_check_growth(
+                ctx, request.skill, success, critical, fumble
             )
             
-        hp_effect = player_service.apply_hp_effect_from_check(success, critical, fumble)
+        hp_effect = self.player_service.apply_hp_effect_from_check(
+            ctx, success, critical, fumble
+        )
         if hp_effect:
             growth_summary["hp_effect"] = hp_effect
 
@@ -143,12 +142,14 @@ class CheckService:
             return f"失败。你投出了{roll}点，加上修正值{total - roll}，总计{total}点。{description}——未能成功。"
         return f"失败。投出{roll}点，加上修正值{total - roll}，总计{total}点，未达到难度{difficulty}（{get_difficulty_name(difficulty)}）。"
 
-    def perform_simple_check(self, attribute: str, difficulty: int = 12) -> CheckResult:
+    def perform_simple_check(
+        self, ctx: Optional[GameContext], attribute: str, difficulty: int = 12
+    ) -> CheckResult:
         request = CheckRequest(attribute=attribute, difficulty=difficulty)
-        return self.perform_check(request)
+        return self.perform_check(ctx, request)
 
-    def get_player_check_info(self) -> dict:
-        player = load_player()
+    def get_player_check_info(self, ctx: Optional[GameContext]) -> dict:
+        player = self.player_repository.load(ctx)
         if not player:
             return {}
 

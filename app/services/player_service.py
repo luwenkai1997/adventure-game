@@ -1,7 +1,9 @@
 import random
 import uuid
+import logging
 from typing import List, Optional
 from datetime import datetime
+from app.game_context import GameContext
 from app.models.player import (
     PlayerCharacter,
     PlayerSkill,
@@ -10,12 +12,15 @@ from app.models.player import (
     PRESET_SKILLS,
     ATTRIBUTE_NAMES_EN,
 )
-from app.utils.file_storage import save_player, load_player
+
+
+logger = logging.getLogger(__name__)
 
 
 class PlayerService:
-    def __init__(self):
-        pass
+    def __init__(self, player_repository, llm_adapter):
+        self.player_repository = player_repository
+        self.llm_adapter = llm_adapter
 
     def calculate_modifier(self, attribute: int) -> int:
         return (attribute - 10) // 2
@@ -24,7 +29,7 @@ class PlayerService:
         modifier = self.calculate_modifier(constitution)
         return 10 + modifier * 2
 
-    def create_player(self, request: PlayerCreateRequest) -> PlayerCharacter:
+    def create_player(self, ctx: GameContext, request: PlayerCreateRequest) -> PlayerCharacter:
         skills = []
         for skill_name in request.skills:
             skill = self._find_skill_by_name(skill_name)
@@ -54,11 +59,11 @@ class PlayerService:
             updated_at=datetime.now().isoformat(),
         )
 
-        save_player(player.model_dump())
+        self.player_repository.save(ctx, player.model_dump())
         return player
 
     def random_player(
-        self, request: Optional[PlayerRandomRequest] = None
+        self, ctx: GameContext, request: Optional[PlayerRandomRequest] = None
     ) -> PlayerCharacter:
         gender_options = ["男", "女", "其他"]
         race_options = ["人类", "精灵", "矮人", "兽人", "其他"]
@@ -159,17 +164,17 @@ class PlayerService:
             updated_at=datetime.now().isoformat(),
         )
 
-        save_player(player.model_dump())
+        self.player_repository.save(ctx, player.model_dump())
         return player
 
-    def get_player(self) -> Optional[PlayerCharacter]:
-        player_data = load_player()
+    def get_player(self, ctx: Optional[GameContext]) -> Optional[PlayerCharacter]:
+        player_data = self.player_repository.load(ctx)
         if player_data:
             return PlayerCharacter(**player_data)
         return None
 
-    def update_player(self, updates: dict) -> Optional[PlayerCharacter]:
-        player_data = load_player()
+    def update_player(self, ctx: Optional[GameContext], updates: dict) -> Optional[PlayerCharacter]:
+        player_data = self.player_repository.load(ctx)
         if not player_data:
             return None
 
@@ -219,11 +224,11 @@ class PlayerService:
             if "current_hp" not in updates:
                 player_data["current_hp"] = player_data["max_hp"]
 
-        save_player(player_data)
+        self.player_repository.save(ctx, player_data)
         return PlayerCharacter(**player_data)
 
-    def add_skill(self, skill_name: str) -> Optional[PlayerCharacter]:
-        player = self.get_player()
+    def add_skill(self, ctx: Optional[GameContext], skill_name: str) -> Optional[PlayerCharacter]:
+        player = self.get_player(ctx)
         if not player:
             return None
 
@@ -236,30 +241,37 @@ class PlayerService:
                 return player
 
         player.skills.append(skill)
-        return self.update_player({"skills": [s.model_dump() for s in player.skills]})
+        return self.update_player(ctx, {"skills": [s.model_dump() for s in player.skills]})
 
-    def remove_skill(self, skill_name: str) -> Optional[PlayerCharacter]:
-        player = self.get_player()
+    def remove_skill(self, ctx: Optional[GameContext], skill_name: str) -> Optional[PlayerCharacter]:
+        player = self.get_player(ctx)
         if not player:
             return None
 
         player.skills = [s for s in player.skills if s.name != skill_name]
-        return self.update_player({"skills": [s.model_dump() for s in player.skills]})
+        return self.update_player(ctx, {"skills": [s.model_dump() for s in player.skills]})
 
-    def update_hp(self, delta: int) -> Optional[PlayerCharacter]:
-        player = self.get_player()
+    def update_hp(self, ctx: Optional[GameContext], delta: int) -> Optional[PlayerCharacter]:
+        player = self.get_player(ctx)
         if not player:
             return None
 
         new_hp = player.current_hp + delta
         new_hp = max(0, min(new_hp, player.max_hp))
 
-        return self.update_player({"current_hp": new_hp})
+        return self.update_player(ctx, {"current_hp": new_hp})
 
-    def apply_check_growth(self, skill_name: str, success: bool, critical: bool, fumble: bool) -> dict:
+    def apply_check_growth(
+        self,
+        ctx: Optional[GameContext],
+        skill_name: str,
+        success: bool,
+        critical: bool,
+        fumble: bool,
+    ) -> dict:
         if not skill_name:
             return {}
-        player = self.get_player()
+        player = self.get_player(ctx)
         if not player:
             return {}
 
@@ -307,7 +319,7 @@ class PlayerService:
                 player.growth_log = []
             player.growth_log.append(msg)
 
-        self.update_player({
+        self.update_player(ctx, {
             "skill_exp": player.skill_exp,
             "skills": [s.model_dump() for s in player.skills],
             "growth_log": player.growth_log
@@ -320,8 +332,10 @@ class PlayerService:
             "new_level": new_level if leveled_up else old_level
         }
 
-    def apply_hp_effect_from_check(self, success: bool, critical: bool, fumble: bool) -> dict:
-        player = self.get_player()
+    def apply_hp_effect_from_check(
+        self, ctx: Optional[GameContext], success: bool, critical: bool, fumble: bool
+    ) -> dict:
+        player = self.get_player(ctx)
         if not player:
             return {}
 
@@ -338,12 +352,12 @@ class PlayerService:
             msg = f"行动受挫，扣除 {-hp_change} 点HP。"
 
         if hp_change != 0:
-            new_player = self.update_hp(hp_change)
+            new_player = self.update_hp(ctx, hp_change)
             if new_player:
                 if new_player.growth_log is None:
                     new_player.growth_log = []
                 new_player.growth_log.append(msg)
-                self.update_player({"growth_log": new_player.growth_log})
+                self.update_player(ctx, {"growth_log": new_player.growth_log})
             return {"hp_change": hp_change, "current_hp": new_player.current_hp if new_player else player.current_hp}
         return {"hp_change": 0, "current_hp": player.current_hp}
 
@@ -355,10 +369,10 @@ class PlayerService:
                 level = i + 1
         return level
 
-    def clear_growth_log(self):
-        player = self.get_player()
+    def clear_growth_log(self, ctx: Optional[GameContext]) -> None:
+        player = self.get_player(ctx)
         if player and player.growth_log:
-            self.update_player({"growth_log": []})
+            self.update_player(ctx, {"growth_log": []})
 
     def _find_skill_by_name(self, name: str) -> Optional[PlayerSkill]:
         for category, skills in PRESET_SKILLS.items():
@@ -385,8 +399,8 @@ class PlayerService:
                     }
         return None
 
-    def get_skill_modifier(self, skill_name: str) -> int:
-        player = self.get_player()
+    def get_skill_modifier(self, ctx: Optional[GameContext], skill_name: str) -> int:
+        player = self.get_player(ctx)
         if not player:
             return 0
 
@@ -395,8 +409,8 @@ class PlayerService:
                 return skill.level
         return 0
 
-    def get_player_summary(self) -> str:
-        player = self.get_player()
+    def get_player_summary(self, ctx: Optional[GameContext]) -> str:
+        player = self.get_player(ctx)
         if not player:
             return ""
 
@@ -434,32 +448,32 @@ class PlayerService:
 
         return "\n".join(summary_parts)
 
-    async def generate_player_with_llm(self, world_setting: str = "") -> Optional[PlayerCharacter]:
+    async def generate_player_with_llm(
+        self, ctx: GameContext, world_setting: str = ""
+    ) -> Optional[PlayerCharacter]:
         """使用LLM根据故事设定生成主角"""
         from app.config import PLAYER_GENERATION_PROMPT
-        from app.utils.llm_client import call_llm, parse_json_response
         from uuid import uuid4
         
         try:
             prompt = PLAYER_GENERATION_PROMPT.format(world_setting=world_setting or "一个神秘的冒险世界")
             
-            response = await call_llm(
-                prompt, 
-                "你是一个专业的角色设计师，擅长创造符合故事设定的有趣角色。请严格按照JSON格式返回。",
+            player_data = await self.llm_adapter.generate_json(
+                ctx=ctx,
+                prompt=prompt,
+                system_prompt="你是一个专业的角色设计师，擅长创造符合故事设定的有趣角色。请严格按照JSON格式返回。",
                 timeout=120,
                 max_tokens=2500
             )
-            
-            player_data = parse_json_response(response)
-            
+
             if not player_data or not isinstance(player_data, dict):
-                print("LLM返回格式错误，无法解析角色数据")
+                logger.warning("LLM返回格式错误，无法解析角色数据")
                 return None
             
             required_fields = ['name', 'age', 'gender', 'race']
             for field in required_fields:
                 if field not in player_data:
-                    print(f"LLM返回数据缺少必要字段: {field}")
+                    logger.warning("LLM返回数据缺少必要字段: %s", field)
                     return None
             
             skills = []
@@ -506,12 +520,10 @@ class PlayerService:
                 updated_at=datetime.now().isoformat()
             )
             
-            save_player(player.model_dump())
-            print(f"主角生成成功: {player.name}")
+            self.player_repository.save(ctx, player.model_dump())
+            logger.info("主角生成成功: %s", player.name)
             return player
             
         except Exception as e:
-            print(f"LLM生成角色失败: {str(e)}")
-            import traceback
-            print(traceback.format_exc())
+            logger.exception("LLM生成角色失败: %s", str(e))
             return None

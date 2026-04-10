@@ -239,6 +239,12 @@ async def chat_stream(request: Request, body: ChatRequestV2):
             elif event.type == "cancelled":
                 yield f"data: {{\"type\": \"cancelled\"}}\n\n"
             elif event.type == "done":
+                if ctx and ctx.game_id:
+                    try:
+                        turn_num = len(body.messages) // 2 + 1
+                        container.character_service.create_snapshot(ctx, turn_num)
+                    except Exception as e:
+                        print(f"Failed to create snapshot: {e}")
                 yield (
                     "data: "
                     + json.dumps(
@@ -306,6 +312,12 @@ async def ws_chat_stream(websocket: WebSocket):
                 await websocket.send_json({"type": "cancelled", "request_id": request_id})
                 return
             elif event.type == "done":
+                if ctx and ctx.game_id:
+                    try:
+                        turn_num = len(body.messages) // 2 + 1
+                        container.character_service.create_snapshot(ctx, turn_num)
+                    except Exception as e:
+                        print(f"Failed to create snapshot: {e}")
                 await websocket.send_json(
                     {
                         "type": "done",

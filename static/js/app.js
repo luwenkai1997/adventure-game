@@ -1198,6 +1198,14 @@
                 return;
             }
 
+            // Capture Director Mode Configuration
+            const dirPace = document.getElementById('director-pace').value;
+            const dirFocus = document.getElementById('director-focus').value;
+            const dirCruelty = document.getElementById('director-cruelty').value;
+            const directorConfigText = `\n\n【导演杆设定】\n- 剧情节奏: ${dirPace}\n- 风格侧重: ${dirFocus}\n- 世界残酷度: ${dirCruelty}`;
+            
+            worldSetting += directorConfigText;
+
             document.getElementById('loading-overlay')?.remove();
             const overlay = document.createElement('div');
             overlay.id = 'loading-overlay';
@@ -1360,7 +1368,10 @@
                     });
                 }
                 if (choiceObj.is_key_decision) {
-                    keyDecisions.push(choiceText);
+                    keyDecisions.push({
+                        choiceText: choiceText,
+                        sceneSnippet: currentScene.length > 50 ? currentScene.substring(0, 50) + "..." : currentScene
+                    });
                 }
             }
 
@@ -1654,6 +1665,9 @@
         function showEnding(data) {
             const endingType = document.getElementById('ending-type');
             const endingScene = document.getElementById('ending-scene');
+            const summaryContainer = document.getElementById('ending-summary');
+            const scoresContainer = document.getElementById('summary-route-scores');
+            const decisionsContainer = document.getElementById('summary-key-decisions');
 
             if (data.scene) {
                 logs.push({
@@ -1670,6 +1684,53 @@
                 entry.textContent = `【终章】${data.ending}`;
                 container.appendChild(entry);
                 container.scrollTop = container.scrollHeight;
+
+                // Render Summary
+                summaryContainer.style.display = 'block';
+                scoresContainer.innerHTML = '';
+                decisionsContainer.innerHTML = '';
+
+                // render routeScores
+                let hasScores = false;
+                for (const [route, score] of Object.entries(routeScores)) {
+                    if (score > 0) {
+                        hasScores = true;
+                        const scoreEl = document.createElement('div');
+                        scoreEl.style.cssText = 'background: rgba(0,255,136,0.1); padding: 5px 10px; border-radius: 4px; border: 1px solid rgba(0,255,136,0.3);';
+                        scoreEl.innerHTML = `<span style="color:#aaffcc;">${route}</span>: <span style="font-weight:bold; color:#00ff88;">+${score}</span>`;
+                        scoresContainer.appendChild(scoreEl);
+                    }
+                }
+                if (!hasScores) {
+                    scoresContainer.innerHTML = '<span style="color:#666;">暂无明显倾向</span>';
+                }
+
+                // render key decisions
+                if (keyDecisions && keyDecisions.length > 0) {
+                    keyDecisions.forEach((decision, idx) => {
+                        const item = document.createElement('div');
+                        item.style.cssText = 'margin-bottom: 10px; background: rgba(0,0,0,0.2); padding: 8px; border-left: 3px solid #ffaa00; border-radius: 0 4px 4px 0;';
+                        
+                        let choiceText = '';
+                        let sceneSnippet = '';
+                        if (typeof decision === 'string') {
+                            choiceText = decision;
+                            sceneSnippet = '未记录详细场景';
+                        } else {
+                            choiceText = decision.choiceText;
+                            sceneSnippet = decision.sceneSnippet || '场景片段';
+                        }
+                        
+                        item.innerHTML = `
+                            <div style="color: #ffaa00; font-weight: bold; margin-bottom: 4px;">抉择 ${idx + 1}</div>
+                            <div style="margin-bottom: 4px;">${sceneSnippet}</div>
+                            <div style="color:#00ff88;">➤ 选择了：${choiceText}</div>
+                        `;
+                        decisionsContainer.appendChild(item);
+                    });
+                } else {
+                    decisionsContainer.innerHTML = '<span style="color:#666;">暂无关键抉择记录</span>';
+                }
 
                 apiFetch('/api/update-memory', {
                     method: 'POST',
@@ -1817,7 +1878,6 @@
                     `;
                     generateBtn.textContent = data.can_continue ? '📝 续写小说' : '📖 查看小说';
 
-                    // If nothing to continue and novel exists, show read button
                     if (!data.can_continue) {
                         generateBtn.onclick = async () => {
                             const contentResp = await apiFetch('/api/novel/content');
@@ -1829,6 +1889,21 @@
                         };
                     } else {
                         generateBtn.onclick = () => generateNovelIncremental();
+                    }
+
+                    if (data.chapters && data.chapters.length > 0) {
+                        const chaptersContainer = document.getElementById('novel-chapters-container');
+                        const chapterSelect = document.getElementById('novel-chapter-select');
+                        chaptersContainer.style.display = 'block';
+                        chapterSelect.innerHTML = '';
+                        data.chapters.forEach(ch => {
+                            const opt = document.createElement('option');
+                            opt.value = ch.chapter_num;
+                            opt.textContent = `第${ch.chapter_num}章: ${ch.title}`;
+                            opt.dataset.title = ch.title;
+                            opt.dataset.summary = ch.summary || '';
+                            chapterSelect.appendChild(opt);
+                        });
                     }
                 } else {
                     if (data.current_round > 0) {
@@ -1850,6 +1925,63 @@
 
         function closeNovelModal() {
             document.getElementById('novel-modal').style.display = 'none';
+        }
+
+        async function rewriteSelectedChapter() {
+            const select = document.getElementById('novel-chapter-select');
+            if (!select || !select.value) {
+                alert('请先选择要重写的章节');
+                return;
+            }
+
+            const chapterNum = parseInt(select.value, 10);
+            const selectedOption = select.options[select.selectedIndex];
+            const chapterTitle = selectedOption.dataset.title || '';
+            const chapterSummary = selectedOption.dataset.summary || '';
+
+            const confirmRewrite = confirm(`确定要重写第${chapterNum}章: ${chapterTitle} 吗？这可能需要一些时间，重写后之前的版本将被覆盖。`);
+            if (!confirmRewrite) return;
+
+            const btn = document.getElementById('novel-rewrite-btn');
+            const originalText = btn.textContent;
+            btn.textContent = '重写中...';
+            btn.disabled = true;
+
+            const statusDiv = document.getElementById('novel-modal-status');
+            const resultDiv = document.getElementById('novel-modal-result');
+            
+            try {
+                // To display progress style indicator roughly
+                statusDiv.innerHTML = `<div style="color:#ffaa00;">正在重写 第${chapterNum}章: ${chapterTitle} ...</div>`;
+                
+                const resp = await apiFetch('/api/novel/chapter', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        novel_folder: 'current',
+                        chapter_num: chapterNum,
+                        chapter_title: chapterTitle,
+                        chapter_summary: chapterSummary,
+                        ending_type: ''
+                    })
+                });
+
+                const data = await resp.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                statusDiv.innerHTML = `<div style="color:#00ff88;">✅ 成功重写 第${chapterNum}章</div>`;
+                if (data.chapter_content) {
+                    resultDiv.style.display = 'block';
+                    resultDiv.innerHTML = `<div style="font-weight:bold;margin-bottom:10px;">新章节内容：</div>` + data.chapter_content.replace(/\n/g, '<br>');
+                }
+
+            } catch (error) {
+                statusDiv.innerHTML = `<div style="color:#ff4444;">❌ 重写失败: ${error.message}</div>`;
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
         }
 
         async function generateNovelIncremental(endingType = '') {

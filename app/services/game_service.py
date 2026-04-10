@@ -87,7 +87,35 @@ class GameService:
                 if relation.get("source_id") == char_id or relation.get("target_id") == char_id:
                     old_strength = relation.get("strength", 50)
                     delta = change.value if change.change_type == "+" else -change.value
-                    relation["strength"] = max(0, min(100, old_strength + delta))
+                    new_strength = max(0, min(100, old_strength + delta))
+                    relation["strength"] = new_strength
+
+                    old_type = relation.get("type", "neutral")
+                    new_type = old_type
+
+                    if new_strength >= 80:
+                        if old_type in ["enemy", "neutral", "rival"]:
+                            new_type = "friend"
+                    elif new_strength <= 20:
+                        if old_type not in ["enemy"]:
+                            new_type = "enemy"
+                    elif 20 < new_strength < 80:
+                        if old_type == "enemy" and new_strength >= 40:
+                            new_type = "neutral"
+                        elif old_type in ["friend", "lover", "ally"] and new_strength <= 50:
+                            new_type = "neutral"
+
+                    if new_type != old_type:
+                        relation["type"] = new_type
+                        relation.setdefault("events", []).append(
+                            {
+                                "type": "立场转变",
+                                "value": 0,
+                                "reason": f"关系发生质变，从[{old_type}]转变为[{new_type}]",
+                                "timestamp": datetime.now().isoformat(),
+                            }
+                        )
+
                     relation.setdefault("events", []).append(
                         {
                             "type": change.change_type,

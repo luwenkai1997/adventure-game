@@ -354,6 +354,7 @@ async def npc_dialogue(request: Request, char_id: str, body: NPCDialogueRequest)
             if isinstance(npc.get("background"), dict)
             else npc.get("background", "背景未知"),
             npc_relation=_get_relation_description(npc, npc_relations, player),
+            relation_events=_get_relation_events_description(npc_relations),
             context=body.context or "",
             player_message=body.message,
         )
@@ -402,3 +403,24 @@ def _get_relation_description(npc: dict, npc_relations: list, player: dict) -> s
             return f"被{source_name}视为{rel_type}（强度{strength}）"
 
     return "陌生人"
+
+def _get_relation_events_description(npc_relations: list) -> str:
+    if not npc_relations:
+        return "无互动记录。"
+
+    events = []
+    for relation in npc_relations:
+        events.extend(relation.get("events", []))
+
+    if not events:
+        return "无互动记录。"
+
+    events = sorted(events, key=lambda x: x.get("timestamp", ""), reverse=False)[-10:]
+
+    lines = []
+    for event in events:
+        change = f"{event.get('type', '')}{event.get('value', 0)}"
+        reason = event.get('reason', '未知')
+        lines.append(f"- 发生了【{reason}】，关系变化：{change}")
+
+    return "\n".join(lines)

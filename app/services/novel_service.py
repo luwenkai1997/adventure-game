@@ -79,6 +79,7 @@ class NovelService:
                 "has_novel": False,
                 "title": None,
                 "chapters_count": 0,
+                "chapters": [],
                 "last_covered_round": 0,
                 "current_round": current_round,
                 "can_continue": current_round > 0,
@@ -90,6 +91,7 @@ class NovelService:
             "has_novel": True,
             "title": state.get("title", ""),
             "chapters_count": len(state.get("chapters", [])),
+            "chapters": state.get("chapters", []),
             "last_covered_round": state.get("last_covered_round", 0),
             "current_round": current_round,
             "new_rounds": new_rounds,
@@ -486,9 +488,16 @@ class NovelService:
         if not memory_content:
             raise Exception("memory.md不存在")
 
-        plan_data = self.novel_repository.load_legacy_plan(ctx, novel_folder)
-        novel_title = plan_data.get("title", "未命名小说")
-        chapters_dir = self.novel_repository.legacy_chapters_dir(ctx, novel_folder)
+        is_current = (novel_folder == "current" or novel_folder == "")
+        if is_current:
+            state = self._load_state(ctx)
+            novel_title = state.get("title", "未命名小说") if state else "未命名小说"
+            chapters_dir = self.novel_repository.paths.current_novel_chapters_dir(ctx)
+        else:
+            plan_data = self.novel_repository.load_legacy_plan(ctx, novel_folder)
+            novel_title = plan_data.get("title", "未命名小说")
+            chapters_dir = self.novel_repository.legacy_chapters_dir(ctx, novel_folder)
+
         previous_context, continuation_requirement = self._get_previous_context(
             chapters_dir
         )
@@ -505,7 +514,7 @@ class NovelService:
                 prompt=prompt,
                 system_prompt="你是一个专业的小说作家。",
                 timeout=600,
-                method_name="generate_legacy_novel_ending",
+                method_name="generate_novel_ending",
             )
             chapter_filename = "ending.md"
         else:
@@ -523,13 +532,20 @@ class NovelService:
                 prompt=prompt,
                 system_prompt="你是一个专业的小说作家。",
                 timeout=600,
-                method_name="generate_legacy_novel_chapter",
+                method_name="generate_novel_chapter",
             )
             chapter_filename = f"chapter_{chapter_num:02d}.md"
 
-        chapter_path = self.novel_repository.save_legacy_chapter(
-            ctx, novel_folder, chapter_filename, chapter_content
-        )
+        if is_current:
+            chapter_path = self.novel_repository.save_current_chapter(
+                ctx, chapter_filename, chapter_content
+            )
+            self._merge_current(ctx)
+        else:
+            chapter_path = self.novel_repository.save_legacy_chapter(
+                ctx, novel_folder, chapter_filename, chapter_content
+            )
+
         return {
             "success": True,
             "chapter_num": chapter_num,

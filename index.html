@@ -238,6 +238,38 @@
                 </button>
                 <label for="expanded-setting" style="margin-top: 15px;">详细故事设定（可编辑）</label>
                 <textarea id="expanded-setting" placeholder="点击「背景拓展」按钮，AI将根据你的简短设定生成完整的故事背景..."></textarea>
+                
+                <div class="director-settings" style="margin-top: 15px; margin-bottom: 20px; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 6px; border: 1px solid rgba(0,255,136,0.3);">
+                    <div style="font-size: 0.95rem; color: #ccffdd; margin-bottom: 10px;">🎬 导演杆设定 (Director Mode)</div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 15px;">
+                        <div style="flex: 1; min-width: 120px;">
+                            <label style="font-size: 0.8rem; display: block; margin-bottom: 5px; color: #aaffcc;">剧情节奏</label>
+                            <select id="director-pace" style="width: 100%; background:rgba(0,0,0,0.5); color:#ccffdd; border:1px solid rgba(0,255,136,0.5); padding:5px; border-radius:4px;">
+                                <option value="适中">适中</option>
+                                <option value="偏快">偏快</option>
+                                <option value="偏慢">偏慢</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-width: 120px;">
+                            <label style="font-size: 0.8rem; display: block; margin-bottom: 5px; color: #aaffcc;">风格侧重</label>
+                            <select id="director-focus" style="width: 100%; background:rgba(0,0,0,0.5); color:#ccffdd; border:1px solid rgba(0,255,136,0.5); padding:5px; border-radius:4px;">
+                                <option value="平衡">平衡</option>
+                                <option value="战斗为主">战斗为主</option>
+                                <option value="社交与剧情">社交与剧情</option>
+                                <option value="悬疑与解谜">悬疑与解谜</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-width: 120px;">
+                            <label style="font-size: 0.8rem; display: block; margin-bottom: 5px; color: #aaffcc;">世界残酷度</label>
+                            <select id="director-cruelty" style="width: 100%; background:rgba(0,0,0,0.5); color:#ccffdd; border:1px solid rgba(0,255,136,0.5); padding:5px; border-radius:4px;">
+                                <option value="中等 (普通难度)">中等 (普通难度)</option>
+                                <option value="低 (轻松向)">低 (轻松向)</option>
+                                <option value="高 (硬核生存)">高 (硬核生存)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="button-group">
                     <button class="btn" onclick="startGame()">开始新游戏</button>
                     <button class="btn btn-secondary" id="continue-btn" onclick="continueGame()" style="display: none;">继续游戏</button>
@@ -289,6 +321,15 @@
                 <button onclick="closeNovelModal()" style="position:absolute; right:10px; top:10px; background:none; border:none; color:rgba(255,255,255,0.5); font-size:1.5rem; cursor:pointer; z-index:1;">&times;</button>
                 <div class="ending-select-title" style="font-size: 1.2rem; margin-bottom: 15px;">📖 小说生成</div>
                 <div id="novel-modal-status" style="color: #aaffcc; font-size: 0.9rem; margin-bottom: 15px; line-height: 1.6;">加载中...</div>
+
+                <div id="novel-chapters-container" style="display: none; margin-bottom: 15px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 6px; border: 1px solid rgba(0,255,136,0.3);">
+                    <div style="font-size: 0.85rem; color: #ccffdd; margin-bottom: 8px;">章节审阅与重写</div>
+                    <div style="display: flex; gap: 10px; margin-bottom: 5px;">
+                        <select id="novel-chapter-select" style="flex:1; background:rgba(0,0,0,0.5); color:#ccffdd; border:1px solid rgba(0,255,136,0.5); padding:5px; border-radius:4px; font-family:inherit;"></select>
+                        <button onclick="rewriteSelectedChapter()" id="novel-rewrite-btn" style="background:rgba(255,165,0,0.2); border:1px solid orange; color:orange; padding:5px 10px; border-radius:4px; cursor:pointer; font-size: 0.85rem;">重写此章</button>
+                    </div>
+                </div>
+
                 <div id="novel-modal-progress" style="display: none; margin-bottom: 15px;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
                         <span id="novel-modal-progress-status" style="color: #00ff88; font-size: 0.85rem;">准备中...</span>
@@ -314,6 +355,21 @@
             <div class="ending-box">
                 <div class="ending-type" id="ending-type"></div>
                 <div class="scene-box ending-scene" id="ending-scene"></div>
+                
+                <div class="ending-summary-box" id="ending-summary" style="display: none; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 6px; margin: 20px 0; border: 1px solid rgba(0,255,136,0.3); text-align: left;">
+                    <h3 style="color: #aaffcc; margin-top: 0; margin-bottom: 15px; text-align: center;">📜 冒险复盘</h3>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <h4 style="color: #00ff88; margin-bottom: 10px; border-bottom: 1px solid rgba(0,255,136,0.3); padding-bottom: 5px;">倾向雷达</h4>
+                        <div id="summary-route-scores" style="display: flex; flex-wrap: wrap; gap: 10px; font-size: 0.9rem;"></div>
+                    </div>
+                    
+                    <div>
+                        <h4 style="color: #00ff88; margin-bottom: 10px; border-bottom: 1px solid rgba(0,255,136,0.3); padding-bottom: 5px;">关键抉择回放</h4>
+                        <div id="summary-key-decisions" style="font-size: 0.85rem; color: #ccc;"></div>
+                    </div>
+                </div>
+
                 <div class="button-group">
                     <button class="btn" id="generate-novel-btn" onclick="generateNovel()">生成小说</button>
                     <button class="btn btn-secondary" onclick="resetGame()">重新开始</button>

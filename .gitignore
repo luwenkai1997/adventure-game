@@ -14,7 +14,6 @@ env/
 *.log
 .DS_Store
 .uv/
-uv.lock
 .trae/
 *.bak
 
@@ -23,6 +22,8 @@ dist/
 build/
 .pytest_cache/
 .ruff_cache/
+.coverage
+tests/coverage_html/
 
 IMPLEMENTATION_PLAN.md
 requirements.txt

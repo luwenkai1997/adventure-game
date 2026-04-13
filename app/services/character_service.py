@@ -74,7 +74,7 @@ class CharacterService:
         count: int = 10
     ) -> List[dict]:
         from app.config import NPC_LIST_GENERATION_PROMPT, NPC_DETAIL_GENERATION_PROMPT
-        
+
         protagonist_summary = f"""
 姓名: {protagonist_info.get('name', '未知')}
 种族: {protagonist_info.get('race', '未知')}

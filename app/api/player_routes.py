@@ -1,6 +1,9 @@
+import logging
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 from app.models.player import (
     PlayerCreateRequest,
     PlayerRandomRequest,
@@ -83,9 +86,7 @@ async def generate_player(request: Optional[PlayerRandomRequest] = None):
                 "warning": "LLM生成超时，已使用随机角色"
             })
     except Exception as e:
-        import traceback
-        print(f"生成主角时出错: {str(e)}")
-        print(traceback.format_exc())
+        logger.error(f"生成主角时出错: {str(e)}", exc_info=True)
         return JSONResponse(
             status_code=500, content={"error": f"生成角色失败: {str(e)}"}
         )

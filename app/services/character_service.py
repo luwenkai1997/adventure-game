@@ -1,9 +1,12 @@
 import os
 import json
 import uuid
+import logging
 from typing import Optional, List, Dict
 from datetime import datetime
 import asyncio
+
+logger = logging.getLogger(__name__)
 from app.config import (
     CHARACTER_LIST_GENERATION_PROMPT,
     CHARACTER_DETAIL_GENERATION_PROMPT,
@@ -54,13 +57,13 @@ class CharacterService:
                     npc = json.loads(obj_str)
                     if isinstance(npc, dict) and 'name' in npc:
                         npcs.append(npc)
-                except:
+                except (json.JSONDecodeError, ValueError, KeyError):
                     continue
             if npcs:
-                print(f"成功从截断的JSON中提取了 {len(npcs)} 个NPC")
+                logger.info(f"成功从截断的JSON中提取了 {len(npcs)} 个NPC")
                 return npcs
         except Exception as e:
-            print(f"修复截断JSON失败: {str(e)[:100]}")
+            logger.error(f"修复截断JSON失败: {str(e)[:100]}")
         
         return []
 
@@ -94,11 +97,11 @@ class CharacterService:
         try:
             npcs_list = parse_json_response(response_list)
         except Exception as e:
-            print(f"NPC名录 JSON解析失败，尝试修复: {str(e)[:200]}")
+            logger.warning(f"NPC名录 JSON解析失败，尝试修复: {str(e)[:200]}")
             npcs_list = self._try_fix_truncated_json(response_list)
         
         if not npcs_list or not isinstance(npcs_list, list):
-            print("LLM返回格式错误，无法解析NPC名录数据")
+            logger.error("LLM返回格式错误，无法解析NPC名录数据")
             return []
             
         npcs_list = npcs_list[:count]
@@ -123,10 +126,10 @@ class CharacterService:
                     if isinstance(detail_data, dict):
                         return detail_data
                 except Exception as e:
-                    print(f"生成NPC {npc_basic.get('name')} 详细信息失败: {e}")
+                    logger.warning(f"生成NPC {npc_basic.get('name')} 详细信息失败: {e}")
                 return None
 
-        print(f"开始并发生成 {len(npcs_list)} 个NPC详细信息...")
+        logger.info(f"开始并发生成 {len(npcs_list)} 个NPC详细信息...")
         details_results = await asyncio.gather(*(fetch_npc_detail(npc) for npc in npcs_list))
         
         npcs = []
@@ -181,7 +184,7 @@ class CharacterService:
             }
             npcs.append(npc)
         
-        print(f"成功生成 {len(npcs)} 个NPC")
+        logger.info(f"成功生成 {len(npcs)} 个NPC")
         return npcs
 
     async def generate_characters_batch(
@@ -213,7 +216,7 @@ class CharacterService:
         try:
             characters_list = parse_json_response(response_list)
         except Exception as e:
-            print(f"{role_type} 名录 JSON解析失败，尝试修复: {str(e)[:200]}")
+            logger.warning(f"{role_type} 名录 JSON解析失败，尝试修复: {str(e)[:200]}")
             characters_list = self._try_fix_truncated_json(response_list)
 
         if not characters_list or not isinstance(characters_list, list):
@@ -242,10 +245,10 @@ class CharacterService:
                     if isinstance(detail_data, dict):
                         return detail_data
                 except Exception as e:
-                    print(f"生成角色 {char_basic.get('name')} 详细信息失败: {e}")
+                    logger.warning(f"生成角色 {char_basic.get('name')} 详细信息失败: {e}")
                 return None
 
-        print(f"开始并发生成 {len(characters_list[:count])} 个 {role_type} 详细信息...")
+        logger.info(f"开始并发生成 {len(characters_list[:count])} 个 {role_type} 详细信息...")
         details_results = await asyncio.gather(*(fetch_character_detail(char) for char in characters_list[:count]))
         
         characters = []

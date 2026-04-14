@@ -10,6 +10,14 @@
             return sessionId;
         }
 
+        class ApiError extends Error {
+            constructor(message, status) {
+                super(message);
+                this.name = 'ApiError';
+                this.status = status;
+            }
+        }
+
         async function apiFetch(url, options) {
             const sessionId = getSessionId();
             options = options || {};
@@ -18,7 +26,16 @@
             if (options.body && !options.headers['Content-Type']) {
                 options.headers['Content-Type'] = 'application/json';
             }
-            return fetch(url, options);
+            const response = await fetch(url, options);
+            if (!response.ok) {
+                let errorMsg = `HTTP ${response.status}`;
+                try {
+                    const errBody = await response.json();
+                    errorMsg = errBody.error?.message || errBody.error || errorMsg;
+                } catch {}
+                throw new ApiError(errorMsg, response.status);
+            }
+            return response;
         }
 
         let messages = [];
@@ -1218,9 +1235,6 @@
                     method: 'POST',
                     body: JSON.stringify({ world_setting: worldSetting })
                 });
-                if (!createGameResponse.ok) {
-                    throw new Error('创建游戏失败');
-                }
                 const createGameData = await createGameResponse.json();
                 console.log('新游戏已创建:', createGameData.game_id);
 
@@ -1230,9 +1244,6 @@
                     method: 'POST',
                     body: JSON.stringify({ worldSetting: worldSetting })
                 });
-                if (!memoryResponse.ok) {
-                    throw new Error('保存故事设定失败');
-                }
 
                 // 步骤2: 生成主角（使用LLM）
                 document.getElementById('loading-detail').textContent = '正在使用AI生成主角（约需1-2分钟）...';

@@ -1,7 +1,10 @@
 import random
 import uuid
+import logging
 from typing import List, Optional
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 from app.models.player import (
     PlayerCharacter,
     PlayerSkill,
@@ -454,13 +457,13 @@ class PlayerService:
             player_data = parse_json_response(response)
             
             if not player_data or not isinstance(player_data, dict):
-                print("LLM返回格式错误，无法解析角色数据")
+                logger.error("LLM返回格式错误，无法解析角色数据")
                 return None
             
             required_fields = ['name', 'age', 'gender', 'race']
             for field in required_fields:
                 if field not in player_data:
-                    print(f"LLM返回数据缺少必要字段: {field}")
+                    logger.error(f"LLM返回数据缺少必要字段: {field}")
                     return None
             
             skills = []
@@ -508,11 +511,9 @@ class PlayerService:
             )
             
             save_player(player.model_dump())
-            print(f"主角生成成功: {player.name}")
+            logger.info(f"主角生成成功: {player.name}")
             return player
             
         except Exception as e:
-            print(f"LLM生成角色失败: {str(e)}")
-            import traceback
-            print(traceback.format_exc())
+            logger.error(f"LLM生成角色失败: {str(e)}", exc_info=True)
             return None

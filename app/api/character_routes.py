@@ -1,7 +1,10 @@
 import os
 import json
+import logging
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
+
+logger = logging.getLogger(__name__)
 from app.models.character import (
     CharacterCreate,
     CharacterUpdate,
@@ -203,7 +206,7 @@ async def api_generate_characters(request: GenerateCharactersRequest):
                 add_relation(rel)
         except asyncio.TimeoutError:
             relations = []
-            print("关系生成超时，继续返回已生成的角色")
+            logger.warning("关系生成超时，继续返回已生成的角色")
 
         return JSONResponse(content={
             'success': True,
@@ -213,9 +216,7 @@ async def api_generate_characters(request: GenerateCharactersRequest):
             'message': f'成功生成 {saved_count} 个角色和 {len(relations)} 个关系'
         })
     except Exception as e:
-        import traceback
-        print(f"生成角色时出错: {str(e)}")
-        print(traceback.format_exc())
+        logger.error(f"生成角色时出错: {str(e)}", exc_info=True)
         return JSONResponse(status_code=500, content={'error': f'生成角色失败: {str(e)}'})
 
 
@@ -266,7 +267,7 @@ async def api_generate_npcs(request: Request):
                 add_relation(rel)
         except asyncio.TimeoutError:
             relations = []
-            print("关系生成超时，继续返回已生成的NPC")
+            logger.warning("关系生成超时，继续返回已生成的NPC")
         
         return JSONResponse(content={
             'success': True,
@@ -276,9 +277,7 @@ async def api_generate_npcs(request: Request):
             'message': f'成功生成 {saved_count} 个NPC和 {len(relations)} 个关系'
         })
     except Exception as e:
-        import traceback
-        print(f"生成NPC时出错: {str(e)}")
-        print(traceback.format_exc())
+        logger.error(f"生成NPC时出错: {str(e)}", exc_info=True)
         return JSONResponse(status_code=500, content={'error': f'生成NPC失败: {str(e)}'})
 
 
@@ -384,7 +383,7 @@ async def npc_dialogue(char_id: str, request: NPCDialogueRequest):
                 data = json_lib.loads(json_str)
             else:
                 data = json_lib.loads(response)
-        except:
+        except (json.JSONDecodeError, ValueError):
             data = {"dialogue": response, "mood": "平静", "relationship_hint": ""}
         
         return JSONResponse(content={

@@ -1,7 +1,10 @@
 import os
 import json
+import logging
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+
+logger = logging.getLogger(__name__)
 from app.config import (
     NOVEL_GENERATION_PROMPT,
     NOVEL_TITLE_PROMPT,
@@ -355,7 +358,7 @@ class NovelService:
                 self._save_state(state)
                 generated += 1
             except Exception as e:
-                print(f"第{chapter_num}章生成失败: {e}")
+                logger.error(f"第{chapter_num}章生成失败: {e}")
                 continue
 
         return generated

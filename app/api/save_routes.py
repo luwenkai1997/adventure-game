@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from app.models.save import SaveCreateRequest
 from app.services.save_service import SaveService
+from app.errors import route_handler
 
 
 router = APIRouter()

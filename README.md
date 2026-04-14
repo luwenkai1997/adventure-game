@@ -595,6 +595,16 @@ python3 scripts/test_game_isolation.py
 
 ## 更新日志
 
+### v0.5.1 (2026-04-14)
+- **代码质量与稳定性**
+  - 规范异常捕获：将两处裸 `except:` 收窄为具体的 `json.JSONDecodeError`/`ValueError`，避免误吞 `KeyboardInterrupt` 等系统异常。
+  - 日志规范迁移：所有业务层 `print` 调试输出统一迁移到 `logging`，便于生产环境分级管控。
+  - HTTP 错误校验：前端 `apiFetch` 统一校验 `response.ok` 并抛出 `ApiError`，消除“错误页面解析导致静默失败”的盲区。
+  - 错误处理架构：新增 `route_handler` 装饰器，消除路由层 60+ 处重复的 `try/except JSONResponse` 模板代码。
+- **代码仓库治理**
+  - 将 `.cursor/` 加入 `.gitignore`，避免 IDE 工作区意外推送到远程。
+  - 移除已误提交的 IDE 计划文件，保持仓库纯净。
+
 ### v0.5.0 (2026-04-01)
 - **架构并发优化**：破除单任务阻塞，引入 `httpx.AsyncClient` 全局复用池与 `asyncio.gather`，实现 NPC 等模块的安全高并发生成。
 - **网关鲁棒重塑**：上线含指数退避（Exponential Backoff）重试机制的 LLM 网关层（`llm_gateway.py`），稳定抵御500/502等偶发网络瞬连波动。

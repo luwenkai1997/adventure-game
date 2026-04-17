@@ -13,9 +13,9 @@ from app.utils.game_manager import (
     get_saves_dir,
     get_snapshots_dir,
     create_game_structure,
-    get_game_dir,
 )
 from app.config import BASE_DIR
+from app.utils.history_round_count import narrative_round_count_from_history
 
 
 _session_game_map: Dict[str, Optional[str]] = {}
@@ -441,25 +441,6 @@ def get_snapshot_path(chapter: int) -> str:
     return os.path.join(snapshots_dir, f"chapter_{chapter:03d}.json")
 
 
-def _count_main_narrative_logs(logs: List) -> int:
-    """Count narrative log entries, excluding omen/route_hint lines (same rules as novel ledger)."""
-    if not logs:
-        return 0
-    n = 0
-    for entry in logs:
-        if not isinstance(entry, dict):
-            continue
-        log_text = entry.get("log") or ""
-        if log_text.startswith("\U0001F31F 命运前兆:") or log_text.startswith(
-            "\U0001F9ED 路线关注:"
-        ):
-            continue
-        if not log_text:
-            continue
-        n += 1
-    return n
-
-
 def get_game_round_count() -> int:
     """Return how many narrative rounds the active game has progressed.
 
@@ -467,14 +448,4 @@ def get_game_round_count() -> int:
     ``len(history)`` is **not** the total round count. We use the snapshot with
     the longest ``logs`` array (full cumulative log) and count main entries.
     """
-    history = load_history()
-    if not history:
-        return 0
-    best = max(history, key=lambda s: len(s.get("logs", [])))
-    n = _count_main_narrative_logs(best.get("logs", []))
-    if n > 0:
-        return n
-    ch = history[-1].get("chapter")
-    if isinstance(ch, int) and ch > 0:
-        return ch
-    return len(history)
+    return narrative_round_count_from_history(load_history())

@@ -1,34 +1,33 @@
-from fastapi import APIRouter
-from fastapi.responses import JSONResponse
 import random
-from app.models.check import CheckRequest, get_difficulty_name, get_difficulty_color
-from app.services.check_service import CheckService
+
+from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
+
+from app.container import container
+from app.models.check import CheckRequest, get_difficulty_color, get_difficulty_name
 
 
 router = APIRouter()
-check_service = CheckService()
 
 
 @router.post("/api/check")
-async def perform_check(request: CheckRequest):
+async def perform_check(request: Request, body: CheckRequest):
     try:
-        result = check_service.perform_check(request)
+        ctx = container.context_resolver.resolve_optional(request)
+        result = container.check_service.perform_check(ctx, body)
         return JSONResponse(content={"success": True, "result": result.model_dump()})
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": f"检定失败: {str(e)}"})
 
 
 @router.get("/api/check/info")
-async def get_check_info():
+async def get_check_info(request: Request):
     try:
-        info = check_service.get_player_check_info()
+        ctx = container.context_resolver.resolve_optional(request)
+        info = container.check_service.get_player_check_info(ctx)
         return JSONResponse(content={"success": True, "info": info})
     except Exception as e:
-        return JSONResponse(
-            status_code=500, content={"error": f"获取检定信息失败: {str(e)}"}
-        )
+        return JSONResponse(status_code=500, content={"error": f"获取检定信息失败: {str(e)}"})
 
 
 @router.get("/api/check/difficulty/{dc}")
@@ -61,7 +60,6 @@ async def roll_dice(dice: str = "d20"):
             result = random.randint(1, 100)
         else:
             result = random.randint(1, 20)
-
         return JSONResponse(content={"dice": dice, "result": result})
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"掷骰失败: {str(e)}"})

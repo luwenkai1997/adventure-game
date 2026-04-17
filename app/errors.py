@@ -1,7 +1,7 @@
 """Structured API errors and FastAPI exception handlers."""
 import functools
 import logging
-from typing import Any, Optional
+from typing import Optional
 
 from fastapi import Request
 from fastapi.responses import JSONResponse

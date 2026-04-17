@@ -1,6 +1,7 @@
-from typing import List, Dict, Optional
-from app.utils.file_storage import load_memory, load_player, load_characters
-from app.config import SYSTEM_PROMPT, ROUTE_TENDENCY_MAPPING
+from typing import Dict, List, Optional
+
+from app.config import ROUTE_TENDENCY_MAPPING, SYSTEM_PROMPT
+from app.game_context import GameContext
 
 
 MAX_MEMORY_CHARS = 3000
@@ -10,22 +11,24 @@ MAX_RECENT_MESSAGES = 20
 
 
 class PromptComposer:
-    def __init__(self):
-        pass
+    def __init__(self, memory_repository, player_repository, character_repository):
+        self.memory_repository = memory_repository
+        self.player_repository = player_repository
+        self.character_repository = character_repository
 
     def truncate_text(self, text: str, max_chars: int) -> str:
         if len(text) <= max_chars:
             return text
         return text[:max_chars] + "\n...(已截断)"
 
-    def get_memory_section(self) -> str:
-        memory = load_memory()
+    def get_memory_section(self, ctx: Optional[GameContext]) -> str:
+        memory = self.memory_repository.load_text(ctx)
         if not memory:
             return ""
         return self.truncate_text(memory, MAX_MEMORY_CHARS)
 
-    def get_player_section(self) -> str:
-        player = load_player()
+    def get_player_section(self, ctx: Optional[GameContext]) -> str:
+        player = self.player_repository.load(ctx)
         if not player:
             return ""
 
@@ -56,8 +59,8 @@ class PromptComposer:
         result = "\n".join(lines)
         return self.truncate_text(result, MAX_CHARS_PER_CHARACTER * 2)
 
-    def get_characters_section(self) -> str:
-        characters = load_characters()
+    def get_characters_section(self, ctx: Optional[GameContext]) -> str:
+        characters = self.character_repository.load_all(ctx)
         if not characters:
             return ""
 
@@ -169,14 +172,15 @@ class PromptComposer:
 
     def compose(
         self,
+        ctx: Optional[GameContext],
         messages: List[Dict],
         extra_prompt: str = "",
         turn_context: Optional[Dict] = None,
         tendency_data: Optional[Dict] = None,
     ) -> List[Dict]:
-        memory_section = self.get_memory_section()
-        player_section = self.get_player_section()
-        characters_section = self.get_characters_section()
+        memory_section = self.get_memory_section(ctx)
+        player_section = self.get_player_section(ctx)
+        characters_section = self.get_characters_section(ctx)
         check_section = self.get_last_check_context(turn_context)
         tendency_section = self.get_tendency_section(tendency_data)
         route_section = self.get_route_section(turn_context)

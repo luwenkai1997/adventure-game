@@ -196,11 +196,107 @@ class NovelService:
             digest = digest[:max_chars] + "\n...（已截断）"
         return digest
 
+    def _build_event_ledger(
+        self,
+        round_start: int = 1,
+        round_end: Optional[int] = None,
+        compact: bool = False,
+        max_chars: int = 8000,
+    ) -> str:
+        """Build an authoritative event ledger from history.json.
+
+        Reads the most complete snapshot's ``logs`` array, filters out
+        omen/route_hint meta entries, and returns a formatted summary of
+        rounds [round_start, round_end].
+
+        compact=True  → one line per round (for plan/title prompts overview)
+        compact=False → full scene + choice + log block (for chapter prompts)
+
+        Falls back to an empty string if history is unavailable so callers
+        can fall back to memory.md grep.
+        """
+        history = load_history()
+        main_logs: List[Dict] = []
+
+        if history:
+            # The snapshot with the most logs is the most complete snapshot.
+            best = max(history, key=lambda s: len(s.get("logs", [])))
+            raw_logs: List = best.get("logs", [])
+            for entry in raw_logs:
+                if not isinstance(entry, dict):
+                    continue
+                log_text: str = entry.get("log") or ""
+                # Skip old-style omen/route_hint meta entries
+                if log_text.startswith("\U0001F31F 命运前兆:") or log_text.startswith(
+                    "\U0001F9ED 路线关注:"
+                ):
+                    continue
+                if not log_text:
+                    continue
+                main_logs.append(entry)
+
+        if not main_logs:
+            return ""  # caller should fall back to memory grep
+
+        effective_end = round_end if round_end is not None else len(main_logs)
+        effective_end = min(effective_end, len(main_logs))
+
+        # Build lines for the requested range
+        lines: List[str] = []
+        for i in range(round_start - 1, effective_end):
+            entry = main_logs[i]
+            round_num = i + 1
+            scene = ((entry.get("scene") or "").split("\n")[0])[:80]
+            choice = (entry.get("selectedChoice") or "（无记录）")[:60]
+            log_text = (entry.get("log") or "")[:60]
+
+            if compact:
+                lines.append(f"第{round_num}轮：{log_text}（玩家选：{choice}）")
+            else:
+                block_parts = [f"【第{round_num}轮】"]
+                if scene:
+                    block_parts.append(f"  场景：{scene}")
+                block_parts.append(f"  玩家选择：{choice}")
+                block_parts.append(f"  结果概述：{log_text}")
+                lines.append("\n".join(block_parts))
+
+        if not lines:
+            return ""
+
+        result = "\n".join(lines)
+
+        # Apply character budget with center folding for large ranges
+        if len(result) > max_chars:
+            keep = 5  # rounds to keep at head and tail
+            if len(lines) > keep * 2:
+                head = lines[:keep]
+                tail = lines[-keep:]
+                omitted = len(lines) - keep * 2
+                mid_note = f"...（中间第{round_start + keep}至第{effective_end - keep}轮共 {omitted} 轮概略省略，主线以下方首尾轮次为准）..."
+                result = "\n".join(head) + "\n" + mid_note + "\n" + "\n".join(tail)
+            else:
+                result = result[:max_chars]
+
+        return result
+
     def _extract_chapter_events(
         self, memory_content: str, round_start: int, round_end: int
     ) -> str:
-        """Extract event-stream lines for the given round range from memory.md."""
-        if not memory_content or round_end < round_start:
+        """Extract event records for the given round range.
+
+        Tries history.json ledger first (authoritative), falls back to
+        parsing the '## 故事流程' section in memory.md.
+        """
+        if round_end < round_start:
+            return "（本章无明确游戏事件，请基于章节概要发挥）"
+
+        # Primary: authoritative event ledger from history.json
+        ledger = self._build_event_ledger(round_start, round_end, compact=False)
+        if ledger:
+            return ledger
+
+        # Fallback: parse memory.md story-flow section
+        if not memory_content:
             return "（本章无明确游戏事件，请基于章节概要发挥）"
 
         in_flow = False
@@ -287,7 +383,7 @@ class NovelService:
             history = load_history()
             game_rounds = len(history) or 10
 
-        min_chapters = max(2, int(game_rounds * 0.35))
+        min_chapters = max(2, int(game_rounds * 0.30))
         max_chapters = max(min_chapters + 1, int(game_rounds * 0.50))
 
         min_chapters = min(min_chapters, 15)
@@ -298,10 +394,14 @@ class NovelService:
     # ── incremental generation (main entry) ──────────────────
 
     def get_novel_progress(self, current_round: int = 0) -> Dict[str, Any]:
-        """Return current novel progress information for the frontend."""
+        """Return current novel progress information for the frontend.
+
+        ``current_round`` from the frontend is intentionally ignored; the
+        authoritative value is always read from history.json via
+        ``get_game_round_count()``.
+        """
         state = self._load_state()
-        if current_round <= 0:
-            current_round = get_game_round_count()
+        current_round = get_game_round_count()  # always authoritative
 
         if state is None:
             return {
@@ -325,6 +425,16 @@ class NovelService:
             "can_continue": new_rounds > 0,
             "status": state.get("status", "in_progress"),
         }
+
+    def reset_novel(self) -> Dict[str, Any]:
+        """Delete the 'current' novel directory so the next generate starts fresh."""
+        import shutil
+
+        novel_dir = self._current_novel_dir()
+        if os.path.exists(novel_dir):
+            shutil.rmtree(novel_dir)
+            return {"success": True, "message": "小说已重置，下次生成将重新规划"}
+        return {"success": True, "message": "无已有小说，无需重置"}
 
     def get_novel_content(self) -> Dict[str, Any]:
         """Return the merged novel content if it exists."""
@@ -351,13 +461,16 @@ class NovelService:
         Main entry: decide whether to create a fresh novel or continue an existing one.
         If ending_type is provided, also append an ending chapter.
         Returns a streaming-friendly result dict with plan + chapter results.
+
+        ``current_round`` from the caller is ignored; the authoritative value
+        is always read from history.json via ``get_game_round_count()``.
         """
         memory_content = load_memory()
         if not memory_content:
             raise Exception("memory.md不存在，请先开始游戏")
 
-        if current_round <= 0:
-            current_round = get_game_round_count()
+        # Always use the authoritative round count from history.json
+        current_round = get_game_round_count()
         if current_round <= 0:
             current_round = 1
 
@@ -392,9 +505,11 @@ class NovelService:
         self, memory_content: str, current_round: int, ending_type: str = ""
     ) -> Dict[str, Any]:
         min_ch, max_ch, game_rounds = self.calculate_chapter_range(current_round)
+        event_ledger_overview = self._build_event_ledger(compact=True) or "（暂无历史台账）"
 
         prompt = NOVEL_TITLE_PROMPT.format(
             memory_content=memory_content,
+            event_ledger_overview=event_ledger_overview,
             min_chapters=min_ch,
             max_chapters=max_ch,
         )
@@ -445,12 +560,16 @@ class NovelService:
         title = state.get("title", "未命名小说")
 
         # Calculate how many chapters for the new content
-        min_ch = max(1, int(new_rounds * 0.35))
+        min_ch = max(1, int(new_rounds * 0.30))
         max_ch = max(min_ch + 1, int(new_rounds * 0.50))
         min_ch = min(min_ch, 8)
         max_ch = min(max_ch, 10)
 
         start_num = len(state["chapters"]) + 1
+        new_event_ledger = (
+            self._build_event_ledger(last_covered + 1, current_round, compact=True)
+            or "（暂无新轮次台账）"
+        )
 
         # Build incremental plan prompt
         prompt = NOVEL_INCREMENTAL_PLAN_PROMPT.format(
@@ -463,6 +582,7 @@ class NovelService:
             min_chapters=min_ch,
             max_chapters=max_ch,
             start_chapter_num=start_num,
+            event_ledger_overview=new_event_ledger,
         )
 
         response = await call_llm(prompt, "你是一个专业的小说策划师。", timeout=600)
@@ -529,7 +649,7 @@ class NovelService:
             if i == total_plan - 1:
                 round_end = to_round  # last chapter covers everything remaining
 
-            chapter_events_detail = self._extract_chapter_events(
+            chapter_event_ledger = self._extract_chapter_events(
                 memory_content, round_start, round_end
             )
 
@@ -538,7 +658,7 @@ class NovelService:
                 characters_digest=characters_digest,
                 memory_content=memory_content,
                 previous_context=previous_context,
-                chapter_events_detail=chapter_events_detail,
+                chapter_event_ledger=chapter_event_ledger,
                 chapter_num=chapter_num,
                 chapter_title=chapter_title,
                 chapter_summary=chapter_summary,
@@ -583,6 +703,7 @@ class NovelService:
         characters_digest = self._build_characters_digest()
         unresolved_threads = self._extract_unresolved_threads(memory_content)
         route_info = self._extract_route_scores()
+        final_rounds_ledger = self._build_event_ledger(compact=False) or "（暂无台账）"
 
         prompt = NOVEL_ENDING_PROMPT.format(
             novel_title=title,
@@ -593,6 +714,7 @@ class NovelService:
             ending_type=ending_type,
             route_leader=route_info["leader"] or "未明确",
             route_scores=json.dumps(route_info["scores"], ensure_ascii=False),
+            final_rounds_ledger=final_rounds_ledger,
         )
         content = await call_llm(prompt, "你是一个专业的小说作家。", timeout=600)
 
@@ -775,6 +897,7 @@ class NovelService:
         if ending_type:
             unresolved_threads = self._extract_unresolved_threads(memory_content)
             route_info = self._extract_route_scores()
+            final_rounds_ledger = self._build_event_ledger(compact=False) or "（暂无台账）"
             prompt = NOVEL_ENDING_PROMPT.format(
                 novel_title=novel_title,
                 characters_digest=characters_digest,
@@ -784,11 +907,12 @@ class NovelService:
                 ending_type=ending_type,
                 route_leader=route_info["leader"] or "未明确",
                 route_scores=json.dumps(route_info["scores"], ensure_ascii=False),
+                final_rounds_ledger=final_rounds_ledger,
             )
             chapter_content = await call_llm(prompt, "你是一个专业的小说作家。", timeout=600)
             chapter_filename = "ending.md"
         else:
-            chapter_events_detail = self._extract_chapter_events(
+            chapter_event_ledger = self._extract_chapter_events(
                 memory_content, chapter_num, chapter_num
             )
             prompt = NOVEL_CHAPTER_PROMPT.format(
@@ -796,7 +920,7 @@ class NovelService:
                 characters_digest=characters_digest,
                 memory_content=memory_content,
                 previous_context=previous_context,
-                chapter_events_detail=chapter_events_detail,
+                chapter_event_ledger=chapter_event_ledger,
                 chapter_num=chapter_num,
                 chapter_title=chapter_title,
                 chapter_summary=chapter_summary,

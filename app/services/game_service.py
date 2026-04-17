@@ -10,7 +10,8 @@ from app.services.chat_parser import (
 )
 from app.services.llm_gateway import call_llm
 from app.services.prompt_composer import PromptComposer
-from app.utils.file_storage import load_history, load_memory, save_memory_text
+from app.utils.file_storage import get_game_round_count, load_memory, save_memory_text
+from app.utils.memory_utils import ensure_story_flow_round_present
 
 MAX_REPAIR_ATTEMPTS = 2
 
@@ -49,7 +50,7 @@ class GameService:
         memory_content = load_memory()
 
         if current_round is None or current_round <= 0:
-            current_round = max(1, len(load_history()))
+            current_round = max(1, get_game_round_count())
 
         prompt = MEMORY_UPDATE_PROMPT.format(
             memory_content=memory_content,
@@ -64,6 +65,11 @@ class GameService:
         )
 
         new_memory = await call_llm(prompt, method_name="update_memory")
+        # Backend safety net: guarantee the current round is in the story-flow section
+        # even if the LLM compressed or omitted it.
+        new_memory = ensure_story_flow_round_present(
+            new_memory, current_round, scene, selected_choice, log_summary
+        )
         save_memory_text(new_memory)
         return new_memory
 

@@ -54,6 +54,18 @@ async def get_novel_progress(current_round: int = 0):
         )
 
 
+@router.delete("/api/novel/reset")
+async def reset_novel():
+    """Delete the current novel directory so the next generate starts fresh."""
+    try:
+        result = novel_service.reset_novel()
+        return JSONResponse(content=result)
+    except Exception as e:
+        return JSONResponse(
+            status_code=500, content={"error": f"重置小说失败: {str(e)}"}
+        )
+
+
 @router.get("/api/novel/content")
 async def get_novel_content():
     """Get the merged novel content."""

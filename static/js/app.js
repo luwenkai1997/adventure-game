@@ -38,6 +38,18 @@
             return response;
         }
 
+        /** Escape HTML then convert newlines to <br>, so in-page preview matches plain-text novel.md. */
+        function formatNovelHtmlFromPlainText(text) {
+            if (text == null || text === '') return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;')
+                .replace(/\n/g, '<br>');
+        }
+
         let messages = [];
         let chapter = 0;
         let logs = [];
@@ -811,17 +823,50 @@
         function _renderLogEntries(logsList) {
             const logContainer = document.getElementById('log-container');
             logContainer.innerHTML = '';
-            logsList.forEach((log, idx) => {
-                const entry = document.createElement('div');
-                entry.className = 'log-entry';
-                if (log && typeof log === 'object' && log.log) {
-                    entry.innerHTML = `<span class="log-chapter-num">【第${idx + 1}轮】</span> ${log.log}`;
-                } else if (typeof log === 'string') {
-                    entry.textContent = log;
-                } else {
-                    entry.textContent = JSON.stringify(log);
+            let roundNum = 0;
+            logsList.forEach((log) => {
+                if (!log) return;
+
+                // Backward-compat: old saves stored omen/route_hint as separate log entries
+                const isOldStyleMeta = typeof log === 'object' && log.log && (
+                    log.log.startsWith('\uD83C\uDF1F 命运前兆:') ||
+                    log.log.startsWith('\uD83E\uDDED 路线关注:')
+                );
+
+                if (isOldStyleMeta) {
+                    const entry = document.createElement('div');
+                    entry.className = log.log.startsWith('\uD83C\uDF1F') ? 'log-entry log-entry--omen' : 'log-entry log-entry--route-hint';
+                    entry.innerHTML = log.log;
+                    logContainer.appendChild(entry);
+                    return;
                 }
-                logContainer.appendChild(entry);
+
+                if (typeof log === 'object' && log.log) {
+                    roundNum++;
+                    const entry = document.createElement('div');
+                    entry.className = 'log-entry';
+                    entry.innerHTML = `<span class="log-chapter-num">【第${roundNum}轮】</span> ${log.log}`;
+                    logContainer.appendChild(entry);
+                    // New-style: render meta sub-items (omen / route_hint)
+                    if (log.meta && log.meta.length > 0) {
+                        log.meta.forEach(m => {
+                            const metaEntry = document.createElement('div');
+                            if (m.kind === 'omen') {
+                                metaEntry.className = 'log-entry log-entry--omen';
+                                metaEntry.innerHTML = `\uD83C\uDF1F 命运前兆: ${m.text}`;
+                            } else if (m.kind === 'route_hint') {
+                                metaEntry.className = 'log-entry log-entry--route-hint';
+                                metaEntry.innerHTML = `\uD83E\uDDED 路线关注: ${m.text}`;
+                            }
+                            logContainer.appendChild(metaEntry);
+                        });
+                    }
+                } else if (typeof log === 'string') {
+                    const entry = document.createElement('div');
+                    entry.className = 'log-entry';
+                    entry.textContent = log;
+                    logContainer.appendChild(entry);
+                }
             });
             logContainer.scrollTop = logContainer.scrollHeight;
         }
@@ -1526,13 +1571,13 @@
                 omenEntry.innerHTML = `🌟 命运前兆: ${data.ending_omen}`;
                 container.appendChild(omenEntry);
                 container.scrollTop = container.scrollHeight;
-                
-                logs.push({
-                    scene: '',
-                    choices: null,
-                    selectedChoice: null,
-                    log: `🌟 命运前兆: ${data.ending_omen}`
-                });
+
+                // Attach to the last main log entry as meta (no separate log array entry)
+                const lastLog = logs[logs.length - 1];
+                if (lastLog && typeof lastLog === 'object') {
+                    lastLog.meta = lastLog.meta || [];
+                    lastLog.meta.push({ kind: 'omen', text: data.ending_omen });
+                }
             }
 
             if (data.route_hint) {
@@ -1542,13 +1587,13 @@
                 hintEntry.innerHTML = `🧭 路线关注: ${data.route_hint}`;
                 container.appendChild(hintEntry);
                 container.scrollTop = container.scrollHeight;
-                
-                logs.push({
-                    scene: '',
-                    choices: null,
-                    selectedChoice: null,
-                    log: `🧭 路线关注: ${data.route_hint}`
-                });
+
+                // Attach to the last main log entry as meta (no separate log array entry)
+                const lastLog = logs[logs.length - 1];
+                if (lastLog && typeof lastLog === 'object') {
+                    lastLog.meta = lastLog.meta || [];
+                    lastLog.meta.push({ kind: 'route_hint', text: data.route_hint });
+                }
             }
 
             if (data.relationship_changes && data.relationship_changes.length > 0) {
@@ -1836,7 +1881,7 @@
             statusDiv.textContent = '加载中...';
 
             try {
-                const resp = await apiFetch(`/api/novel/progress?current_round=${chapter}`);
+                const resp = await apiFetch(`/api/novel/progress`);
                 const data = await resp.json();
 
                 if (data.has_novel) {
@@ -1858,7 +1903,7 @@
                             const contentData = await contentResp.json();
                             if (contentData.has_novel) {
                                 resultDiv.style.display = 'block';
-                                resultDiv.innerHTML = contentData.content.replace(/\n/g, '<br>');
+                                resultDiv.innerHTML = formatNovelHtmlFromPlainText(contentData.content);
                             }
                         };
                     } else {
@@ -1884,6 +1929,32 @@
 
         function closeNovelModal() {
             document.getElementById('novel-modal').style.display = 'none';
+        }
+
+        async function resetNovel() {
+            if (!confirm('确定要重置小说进度吗？当前已生成的章节将被删除，下次生成将从头重新规划。')) {
+                return;
+            }
+            const statusDiv = document.getElementById('novel-modal-status');
+            const resetBtn = document.getElementById('novel-modal-reset-btn');
+            const generateBtn = document.getElementById('novel-modal-generate-btn');
+            resetBtn.disabled = true;
+            generateBtn.disabled = true;
+            statusDiv.textContent = '正在重置...';
+            try {
+                const resp = await apiFetch('/api/novel/reset', { method: 'DELETE' });
+                const data = await resp.json();
+                if (data.error) throw new Error(data.error);
+                statusDiv.innerHTML = `<span style="color:#ffaa00;">✅ ${data.message}</span>`;
+                generateBtn.textContent = '📝 生成小说';
+                generateBtn.onclick = () => generateNovelIncremental();
+                generateBtn.disabled = false;
+                resetBtn.disabled = false;
+            } catch (e) {
+                statusDiv.textContent = '重置失败: ' + e.message;
+                resetBtn.disabled = false;
+                generateBtn.disabled = false;
+            }
         }
 
         async function generateNovelIncremental(endingType = '') {
@@ -1922,7 +1993,7 @@
             try {
                 const resp = await apiFetch('/api/novel/incremental', {
                     method: 'POST',
-                    body: JSON.stringify({ ending_type: endingType, current_round: chapter })
+                    body: JSON.stringify({ ending_type: endingType })
                 });
                 const data = await resp.json();
                 clearInterval(fakeInterval);
@@ -1945,7 +2016,7 @@
 
                 if (data.novel_content) {
                     resultDiv.style.display = 'block';
-                    resultDiv.innerHTML = data.novel_content.replace(/\n/g, '<br>');
+                    resultDiv.innerHTML = formatNovelHtmlFromPlainText(data.novel_content);
                 }
 
                 generateBtn.disabled = false;
@@ -2015,7 +2086,7 @@
             try {
                 const resp = await apiFetch('/api/novel/incremental', {
                     method: 'POST',
-                    body: JSON.stringify({ ending_type: endingType, current_round: chapter })
+                    body: JSON.stringify({ ending_type: endingType })
                 });
                 const data = await resp.json();
                 clearInterval(fakeInterval);
@@ -2034,7 +2105,7 @@
                         <div class="novel-content">
                             <h3>《${data.title}》生成完成</h3>
                             <p>共 ${data.total_chapters} 章</p>
-                            <div class="novel-text">${data.novel_content.replace(/\n/g, '<br>')}</div>
+                            <div class="novel-text">${formatNovelHtmlFromPlainText(data.novel_content)}</div>
                         </div>
                     `;
                     generateBtn.style.display = 'none';

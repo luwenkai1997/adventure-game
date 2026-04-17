@@ -5,6 +5,7 @@ from typing import List, Optional
 from app.game_context import GameContext
 from app.repositories.base import FileRepositoryPaths
 from app.utils.atomic_io import atomic_write_json
+from app.utils.history_round_count import narrative_round_count_from_history
 
 
 class SaveRepository:
@@ -56,4 +57,4 @@ class SaveRepository:
         return []
 
     def get_round_count(self, ctx: Optional[GameContext]) -> int:
-        return len(self.load_history(ctx))
+        return narrative_round_count_from_history(self.load_history(ctx))

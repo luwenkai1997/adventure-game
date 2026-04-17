@@ -1,10 +1,14 @@
 """Structured API errors and FastAPI exception handlers."""
-from typing import Any, Optional
+import functools
+import logging
+from typing import Optional
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
+logger = logging.getLogger(__name__)
 
 
 class ErrorBody(BaseModel):
@@ -54,4 +58,30 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
         )
     )
     return JSONResponse(status_code=500, content=body.model_dump())
+
+
+def route_handler(operation: str = "操作"):
+    """Decorator for route handlers that catches exceptions and returns JSON error responses.
+    
+    Usage:
+        @router.get("/api/endpoint")
+        @route_handler("描述该操作")
+        async def my_endpoint():
+            ...
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            try:
+                return await func(*args, **kwargs)
+            except AppError:
+                raise
+            except Exception as e:
+                logger.error(f"{operation}失败", exc_info=True)
+                return JSONResponse(
+                    status_code=500,
+                    content={"error": f"{operation}失败: {str(e)}"}
+                )
+        return wrapper
+    return decorator
 

@@ -3,9 +3,9 @@ import os
 import uuid
 
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
-from typing import Optional
+from typing import Any, Optional
 
 from app.config import BASE_DIR, STORY_EXPANSION_PROMPT
 from app.container import container
@@ -35,6 +35,10 @@ class UpdateMemoryRequest(BaseModel):
     selectedChoice: str
     logSummary: str
     endingType: str = ""
+    checkResult: Optional[Any] = None
+    relationshipChanges: Optional[Any] = None
+    routeScores: Optional[Any] = None
+    currentRound: Optional[int] = None
 
 
 class StoryExpansionRequest(BaseModel):
@@ -100,6 +104,10 @@ async def api_update_memory(request: Request, body: UpdateMemoryRequest):
             body.selectedChoice,
             body.logSummary,
             body.endingType,
+            check_result=body.checkResult,
+            relationship_changes=body.relationshipChanges,
+            route_scores=body.routeScores,
+            current_round=body.currentRound,
         )
         return JSONResponse(content={"success": True})
     except Exception as e:
@@ -237,7 +245,7 @@ async def chat_stream(request: Request, body: ChatRequestV2):
             if event.type == "chunk":
                 yield f"data: {json.dumps({'type': 'chunk', 'content': event.content}, ensure_ascii=False)}\n\n"
             elif event.type == "cancelled":
-                yield f"data: {{\"type\": \"cancelled\"}}\n\n"
+                yield 'data: {"type": "cancelled"}\n\n'
             elif event.type == "done":
                 if ctx and ctx.game_id:
                     try:

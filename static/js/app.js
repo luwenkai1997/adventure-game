@@ -10,6 +10,14 @@
             return sessionId;
         }
 
+        class ApiError extends Error {
+            constructor(message, status) {
+                super(message);
+                this.name = 'ApiError';
+                this.status = status;
+            }
+        }
+
         async function apiFetch(url, options) {
             const sessionId = getSessionId();
             options = options || {};
@@ -18,7 +26,28 @@
             if (options.body && !options.headers['Content-Type']) {
                 options.headers['Content-Type'] = 'application/json';
             }
-            return fetch(url, options);
+            const response = await fetch(url, options);
+            if (!response.ok) {
+                let errorMsg = `HTTP ${response.status}`;
+                try {
+                    const errBody = await response.json();
+                    errorMsg = errBody.error?.message || errBody.error || errorMsg;
+                } catch {}
+                throw new ApiError(errorMsg, response.status);
+            }
+            return response;
+        }
+
+        /** Escape HTML then convert newlines to <br>, so in-page preview matches plain-text novel.md. */
+        function formatNovelHtmlFromPlainText(text) {
+            if (text == null || text === '') return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;')
+                .replace(/\n/g, '<br>');
         }
 
         let messages = [];
@@ -30,6 +59,7 @@
         let endingCountdown = 0;
         let worldSetting = "";
         let selectedEndingType = "";
+        let customEndingDescription = "";
         let playerCharacter = null;
         let selectedSkills = [];
         let presetSkills = {};
@@ -697,6 +727,7 @@
                     endingCountdown: endingCountdown,
                     worldSetting: worldSetting,
                     selectedEndingType: selectedEndingType,
+                    customEndingDescription: customEndingDescription,
                     routeScores: routeScores,
                     keyDecisions: keyDecisions,
                     endingOmenState: endingOmenState,
@@ -755,6 +786,7 @@
             endingCountdown = gameState.endingCountdown || 0;
             worldSetting = gameState.worldSetting || "";
             selectedEndingType = gameState.selectedEndingType || "";
+            customEndingDescription = gameState.customEndingDescription || "";
             routeScores = gameState.routeScores || { redemption: 0, power: 0, sacrifice: 0, betrayal: 0, retreat: 0 };
             keyDecisions = gameState.keyDecisions || [];
             endingOmenState = gameState.endingOmenState || {};
@@ -791,17 +823,50 @@
         function _renderLogEntries(logsList) {
             const logContainer = document.getElementById('log-container');
             logContainer.innerHTML = '';
-            logsList.forEach((log, idx) => {
-                const entry = document.createElement('div');
-                entry.className = 'log-entry';
-                if (log && typeof log === 'object' && log.log) {
-                    entry.innerHTML = `<span class="log-chapter-num">【第${idx + 1}轮】</span> ${log.log}`;
-                } else if (typeof log === 'string') {
-                    entry.textContent = log;
-                } else {
-                    entry.textContent = JSON.stringify(log);
+            let roundNum = 0;
+            logsList.forEach((log) => {
+                if (!log) return;
+
+                // Backward-compat: old saves stored omen/route_hint as separate log entries
+                const isOldStyleMeta = typeof log === 'object' && log.log && (
+                    log.log.startsWith('\uD83C\uDF1F 命运前兆:') ||
+                    log.log.startsWith('\uD83E\uDDED 路线关注:')
+                );
+
+                if (isOldStyleMeta) {
+                    const entry = document.createElement('div');
+                    entry.className = log.log.startsWith('\uD83C\uDF1F') ? 'log-entry log-entry--omen' : 'log-entry log-entry--route-hint';
+                    entry.innerHTML = log.log;
+                    logContainer.appendChild(entry);
+                    return;
                 }
-                logContainer.appendChild(entry);
+
+                if (typeof log === 'object' && log.log) {
+                    roundNum++;
+                    const entry = document.createElement('div');
+                    entry.className = 'log-entry';
+                    entry.innerHTML = `<span class="log-chapter-num">【第${roundNum}轮】</span> ${log.log}`;
+                    logContainer.appendChild(entry);
+                    // New-style: render meta sub-items (omen / route_hint)
+                    if (log.meta && log.meta.length > 0) {
+                        log.meta.forEach(m => {
+                            const metaEntry = document.createElement('div');
+                            if (m.kind === 'omen') {
+                                metaEntry.className = 'log-entry log-entry--omen';
+                                metaEntry.innerHTML = `\uD83C\uDF1F 命运前兆: ${m.text}`;
+                            } else if (m.kind === 'route_hint') {
+                                metaEntry.className = 'log-entry log-entry--route-hint';
+                                metaEntry.innerHTML = `\uD83E\uDDED 路线关注: ${m.text}`;
+                            }
+                            logContainer.appendChild(metaEntry);
+                        });
+                    }
+                } else if (typeof log === 'string') {
+                    const entry = document.createElement('div');
+                    entry.className = 'log-entry';
+                    entry.textContent = log;
+                    logContainer.appendChild(entry);
+                }
             });
             logContainer.scrollTop = logContainer.scrollHeight;
         }
@@ -1226,9 +1291,6 @@
                     method: 'POST',
                     body: JSON.stringify({ world_setting: worldSetting })
                 });
-                if (!createGameResponse.ok) {
-                    throw new Error('创建游戏失败');
-                }
                 const createGameData = await createGameResponse.json();
                 console.log('新游戏已创建:', createGameData.game_id);
 
@@ -1238,9 +1300,6 @@
                     method: 'POST',
                     body: JSON.stringify({ worldSetting: worldSetting })
                 });
-                if (!memoryResponse.ok) {
-                    throw new Error('保存故事设定失败');
-                }
 
                 // 步骤2: 生成主角（使用LLM）
                 document.getElementById('loading-detail').textContent = '正在使用AI生成主角（约需1-2分钟）...';
@@ -1424,7 +1483,12 @@
             if (endingTriggered && endingCountdown > 0) {
                 endingCountdown--;
                 if (endingCountdown === 0) {
-                    extraPrompt = `（系统提示：请生成${selectedEndingType}，必须返回ending字段，ending字段值必须与用户选择的结局类型一致）`;
+                    // Include custom ending description in the system prompt if provided
+                    let customDescPart = '';
+                    if (customEndingDescription) {
+                        customDescPart = `，结局内容需要围绕以下方向展开：${customEndingDescription}`;
+                    }
+                    extraPrompt = `（系统提示：请生成${selectedEndingType}，必须返回ending字段，ending字段值必须与用户选择的结局类型一致${customDescPart}）`;
                 } else {
                     extraPrompt = `（系统提示：请在${endingCountdown + 1}轮内收尾并生成${selectedEndingType}）`;
                 }
@@ -1518,13 +1582,13 @@
                 omenEntry.innerHTML = `🌟 命运前兆: ${data.ending_omen}`;
                 container.appendChild(omenEntry);
                 container.scrollTop = container.scrollHeight;
-                
-                logs.push({
-                    scene: '',
-                    choices: null,
-                    selectedChoice: null,
-                    log: `🌟 命运前兆: ${data.ending_omen}`
-                });
+
+                // Attach to the last main log entry as meta (no separate log array entry)
+                const lastLog = logs[logs.length - 1];
+                if (lastLog && typeof lastLog === 'object') {
+                    lastLog.meta = lastLog.meta || [];
+                    lastLog.meta.push({ kind: 'omen', text: data.ending_omen });
+                }
             }
 
             if (data.route_hint) {
@@ -1534,13 +1598,13 @@
                 hintEntry.innerHTML = `🧭 路线关注: ${data.route_hint}`;
                 container.appendChild(hintEntry);
                 container.scrollTop = container.scrollHeight;
-                
-                logs.push({
-                    scene: '',
-                    choices: null,
-                    selectedChoice: null,
-                    log: `🧭 路线关注: ${data.route_hint}`
-                });
+
+                // Attach to the last main log entry as meta (no separate log array entry)
+                const lastLog = logs[logs.length - 1];
+                if (lastLog && typeof lastLog === 'object') {
+                    lastLog.meta = lastLog.meta || [];
+                    lastLog.meta.push({ kind: 'route_hint', text: data.route_hint });
+                }
             }
 
             if (data.relationship_changes && data.relationship_changes.length > 0) {
@@ -1775,6 +1839,7 @@
             endingTriggered = false;
             endingCountdown = 0;
             selectedEndingType = "";
+            customEndingDescription = "";
             routeScores = { redemption: 0, power: 0, sacrifice: 0, betrayal: 0, retreat: 0 };
             keyDecisions = [];
             endingOmenState = {};
@@ -1804,19 +1869,33 @@
         function confirmEnding() {
             const select = document.getElementById('ending-type-select');
             selectedEndingType = select.value;
+
+            // Read custom ending description from textarea
+            const descriptionInput = document.getElementById('ending-description-input');
+            customEndingDescription = descriptionInput.value.trim();
+
+            // Clear the textarea for next time
+            descriptionInput.value = '';
+
             document.getElementById('ending-select-container').style.display = 'none';
-            
+
             endingTriggered = true;
             endingCountdown = 1;
             document.getElementById('end-game-btn').disabled = true;
             document.getElementById('end-game-btn').textContent = '收尾中...';
             document.getElementById('custom-choice-container').style.display = 'none';
-            
+
+            // Build user message with custom description if provided
+            let userMessage = `请生成${selectedEndingType}。`;
+            if (customEndingDescription) {
+                userMessage += `\n我希望结局是这样的：${customEndingDescription}`;
+            }
+
             messages.push({
                 role: 'user',
-                content: `请生成${selectedEndingType}。`
+                content: userMessage
             });
-            
+
             sendMessage();
         }
 
@@ -1863,7 +1942,7 @@
             statusDiv.textContent = '加载中...';
 
             try {
-                const resp = await apiFetch(`/api/novel/progress?current_round=${chapter}`);
+                const resp = await apiFetch(`/api/novel/progress`);
                 const data = await resp.json();
 
                 if (data.has_novel) {
@@ -1884,7 +1963,7 @@
                             const contentData = await contentResp.json();
                             if (contentData.has_novel) {
                                 resultDiv.style.display = 'block';
-                                resultDiv.innerHTML = contentData.content.replace(/\n/g, '<br>');
+                                resultDiv.innerHTML = formatNovelHtmlFromPlainText(contentData.content);
                             }
                         };
                     } else {
@@ -1984,6 +2063,32 @@
             }
         }
 
+        async function resetNovel() {
+            if (!confirm('确定要重置小说进度吗？当前已生成的章节将被删除，下次生成将从头重新规划。')) {
+                return;
+            }
+            const statusDiv = document.getElementById('novel-modal-status');
+            const resetBtn = document.getElementById('novel-modal-reset-btn');
+            const generateBtn = document.getElementById('novel-modal-generate-btn');
+            resetBtn.disabled = true;
+            generateBtn.disabled = true;
+            statusDiv.textContent = '正在重置...';
+            try {
+                const resp = await apiFetch('/api/novel/reset', { method: 'DELETE' });
+                const data = await resp.json();
+                if (data.error) throw new Error(data.error);
+                statusDiv.innerHTML = `<span style="color:#ffaa00;">✅ ${data.message}</span>`;
+                generateBtn.textContent = '📝 生成小说';
+                generateBtn.onclick = () => generateNovelIncremental();
+                generateBtn.disabled = false;
+                resetBtn.disabled = false;
+            } catch (e) {
+                statusDiv.textContent = '重置失败: ' + e.message;
+                resetBtn.disabled = false;
+                generateBtn.disabled = false;
+            }
+        }
+
         async function generateNovelIncremental(endingType = '') {
             const statusDiv = document.getElementById('novel-modal-status');
             const progressDiv = document.getElementById('novel-modal-progress');
@@ -2020,7 +2125,7 @@
             try {
                 const resp = await apiFetch('/api/novel/incremental', {
                     method: 'POST',
-                    body: JSON.stringify({ ending_type: endingType, current_round: chapter })
+                    body: JSON.stringify({ ending_type: endingType })
                 });
                 const data = await resp.json();
                 clearInterval(fakeInterval);
@@ -2043,7 +2148,7 @@
 
                 if (data.novel_content) {
                     resultDiv.style.display = 'block';
-                    resultDiv.innerHTML = data.novel_content.replace(/\n/g, '<br>');
+                    resultDiv.innerHTML = formatNovelHtmlFromPlainText(data.novel_content);
                 }
 
                 generateBtn.disabled = false;
@@ -2113,7 +2218,7 @@
             try {
                 const resp = await apiFetch('/api/novel/incremental', {
                     method: 'POST',
-                    body: JSON.stringify({ ending_type: endingType, current_round: chapter })
+                    body: JSON.stringify({ ending_type: endingType })
                 });
                 const data = await resp.json();
                 clearInterval(fakeInterval);
@@ -2132,7 +2237,7 @@
                         <div class="novel-content">
                             <h3>《${data.title}》生成完成</h3>
                             <p>共 ${data.total_chapters} 章</p>
-                            <div class="novel-text">${data.novel_content.replace(/\n/g, '<br>')}</div>
+                            <div class="novel-text">${formatNovelHtmlFromPlainText(data.novel_content)}</div>
                         </div>
                     `;
                     generateBtn.style.display = 'none';
@@ -2831,6 +2936,7 @@
                     ending_triggered: endingTriggered,
                     ending_countdown: endingCountdown,
                     selected_ending_type: selectedEndingType,
+                    custom_ending_description: customEndingDescription,
                     preview_scene: currentScene ? currentScene.substring(0, 100) : '',
                     route_scores: routeScores,
                     key_decisions: keyDecisions,
@@ -2870,6 +2976,7 @@
                     endingTriggered = save.ending_triggered || false;
                     endingCountdown = save.ending_countdown || 0;
                     selectedEndingType = save.selected_ending_type || '';
+                    customEndingDescription = save.custom_ending_description || '';
                     playerCharacter = save.player || null;
                     routeScores = save.route_scores || { redemption: 0, power: 0, sacrifice: 0, betrayal: 0, retreat: 0 };
                     keyDecisions = save.key_decisions || [];

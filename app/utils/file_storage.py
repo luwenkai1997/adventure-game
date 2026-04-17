@@ -13,9 +13,9 @@ from app.utils.game_manager import (
     get_saves_dir,
     get_snapshots_dir,
     create_game_structure,
-    get_game_dir,
 )
 from app.config import BASE_DIR
+from app.utils.history_round_count import narrative_round_count_from_history
 
 
 _session_game_map: Dict[str, Optional[str]] = {}
@@ -442,6 +442,10 @@ def get_snapshot_path(chapter: int) -> str:
 
 
 def get_game_round_count() -> int:
-    """Return the current game round count based on history length."""
-    history = load_history()
-    return len(history)
+    """Return how many narrative rounds the active game has progressed.
+
+    ``history.json`` is capped at ``MAX_HISTORY_STEPS`` entries for undo, so
+    ``len(history)`` is **not** the total round count. We use the snapshot with
+    the longest ``logs`` array (full cumulative log) and count main entries.
+    """
+    return narrative_round_count_from_history(load_history())

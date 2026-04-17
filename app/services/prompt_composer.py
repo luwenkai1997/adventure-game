@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional
 
-from app.config import SYSTEM_PROMPT
+from app.config import ROUTE_TENDENCY_MAPPING, SYSTEM_PROMPT
 from app.game_context import GameContext
 
 
@@ -208,6 +208,7 @@ class PromptComposer:
 
         full_messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": ROUTE_TENDENCY_MAPPING},
             {"role": "user", "content": context_text},
         ] + recent_messages
 

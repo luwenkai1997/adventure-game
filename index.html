@@ -341,8 +341,9 @@
                     <div id="novel-modal-progress-time" style="color: rgba(0,255,136,0.5); font-size: 0.8rem; margin-top: 5px;"></div>
                 </div>
                 <div id="novel-modal-result" style="display: none; max-height: 400px; overflow-y: auto; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 6px; margin-bottom: 15px; font-size: 0.85rem; line-height: 1.8; color: #ccffdd;"></div>
-                <div style="display: flex; gap: 10px; justify-content: center;">
+                <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
                     <button class="ending-confirm-btn" id="novel-modal-generate-btn" onclick="generateNovelIncremental()" style="flex:1;">生成 / 续写小说</button>
+                    <button class="ending-cancel-btn" id="novel-modal-reset-btn" onclick="resetNovel()" style="flex:0 0 auto; background: rgba(255,80,80,0.15); border-color: rgba(255,80,80,0.4); color: rgba(255,120,120,0.9);" title="删除当前小说进度，从头重新规划">🔄 重置重写</button>
                     <button class="ending-cancel-btn" id="novel-modal-close-btn" onclick="closeNovelModal()" style="flex:1;">关闭</button>
                 </div>
             </div>
@@ -390,6 +391,16 @@
                     <option value="好结局">好结局</option>
                     <option value="坏结局">坏结局</option>
                 </select>
+
+                <div style="margin-top: 15px; margin-bottom: 8px; color: rgba(255,255,255,0.8); font-size: 0.9rem; text-align: left;">
+                    简述你心目中的结局（选填）
+                </div>
+                <textarea id="ending-description-input"
+                    placeholder="例如：主角最终找到了失散多年的家人，选择隐居山林..."
+                    rows="4"
+                    style="width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: #fff; font-size: 0.9rem; resize: vertical; box-sizing: border-box;">
+                </textarea>
+
                 <button class="ending-confirm-btn" onclick="confirmEnding()">确认</button>
                 <button class="ending-cancel-btn" onclick="cancelEnding()">取消</button>
             </div>

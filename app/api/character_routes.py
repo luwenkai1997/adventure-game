@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
@@ -15,6 +17,7 @@ from app.models.character import (
 )
 from app.models.chat import NPCDialogueRequest
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -186,6 +189,7 @@ async def api_generate_characters(request: Request, body: GenerateCharactersRequ
                 container.relation_repository.add(ctx, relation)
         except asyncio.TimeoutError:
             relations = []
+            logger.warning("关系生成超时，继续返回已生成的角色")
 
         return JSONResponse(
             content={
@@ -197,6 +201,7 @@ async def api_generate_characters(request: Request, body: GenerateCharactersRequ
             }
         )
     except Exception as e:
+        logger.error("生成角色时出错: %s", str(e), exc_info=True)
         return JSONResponse(status_code=500, content={"error": f"生成角色失败: {str(e)}"})
 
 
@@ -239,6 +244,7 @@ async def api_generate_npcs(request: Request):
                 container.relation_repository.add(ctx, relation)
         except asyncio.TimeoutError:
             relations = []
+            logger.warning("关系生成超时，继续返回已生成的NPC")
 
         return JSONResponse(
             content={
@@ -250,6 +256,7 @@ async def api_generate_npcs(request: Request):
             }
         )
     except Exception as e:
+        logger.error("生成NPC时出错: %s", str(e), exc_info=True)
         return JSONResponse(status_code=500, content={"error": f"生成NPC失败: {str(e)}"})
 
 

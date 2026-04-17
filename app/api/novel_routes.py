@@ -1,5 +1,3 @@
-from typing import Optional
-
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -47,6 +45,19 @@ async def get_novel_progress(request: Request, current_round: int = 0):
         return JSONResponse(content=result)
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"获取进度失败: {str(e)}"})
+
+
+@router.delete("/api/novel/reset")
+async def reset_novel(request: Request):
+    """Delete the current novel directory so the next generate starts fresh."""
+    try:
+        ctx = container.context_resolver.resolve_required(request)
+        result = container.novel_service.reset_novel(ctx)
+        return JSONResponse(content=result)
+    except Exception as e:
+        return JSONResponse(
+            status_code=500, content={"error": f"重置小说失败: {str(e)}"}
+        )
 
 
 @router.get("/api/novel/content")

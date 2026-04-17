@@ -1,3 +1,4 @@
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Request
@@ -13,6 +14,7 @@ from app.models.player import (
     PlayerUpdateRequest,
 )
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -84,7 +86,10 @@ async def generate_player(request: Request, body: Optional[PlayerRandomRequest] 
                 }
             )
     except Exception as e:
-        return JSONResponse(status_code=500, content={"error": f"生成角色失败: {str(e)}"})
+        logger.error("生成主角时出错: %s", str(e), exc_info=True)
+        return JSONResponse(
+            status_code=500, content={"error": f"生成角色失败: {str(e)}"}
+        )
 
 
 @router.get("/api/player")

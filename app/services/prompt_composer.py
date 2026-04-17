@@ -1,6 +1,6 @@
 from typing import List, Dict, Optional
 from app.utils.file_storage import load_memory, load_player, load_characters
-from app.config import SYSTEM_PROMPT
+from app.config import SYSTEM_PROMPT, ROUTE_TENDENCY_MAPPING
 
 
 MAX_MEMORY_CHARS = 3000
@@ -204,6 +204,7 @@ class PromptComposer:
 
         full_messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": ROUTE_TENDENCY_MAPPING},
             {"role": "user", "content": context_text},
         ] + recent_messages
 

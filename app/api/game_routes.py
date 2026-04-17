@@ -1,7 +1,7 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Any, Optional, List
 import os
 import uuid
 import json
@@ -60,6 +60,10 @@ class UpdateMemoryRequest(BaseModel):
     selectedChoice: str
     logSummary: str
     endingType: str = ""
+    checkResult: Optional[Any] = None
+    relationshipChanges: Optional[Any] = None
+    routeScores: Optional[Any] = None
+    currentRound: Optional[int] = None
 
 
 class StoryExpansionRequest(BaseModel):
@@ -162,7 +166,11 @@ async def api_update_memory(request: UpdateMemoryRequest):
             request.scene,
             request.selectedChoice,
             request.logSummary,
-            request.endingType
+            request.endingType,
+            check_result=request.checkResult,
+            relationship_changes=request.relationshipChanges,
+            route_scores=request.routeScores,
+            current_round=request.currentRound,
         )
         return JSONResponse(content={'success': True})
     except Exception as e:

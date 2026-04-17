@@ -87,7 +87,8 @@ class CharacterService:
         
         list_prompt = NPC_LIST_GENERATION_PROMPT.format(
             world_setting=world_setting,
-            protagonist_info=protagonist_summary
+            protagonist_info=protagonist_summary,
+            count=count,
         )
         
         system_prompt_list = "你是一个专业的角色设计师，擅长角色设计。请严格按照JSON数组格式返回简练的名录。"

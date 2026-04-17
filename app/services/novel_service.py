@@ -1,6 +1,8 @@
 import os
 import json
 import logging
+import re
+import warnings
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
@@ -16,12 +18,24 @@ from app.config import (
 from app.utils.file_storage import (
     load_memory,
     load_history,
+    load_player,
+    load_characters,
+    list_saves,
     get_novel_path,
     get_or_create_novels_dir,
     get_game_round_count,
 )
 from app.services.llm_gateway import call_llm
 from app.utils.json_utils import parse_json_response
+
+
+_DEFAULT_ROUTE_SCORES = {
+    "redemption": 0,
+    "power": 0,
+    "sacrifice": 0,
+    "betrayal": 0,
+    "retreat": 0,
+}
 
 
 class NovelService:
@@ -79,6 +93,192 @@ class NovelService:
             rounds_str = f"（覆盖第{rounds[0]}-{rounds[1]}轮）" if len(rounds) == 2 else ""
             lines.append(f"- 第{ch['chapter_num']}章《{ch['title']}》{rounds_str}：{ch.get('summary', '')}")
         return "\n".join(lines)
+
+    # ── prompt context builders ──────────────────────────────
+
+    def _build_characters_digest(self, max_chars: int = 1800) -> str:
+        """Build a compact digest of player + important NPCs for novel chapter prompts."""
+        lines: List[str] = []
+
+        try:
+            player = load_player()
+        except Exception:
+            player = None
+        if player:
+            name = player.get("name", "未知")
+            title = player.get("title", "")
+            race = player.get("race", "")
+            age = player.get("age", "")
+            personality = (player.get("personality") or "")[:80]
+            background = (player.get("background") or "")[:200]
+            motivation = ""
+            if "核心动机" in background:
+                background = background.split("核心动机")[0].strip()
+                motivation = (player.get("background") or "").split("核心动机", 1)[-1].lstrip("：: ")[:80]
+            head = f"【主角】{name}"
+            if title:
+                head += f"（{title}）"
+            extras = []
+            if race:
+                extras.append(f"{race}")
+            if age:
+                extras.append(f"{age}岁")
+            if extras:
+                head += f"，{'/'.join(extras)}"
+            lines.append(head)
+            if personality:
+                lines.append(f"  性格：{personality}")
+            if background:
+                lines.append(f"  背景：{background}")
+            if motivation:
+                lines.append(f"  动机：{motivation}")
+
+        try:
+            characters = load_characters() or []
+        except Exception:
+            characters = []
+        characters = sorted(characters, key=lambda c: c.get("importance", 0), reverse=True)
+        included = 0
+        for char in characters:
+            if included >= 8:
+                break
+            role = char.get("role_type", "npc")
+            if role == "npc" and included >= 4:
+                continue
+            name = char.get("name", "未知")
+            title = char.get("title", "")
+            role_cn = {
+                "antagonist": "主反派",
+                "supporting": "重要配角",
+                "protagonist": "主角",
+                "npc": "配角",
+            }.get(role, "配角")
+            head = f"【{role_cn}】{name}"
+            if title:
+                head += f"（{title}）"
+            lines.append(head)
+
+            personality = char.get("personality")
+            if isinstance(personality, dict):
+                traits = personality.get("traits") or []
+                style = personality.get("dialogue_style", "")
+                bits = []
+                if traits:
+                    bits.append("、".join(traits[:4]))
+                if style:
+                    bits.append(f"语气：{style}")
+                if bits:
+                    lines.append(f"  性格：{' / '.join(bits)}")
+            elif isinstance(personality, str) and personality:
+                lines.append(f"  性格：{personality[:80]}")
+
+            background = char.get("background")
+            if isinstance(background, dict):
+                backstory = (background.get("backstory") or "")[:160]
+                motivation = (background.get("motivations") or "")[:80]
+                if backstory:
+                    lines.append(f"  背景：{backstory}")
+                if motivation:
+                    lines.append(f"  动机：{motivation}")
+            elif isinstance(background, str) and background:
+                lines.append(f"  背景：{background[:160]}")
+
+            relation = char.get("relation_to_protagonist")
+            if relation:
+                lines.append(f"  与主角：{relation[:80]}")
+            included += 1
+
+        if not lines:
+            return "（角色档案缺失，请凭 memory_content 推断人物，但不要捏造关键设定）"
+
+        digest = "\n".join(lines)
+        if len(digest) > max_chars:
+            digest = digest[:max_chars] + "\n...（已截断）"
+        return digest
+
+    def _extract_chapter_events(
+        self, memory_content: str, round_start: int, round_end: int
+    ) -> str:
+        """Extract event-stream lines for the given round range from memory.md."""
+        if not memory_content or round_end < round_start:
+            return "（本章无明确游戏事件，请基于章节概要发挥）"
+
+        in_flow = False
+        flow_lines: List[str] = []
+        for raw in memory_content.splitlines():
+            line = raw.rstrip()
+            if line.startswith("## "):
+                heading = line[3:].strip()
+                in_flow = "故事流程" in heading
+                continue
+            if in_flow and line.strip():
+                flow_lines.append(line)
+
+        if not flow_lines:
+            return "（memory.md 中没有故事流程段，请基于章节概要发挥）"
+
+        round_pattern = re.compile(r"第\s*(\d+)(?:\s*[-–到至]\s*(\d+))?\s*轮")
+        matched: List[str] = []
+        for line in flow_lines:
+            m = round_pattern.search(line)
+            if not m:
+                continue
+            try:
+                start = int(m.group(1))
+                end = int(m.group(2)) if m.group(2) else start
+            except (TypeError, ValueError):
+                continue
+            if end < round_start or start > round_end:
+                continue
+            matched.append(line.strip().lstrip("-").strip())
+
+        if not matched:
+            return f"（未在 memory 中找到第 {round_start}-{round_end} 轮的明确条目，请基于章节概要发挥，但不要与已有事件矛盾）"
+
+        return "\n".join(f"- {line}" for line in matched)
+
+    def _extract_unresolved_threads(self, memory_content: str) -> str:
+        """Extract '未解决伏笔' section from memory.md."""
+        if not memory_content:
+            return "（无显式伏笔）"
+        in_section = False
+        captured: List[str] = []
+        for raw in memory_content.splitlines():
+            line = raw.rstrip()
+            if line.startswith("## "):
+                in_section = "未解决伏笔" in line
+                continue
+            if in_section:
+                if line.strip():
+                    captured.append(line.strip())
+        if not captured:
+            return "（无显式伏笔，请基于 memory_content 自行识别需要回收的线索）"
+        return "\n".join(captured)
+
+    def _extract_route_scores(self) -> Dict[str, Any]:
+        """Pull latest route_scores + leader from the most recent save file."""
+        try:
+            saves = list_saves() or []
+        except Exception:
+            saves = []
+        scores = dict(_DEFAULT_ROUTE_SCORES)
+        for save in saves:
+            rs = save.get("route_scores")
+            if isinstance(rs, dict) and rs:
+                for key in scores:
+                    val = rs.get(key)
+                    if isinstance(val, (int, float)):
+                        scores[key] = val
+                break
+        leader = ""
+        max_score = -1
+        for key, val in scores.items():
+            if val > max_score:
+                max_score = val
+                leader = key
+        if max_score <= 0:
+            leader = ""
+        return {"scores": scores, "leader": leader}
 
     # ── chapter range calculation ────────────────────────────
 
@@ -314,6 +514,7 @@ class NovelService:
 
         total_plan = len(plan_chapters)
         rounds_per_chapter = max(1, (to_round - from_round + 1) / total_plan) if total_plan > 0 else 1
+        characters_digest = self._build_characters_digest()
 
         for i, ch in enumerate(plan_chapters):
             chapter_num = ch.get("chapter_num", len(state["chapters"]) + 1)
@@ -323,10 +524,21 @@ class NovelService:
             # Build previous context from the last generated chapter
             previous_context, continuation_req = self._get_previous_context(chapters_dir)
 
+            round_start = int(from_round + i * rounds_per_chapter)
+            round_end = int(from_round + (i + 1) * rounds_per_chapter - 1)
+            if i == total_plan - 1:
+                round_end = to_round  # last chapter covers everything remaining
+
+            chapter_events_detail = self._extract_chapter_events(
+                memory_content, round_start, round_end
+            )
+
             prompt = NOVEL_CHAPTER_PROMPT.format(
                 novel_title=title,
+                characters_digest=characters_digest,
                 memory_content=memory_content,
                 previous_context=previous_context,
+                chapter_events_detail=chapter_events_detail,
                 chapter_num=chapter_num,
                 chapter_title=chapter_title,
                 chapter_summary=chapter_summary,
@@ -339,12 +551,6 @@ class NovelService:
                 filepath = os.path.join(chapters_dir, filename)
                 with open(filepath, "w", encoding="utf-8") as f:
                     f.write(content)
-
-                # Calculate which rounds this chapter covers
-                round_start = int(from_round + i * rounds_per_chapter)
-                round_end = int(from_round + (i + 1) * rounds_per_chapter - 1)
-                if i == total_plan - 1:
-                    round_end = to_round  # last chapter covers everything remaining
 
                 state["chapters"].append({
                     "chapter_num": chapter_num,
@@ -374,12 +580,19 @@ class NovelService:
         novel_dir = self._current_novel_dir()
         chapters_dir = os.path.join(novel_dir, "chapters")
         previous_context, _ = self._get_previous_context(chapters_dir)
+        characters_digest = self._build_characters_digest()
+        unresolved_threads = self._extract_unresolved_threads(memory_content)
+        route_info = self._extract_route_scores()
 
         prompt = NOVEL_ENDING_PROMPT.format(
             novel_title=title,
+            characters_digest=characters_digest,
             memory_content=memory_content,
             previous_context=previous_context,
+            unresolved_threads=unresolved_threads,
             ending_type=ending_type,
+            route_leader=route_info["leader"] or "未明确",
+            route_scores=json.dumps(route_info["scores"], ensure_ascii=False),
         )
         content = await call_llm(prompt, "你是一个专业的小说作家。", timeout=600)
 
@@ -461,6 +674,15 @@ class NovelService:
     # ══════════════════════════════════════════════════════════
 
     async def generate_full_novel(self) -> dict:
+        """DEPRECATED: one-shot 全篇生成已被增量方案 (generate_incremental) 替代。
+        本方法仍可调用但不会享受新的角色档案/事件流水/路线注入。"""
+        warnings.warn(
+            "NovelService.generate_full_novel is deprecated; use generate_incremental instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        logger.warning("generate_full_novel is deprecated; use generate_incremental.")
+
         memory_content = load_memory()
         if not memory_content:
             raise Exception("memory.md不存在，请先开始游戏")
@@ -548,21 +770,33 @@ class NovelService:
         chapters_dir = os.path.join(novels_dir, "chapters")
 
         previous_context, continuation_req = self._get_previous_context(chapters_dir)
+        characters_digest = self._build_characters_digest()
 
         if ending_type:
+            unresolved_threads = self._extract_unresolved_threads(memory_content)
+            route_info = self._extract_route_scores()
             prompt = NOVEL_ENDING_PROMPT.format(
                 novel_title=novel_title,
+                characters_digest=characters_digest,
                 memory_content=memory_content,
                 previous_context=previous_context,
+                unresolved_threads=unresolved_threads,
                 ending_type=ending_type,
+                route_leader=route_info["leader"] or "未明确",
+                route_scores=json.dumps(route_info["scores"], ensure_ascii=False),
             )
             chapter_content = await call_llm(prompt, "你是一个专业的小说作家。", timeout=600)
             chapter_filename = "ending.md"
         else:
+            chapter_events_detail = self._extract_chapter_events(
+                memory_content, chapter_num, chapter_num
+            )
             prompt = NOVEL_CHAPTER_PROMPT.format(
                 novel_title=novel_title,
+                characters_digest=characters_digest,
                 memory_content=memory_content,
                 previous_context=previous_context,
+                chapter_events_detail=chapter_events_detail,
                 chapter_num=chapter_num,
                 chapter_title=chapter_title,
                 chapter_summary=chapter_summary,

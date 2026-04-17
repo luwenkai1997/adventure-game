@@ -47,6 +47,7 @@
         let endingCountdown = 0;
         let worldSetting = "";
         let selectedEndingType = "";
+        let customEndingDescription = "";
         let playerCharacter = null;
         let selectedSkills = [];
         let presetSkills = {};
@@ -714,6 +715,7 @@
                     endingCountdown: endingCountdown,
                     worldSetting: worldSetting,
                     selectedEndingType: selectedEndingType,
+                    customEndingDescription: customEndingDescription,
                     routeScores: routeScores,
                     keyDecisions: keyDecisions,
                     endingOmenState: endingOmenState,
@@ -772,6 +774,7 @@
             endingCountdown = gameState.endingCountdown || 0;
             worldSetting = gameState.worldSetting || "";
             selectedEndingType = gameState.selectedEndingType || "";
+            customEndingDescription = gameState.customEndingDescription || "";
             routeScores = gameState.routeScores || { redemption: 0, power: 0, sacrifice: 0, betrayal: 0, retreat: 0 };
             keyDecisions = gameState.keyDecisions || [];
             endingOmenState = gameState.endingOmenState || {};
@@ -1424,7 +1427,12 @@
             if (endingTriggered && endingCountdown > 0) {
                 endingCountdown--;
                 if (endingCountdown === 0) {
-                    extraPrompt = `（系统提示：请生成${selectedEndingType}，必须返回ending字段，ending字段值必须与用户选择的结局类型一致）`;
+                    // Include custom ending description in the system prompt if provided
+                    let customDescPart = '';
+                    if (customEndingDescription) {
+                        customDescPart = `，结局内容需要围绕以下方向展开：${customEndingDescription}`;
+                    }
+                    extraPrompt = `（系统提示：请生成${selectedEndingType}，必须返回ending字段，ending字段值必须与用户选择的结局类型一致${customDescPart}）`;
                 } else {
                     extraPrompt = `（系统提示：请在${endingCountdown + 1}轮内收尾并生成${selectedEndingType}）`;
                 }
@@ -1725,6 +1733,7 @@
             endingTriggered = false;
             endingCountdown = 0;
             selectedEndingType = "";
+            customEndingDescription = "";
             routeScores = { redemption: 0, power: 0, sacrifice: 0, betrayal: 0, retreat: 0 };
             keyDecisions = [];
             endingOmenState = {};
@@ -1754,19 +1763,33 @@
         function confirmEnding() {
             const select = document.getElementById('ending-type-select');
             selectedEndingType = select.value;
+
+            // Read custom ending description from textarea
+            const descriptionInput = document.getElementById('ending-description-input');
+            customEndingDescription = descriptionInput.value.trim();
+
+            // Clear the textarea for next time
+            descriptionInput.value = '';
+
             document.getElementById('ending-select-container').style.display = 'none';
-            
+
             endingTriggered = true;
             endingCountdown = 1;
             document.getElementById('end-game-btn').disabled = true;
             document.getElementById('end-game-btn').textContent = '收尾中...';
             document.getElementById('custom-choice-container').style.display = 'none';
-            
+
+            // Build user message with custom description if provided
+            let userMessage = `请生成${selectedEndingType}。`;
+            if (customEndingDescription) {
+                userMessage += `\n我希望结局是这样的：${customEndingDescription}`;
+            }
+
             messages.push({
                 role: 'user',
-                content: `请生成${selectedEndingType}。`
+                content: userMessage
             });
-            
+
             sendMessage();
         }
 
@@ -2710,6 +2733,7 @@
                     ending_triggered: endingTriggered,
                     ending_countdown: endingCountdown,
                     selected_ending_type: selectedEndingType,
+                    custom_ending_description: customEndingDescription,
                     preview_scene: currentScene ? currentScene.substring(0, 100) : '',
                     route_scores: routeScores,
                     key_decisions: keyDecisions,
@@ -2749,6 +2773,7 @@
                     endingTriggered = save.ending_triggered || false;
                     endingCountdown = save.ending_countdown || 0;
                     selectedEndingType = save.selected_ending_type || '';
+                    customEndingDescription = save.custom_ending_description || '';
                     playerCharacter = save.player || null;
                     routeScores = save.route_scores || { redemption: 0, power: 0, sacrifice: 0, betrayal: 0, retreat: 0 };
                     keyDecisions = save.key_decisions || [];

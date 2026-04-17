@@ -18,6 +18,7 @@ class ChapterRequest(BaseModel):
 
 class IncrementalRequest(BaseModel):
     ending_type: str = ""
+    custom_description: str = ""
     current_round: int = 0
 
 
@@ -30,6 +31,7 @@ async def generate_incremental(
         result = await container.novel_service.generate_incremental(
             ctx,
             ending_type=body.ending_type,
+            custom_description=body.custom_description,
             current_round=body.current_round,
         )
         return JSONResponse(content=result)

@@ -410,7 +410,7 @@ class NovelService:
         return {"success": True, "message": "无已有小说，无需重置"}
 
     async def generate_incremental(
-        self, ctx: GameContext, ending_type: str = "", current_round: int = 0
+        self, ctx: GameContext, ending_type: str = "", custom_description: str = "", current_round: int = 0
     ) -> Dict[str, Any]:
         _ = current_round
         memory_content = self.memory_repository.load_text(ctx)
@@ -423,7 +423,7 @@ class NovelService:
 
         state = self._load_state(ctx)
         if state is None:
-            return await self._generate_fresh(ctx, memory_content, current_round, ending_type)
+            return await self._generate_fresh(ctx, memory_content, current_round, ending_type, custom_description)
 
         last_covered = state.get("last_covered_round", 0)
         if current_round <= last_covered and not ending_type:
@@ -438,7 +438,7 @@ class NovelService:
             }
 
         return await self._generate_continuation(
-            ctx, state, memory_content, current_round, ending_type
+            ctx, state, memory_content, current_round, ending_type, custom_description
         )
 
     async def _generate_fresh(
@@ -447,6 +447,7 @@ class NovelService:
         memory_content: str,
         current_round: int,
         ending_type: str = "",
+        custom_description: str = "",
     ) -> Dict[str, Any]:
         min_chapters, max_chapters, _ = self.calculate_chapter_range(current_round)
         event_ledger_overview = self._build_event_ledger(ctx, compact=True) or "（暂无历史台账）"
@@ -480,7 +481,7 @@ class NovelService:
         )
 
         if ending_type:
-            await self._append_ending(ctx, state, title, memory_content, ending_type)
+            await self._append_ending(ctx, state, title, memory_content, ending_type, custom_description)
 
         merged = self._merge_current(ctx)
         return {
@@ -499,6 +500,7 @@ class NovelService:
         memory_content: str,
         current_round: int,
         ending_type: str = "",
+        custom_description: str = "",
     ) -> Dict[str, Any]:
         last_covered = state.get("last_covered_round", 0)
         new_rounds = current_round - last_covered
@@ -548,7 +550,7 @@ class NovelService:
         )
 
         if ending_type:
-            await self._append_ending(ctx, state, title, memory_content, ending_type)
+            await self._append_ending(ctx, state, title, memory_content, ending_type, custom_description)
 
         merged = self._merge_current(ctx)
         return {
@@ -644,6 +646,7 @@ class NovelService:
         title: str,
         memory_content: str,
         ending_type: str,
+        custom_description: str = "",
     ) -> None:
         chapters_dir = self.novel_repository.paths.current_novel_chapters_dir(ctx)
         previous_context, _ = self._get_previous_context(chapters_dir)
@@ -658,6 +661,7 @@ class NovelService:
             previous_context=previous_context,
             unresolved_threads=unresolved_threads,
             ending_type=ending_type,
+            custom_description=custom_description or "无",
             route_leader=route_info["leader"] or "未明确",
             route_scores=json.dumps(route_info["scores"], ensure_ascii=False),
             final_rounds_ledger=final_rounds_ledger,

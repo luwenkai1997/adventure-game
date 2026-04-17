@@ -84,6 +84,7 @@ class CharacterService:
 """.strip()
         
         list_prompt = NPC_LIST_GENERATION_PROMPT.format(
+            count=count,
             world_setting=world_setting,
             protagonist_info=protagonist_summary
         )
@@ -157,7 +158,7 @@ class CharacterService:
                 'role_type': detail_data.get('role_type', 'npc'),
                 'importance': 3 if detail_data.get('role_type') == 'antagonist' else (2 if detail_data.get('role_type') == 'supporting' else 1),
                 'title': detail_data.get('title', ''),
-                'description': detail_data.get('appearance', '')[:100] if not detail_data.get('background') else detail_data.get('background', '')[:100],
+                'description': detail_data.get('background', detail_data.get('appearance', '')),
                 'appearance': {
                     'full_description': detail_data.get('appearance', '外貌普通')
                 },

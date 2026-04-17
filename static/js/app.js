@@ -2125,7 +2125,10 @@
             try {
                 const resp = await apiFetch('/api/novel/incremental', {
                     method: 'POST',
-                    body: JSON.stringify({ ending_type: endingType })
+                    body: JSON.stringify({ 
+                        ending_type: endingType,
+                        custom_description: typeof customEndingDescription !== 'undefined' ? customEndingDescription : ''
+                    })
                 });
                 const data = await resp.json();
                 clearInterval(fakeInterval);
@@ -2218,7 +2221,10 @@
             try {
                 const resp = await apiFetch('/api/novel/incremental', {
                     method: 'POST',
-                    body: JSON.stringify({ ending_type: endingType })
+                    body: JSON.stringify({ 
+                        ending_type: endingType,
+                        custom_description: typeof customEndingDescription !== 'undefined' ? customEndingDescription : ''
+                    })
                 });
                 const data = await resp.json();
                 clearInterval(fakeInterval);
@@ -2367,7 +2373,21 @@
             document.getElementById('detail-name').textContent = char.name;
             document.getElementById('detail-title').textContent = char.title || '无称号';
             document.getElementById('detail-description').textContent = char.description || '暂无描述';
-            document.getElementById('detail-personality').textContent = char.personality || '暂无性格描述';
+            let personalityStr = '暂无性格描述';
+            if (char.personality) {
+                if (typeof char.personality === 'object') {
+                    if (Array.isArray(char.personality.traits)) {
+                        personalityStr = char.personality.traits.join(', ');
+                    } else if (Array.isArray(char.personality)) {
+                        personalityStr = char.personality.join(', ');
+                    } else {
+                        personalityStr = JSON.stringify(char.personality);
+                    }
+                } else {
+                    personalityStr = char.personality;
+                }
+            }
+            document.getElementById('detail-personality').textContent = personalityStr;
             
             const attrs = char.attributes || { health: 100, mana: 100, strength: 10, intelligence: 10, charisma: 10 };
             const attrsContainer = document.getElementById('detail-attributes');
@@ -2453,7 +2473,17 @@
                     document.getElementById('form-name').value = char.name;
                     document.getElementById('form-title-input').value = char.title || '';
                     document.getElementById('form-description').value = char.description || '';
-                    document.getElementById('form-personality').value = char.personality || '';
+                    let formPersonalityStr = char.personality || '';
+                    if (typeof char.personality === 'object') {
+                        if (Array.isArray(char.personality.traits)) {
+                            formPersonalityStr = char.personality.traits.join(', ');
+                        } else if (Array.isArray(char.personality)) {
+                            formPersonalityStr = char.personality.join(', ');
+                        } else {
+                            formPersonalityStr = JSON.stringify(char.personality);
+                        }
+                    }
+                    document.getElementById('form-personality').value = formPersonalityStr;
                     document.getElementById('form-background').value = char.background || '';
                     const attrs = char.attributes || {};
                     document.getElementById('form-health').value = attrs.health || 100;

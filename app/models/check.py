@@ -13,6 +13,7 @@ class CheckResult(BaseModel):
     roll: int
     modifier: int
     skill_bonus: int = 0
+    equipment_bonus: int = 0
     total: int
     difficulty: int
     success: bool

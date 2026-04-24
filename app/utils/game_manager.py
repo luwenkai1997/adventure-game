@@ -1,3 +1,16 @@
+"""
+DEPRECATED — do not call these functions from new code.
+
+All game-directory path helpers and CRUD operations have been superseded by
+`app/repositories/base.py::FileRepositoryPaths` (injected via `app/container.py`).
+
+This module is kept alive only because:
+  1. `tests/conftest.py` monkeypatches `GAMES_DIR` here for test isolation.
+  2. `app/utils/file_storage.py` (legacy, only used in scripts/) still imports helpers.
+
+If you need game-path utilities, use `container.game_repository` or inject
+`FileRepositoryPaths` directly.
+"""
 import os
 import json
 from datetime import datetime

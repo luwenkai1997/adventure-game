@@ -12,6 +12,7 @@ from app.api.novel_routes import router as novel_router
 from app.api.player_routes import router as player_router
 from app.api.check_routes import router as check_router
 from app.api.save_routes import router as save_router
+from app.api.item_routes import router as item_router
 from app.middleware.session_middleware import SessionMiddleware
 from app.middleware.request_lifecycle_middleware import RequestLifecycleMiddleware
 from app.config import BASE_DIR
@@ -49,10 +50,15 @@ app.include_router(novel_router)
 app.include_router(player_router)
 app.include_router(check_router)
 app.include_router(save_router)
+app.include_router(item_router)
 
 _static_dir = os.path.join(BASE_DIR, "static")
 if os.path.isdir(_static_dir):
     app.mount("/static", StaticFiles(directory=_static_dir), name="static")
+
+_games_dir = os.path.join(BASE_DIR, "games")
+os.makedirs(_games_dir, exist_ok=True)
+app.mount("/game-assets", StaticFiles(directory=_games_dir), name="game-assets")
 
 
 @app.get("/favicon.ico")

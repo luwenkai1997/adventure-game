@@ -1,3 +1,4 @@
+import os
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from app.game_context import GameContext
@@ -12,35 +13,46 @@ class SaveService:
     def list_saves(self, ctx: GameContext) -> List[Dict[str, Any]]:
         saves = self.save_repository.list_saves(ctx)
 
-        save_list = []
-        for slot_id in range(1, MAX_SAVE_SLOTS + 1):
-            slot_str = str(slot_id)
-            save_data = next((s for s in saves if s.get("slot_id") == slot_str), None)
+        slot_map = {s.get("slot_id"): s for s in saves if s.get("slot_id")}
 
-            if save_data:
-                save_list.append(
-                    {
-                        "slot_id": slot_str,
-                        "save_name": save_data.get("save_name", f"存档 {slot_id}"),
-                        "timestamp": save_data.get("timestamp", ""),
-                        "world_setting": save_data.get("world_setting", ""),
-                        "chapter": save_data.get("chapter", 0),
-                        "preview_scene": save_data.get("preview_scene", ""),
-                        "has_save": True,
-                    }
-                )
-            else:
-                save_list.append(
-                    {
-                        "slot_id": slot_str,
-                        "save_name": f"存档 {slot_id}",
-                        "timestamp": "",
-                        "world_setting": "",
-                        "chapter": 0,
-                        "preview_scene": "",
-                        "has_save": False,
-                    }
-                )
+        save_list = []
+        for slot_id_key in sorted(slot_map.keys()):
+            save_data = slot_map[slot_id_key]
+            save_list.append(
+                {
+                    "slot_id": slot_id_key,
+                    "save_name": save_data.get("save_name", f"存档 {slot_id_key}"),
+                    "timestamp": save_data.get("timestamp", ""),
+                    "world_setting": save_data.get("world_setting", ""),
+                    "chapter": save_data.get("chapter", 0),
+                    "preview_scene": save_data.get("preview_scene", ""),
+                    "has_save": True,
+                }
+            )
+
+        used_count = len(save_list)
+        if used_count < MAX_SAVE_SLOTS:
+            numeric_ids = set()
+            for s in slot_map.keys():
+                try:
+                    numeric_ids.add(int(s))
+                except (ValueError, TypeError):
+                    pass
+            next_numeric = 1
+            while next_numeric in numeric_ids:
+                next_numeric += 1
+            save_list.append(
+                {
+                    "slot_id": str(next_numeric),
+                    "save_name": "+ 新建存档",
+                    "timestamp": "",
+                    "world_setting": "",
+                    "chapter": 0,
+                    "preview_scene": "",
+                    "has_save": False,
+                    "is_new_slot": True,
+                }
+            )
 
         return save_list
 

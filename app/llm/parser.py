@@ -3,6 +3,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, List, Tuple
 
+from json_repair import repair_json
 from pydantic import ValidationError
 
 from app.models.chat import ChatTurnContent, ChoiceItem
@@ -17,36 +18,6 @@ class ParseError(Exception):
 
 
 class StructuredOutputParser:
-    @staticmethod
-    def repair_json(content: str) -> str:
-        content = re.sub(r",\s*([\]}])", r"\1", content)
-
-        last_comma = content.rfind(",")
-        last_quote_close = content.rfind('"')
-        if last_comma > 0 and (last_quote_close < last_comma or last_quote_close == -1):
-            content = content[:last_comma]
-
-        if content.rstrip().endswith(":"):
-            content = content.rstrip()[:-1]
-
-        if content.rstrip().endswith('"') and content.count('"') % 2 != 0:
-            content = content.rstrip()[:-1]
-
-        open_braces = content.count("{")
-        close_braces = content.count("}")
-        if open_braces > close_braces:
-            content += "}" * (open_braces - close_braces)
-
-        open_brackets = content.count("[")
-        close_brackets = content.count("]")
-        if open_brackets > close_brackets:
-            content += "]" * (open_brackets - close_brackets)
-
-        while content and content[-1] in [",", ":", " "]:
-            content = content[:-1]
-
-        return re.sub(r",\s*([\]}])", r"\1", content)
-
     @staticmethod
     def extract_json(content: str) -> str:
         if not content or not content.strip():
@@ -80,27 +51,33 @@ class StructuredOutputParser:
             raise ValueError(f"无法提取合法JSON片段，原始内容: {content[:300]}")
 
         extracted = content[start : end + 1]
-        extracted = re.sub(r",\s*]", "]", extracted)
-        extracted = re.sub(r",\s*\}", "}", extracted)
         return re.sub(r"[\x00-\x1f\x7f-\x9f]", "", extracted)
 
     def parse_json(self, content: str) -> Any:
         json_str = self.extract_json(content)
-        candidates = [
-            json_str,
-            self.repair_json(json_str),
-            json_str.replace("'", '"'),
-            self.repair_json(json_str.replace("'", '"')),
-        ]
-        last_error = ""
-        for candidate in candidates:
-            try:
-                return json.loads(candidate)
-            except json.JSONDecodeError as exc:
-                last_error = str(exc)
-        raise ValueError(
-            f"JSON解析失败: {last_error}\n解析字符串: {json_str[:300]}\n原始内容: {content[:300]}"
-        )
+
+        # Fast path: try direct parse first
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError:
+            pass
+
+        # Slow path: let json-repair handle malformed JSON
+        try:
+            repaired = repair_json(json_str, return_objects=True, ensure_ascii=False)
+            if isinstance(repaired, (dict, list)):
+                return repaired
+        except Exception:
+            pass
+
+        # Last resort: repair → string → parse
+        try:
+            repaired_str = repair_json(json_str, ensure_ascii=False)
+            return json.loads(repaired_str)
+        except Exception as exc:
+            raise ValueError(
+                f"JSON解析失败: {exc}\n解析字符串: {json_str[:300]}\n原始内容: {content[:300]}"
+            )
 
 
 class ChatTurnParser:

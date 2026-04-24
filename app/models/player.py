@@ -1,5 +1,14 @@
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
+
+
+class InventoryItem(BaseModel):
+    id: str = ""
+    name: str
+    type: str = "misc"   # weapon / armor / consumable / key / misc
+    qty: int = 1
+    effects: List[str] = []
+    description: str = ""
 
 
 class PlayerSkill(BaseModel):
@@ -33,7 +42,7 @@ class PlayerCharacter(BaseModel):
     skills: List[PlayerSkill] = []
     skill_exp: Dict[str, int] = {}
     growth_log: List[str] = []
-    inventory: List[str] = []
+    inventory: List[Any] = []   # List[InventoryItem | str] — str entries are legacy
 
     created_at: str = ""
     updated_at: str = ""

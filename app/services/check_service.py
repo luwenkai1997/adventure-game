@@ -9,9 +9,10 @@ from app.models.check import (
 
 
 class CheckService:
-    def __init__(self, player_repository, player_service):
+    def __init__(self, player_repository, player_service, item_service=None):
         self.player_repository = player_repository
         self.player_service = player_service
+        self.item_service = item_service
 
     def roll_d20(self) -> int:
         return random.randint(1, 20)
@@ -62,7 +63,11 @@ class CheckService:
         if request.skill:
             skill_bonus = self.get_skill_level(ctx, request.skill)
 
-        total = roll + modifier + skill_bonus
+        equipment_bonus = 0
+        if self.item_service:
+            equipment_bonus = self.item_service.get_equipment_check_bonus(ctx, request.attribute)
+
+        total = roll + modifier + skill_bonus + equipment_bonus
         difficulty = request.difficulty
 
         critical = roll == 20
@@ -91,7 +96,7 @@ class CheckService:
             growth_summary["skill_growth"] = self.player_service.apply_check_growth(
                 ctx, request.skill, success, critical, fumble
             )
-            
+
         hp_effect = self.player_service.apply_hp_effect_from_check(
             ctx, success, critical, fumble
         )
@@ -102,6 +107,7 @@ class CheckService:
             roll=roll,
             modifier=modifier,
             skill_bonus=skill_bonus,
+            equipment_bonus=equipment_bonus,
             total=total,
             difficulty=difficulty,
             success=success,
@@ -164,7 +170,10 @@ class CheckService:
         ]:
             value = player.get(attr_key, 10)
             modifier = self.calculate_modifier(value)
-            attributes[attr_key] = {"value": value, "modifier": modifier}
+            eq_bonus = 0
+            if self.item_service:
+                eq_bonus = self.item_service.get_equipment_check_bonus(ctx, attr_key)
+            attributes[attr_key] = {"value": value, "modifier": modifier, "equipment_bonus": eq_bonus}
 
         return {
             "attributes": attributes,

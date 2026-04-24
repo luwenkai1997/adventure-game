@@ -1,13 +1,12 @@
-from typing import Dict, List, Optional
+import re
+from typing import Dict, List, Optional, Tuple
 
-from app.config import ROUTE_TENDENCY_MAPPING, SYSTEM_PROMPT
+from app.config import MAX_MEMORY_CHARS, MAX_RECENT_MESSAGES, ROUTE_TENDENCY_MAPPING, SYSTEM_PROMPT
 from app.game_context import GameContext
 
 
-MAX_MEMORY_CHARS = 3000
 MAX_CHARACTERS = 8
 MAX_CHARS_PER_CHARACTER = 300
-MAX_RECENT_MESSAGES = 20
 
 
 class PromptComposer:
@@ -21,11 +20,60 @@ class PromptComposer:
             return text
         return text[:max_chars] + "\n...(已截断)"
 
+    def _parse_memory_sections(self, memory: str) -> List[Dict[str, str]]:
+        sections = []
+        pattern = re.compile(r'^## (.+)$', re.MULTILINE)
+        matches = list(pattern.finditer(memory))
+        for i, match in enumerate(matches):
+            header = match.group(1).strip()
+            start = match.end()
+            end = matches[i + 1].start() if i + 1 < len(matches) else len(memory)
+            content = memory[start:end].strip()
+            sections.append({"header": header, "content": content})
+        return sections
+
     def get_memory_section(self, ctx: Optional[GameContext]) -> str:
         memory = self.memory_repository.load_text(ctx)
         if not memory:
             return ""
-        return self.truncate_text(memory, MAX_MEMORY_CHARS)
+
+        sections = self._parse_memory_sections(memory)
+        if not sections:
+            return self.truncate_text(memory, MAX_MEMORY_CHARS)
+
+        priority_headers = ["世界观设定", "关键事件", "世界状态", "当前状态"]
+        high_sections = []
+        other_sections = []
+        for sec in sections:
+            header_clean = sec["header"].lstrip("🔑").strip()
+            if header_clean in priority_headers:
+                high_sections.append(sec)
+            else:
+                other_sections.append(sec)
+
+        core = "\n\n".join(f"## {s['header']}\n{s['content']}" for s in high_sections)
+        remaining = MAX_MEMORY_CHARS - len(core)
+
+        if remaining > 0:
+            flow_parts = []
+            chars_used = 0
+            for sec in other_sections:
+                block = f"## {sec['header']}\n{sec['content']}"
+                if chars_used + len(block) <= remaining:
+                    flow_parts.append(block)
+                    chars_used += len(block)
+                else:
+                    available = remaining - chars_used - 30
+                    if available > 100:
+                        truncated = self.truncate_text(block, available)
+                        flow_parts.append(truncated)
+                    else:
+                        flow_parts.append(f"## {sec['header']}\n...(早期记录已归档)")
+                    break
+            if flow_parts:
+                core += "\n\n" + "\n\n".join(flow_parts)
+
+        return core
 
     def get_player_section(self, ctx: Optional[GameContext]) -> str:
         player = self.player_repository.load(ctx)
@@ -170,6 +218,38 @@ class PromptComposer:
 
         return "\n".join(lines)
 
+    def _summarize_old_messages(
+        self, messages: List[Dict], keep_recent: int
+    ) -> Tuple[List[Dict], Optional[str]]:
+        if len(messages) <= keep_recent:
+            return messages, None
+
+        old = messages[:-keep_recent]
+        recent = messages[-keep_recent:]
+
+        summary_lines = []
+        for msg in old:
+            raw = msg.get("content", "")
+            if isinstance(raw, str):
+                text = raw
+            elif isinstance(raw, list):
+                text = " ".join(
+                    item.get("text", "") if isinstance(item, dict) else str(item)
+                    for item in raw
+                )
+            else:
+                text = str(raw)
+
+            if msg.get("role") == "user":
+                summary_lines.append(f"玩家选择: {text[:60]}")
+            elif msg.get("role") == "assistant":
+                summary_lines.append(f"事件: {text[:80]}")
+            else:
+                summary_lines.append(f"消息: {text[:60]}")
+
+        summary = "## 历史摘要\n" + "\n".join(summary_lines)
+        return recent, summary
+
     def compose(
         self,
         ctx: Optional[GameContext],
@@ -204,13 +284,18 @@ class PromptComposer:
         if context_text:
             context_text += "\n\n---\n\n以上是当前游戏的背景和记忆信息，请根据以上信息和玩家的选择继续生成剧情。\n"
 
-        recent_messages = messages[-MAX_RECENT_MESSAGES:] if len(messages) > MAX_RECENT_MESSAGES else messages
+        recent_messages, summary = self._summarize_old_messages(messages, MAX_RECENT_MESSAGES)
 
         full_messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "system", "content": ROUTE_TENDENCY_MAPPING},
             {"role": "user", "content": context_text},
-        ] + recent_messages
+        ]
+
+        if summary:
+            full_messages.append({"role": "system", "content": summary})
+
+        full_messages.extend(recent_messages)
 
         if extra_prompt:
             full_messages.append({"role": "system", "content": extra_prompt})

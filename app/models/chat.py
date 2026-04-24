@@ -16,6 +16,15 @@ class RelationshipChange(BaseModel):
     reason: Optional[str] = None
 
 
+class InventoryChange(BaseModel):
+    op: str = "add"        # "add" | "remove" | "update"
+    item_name: str
+    item_type: str = "misc"
+    qty: int = 1
+    effects: Optional[List[str]] = None
+    description: Optional[str] = None
+
+
 class ChoiceItem(BaseModel):
     text: str
     check: Optional[CheckSpec] = None
@@ -32,8 +41,10 @@ class ChatTurnContent(BaseModel):
     choices: Optional[List[ChoiceItem]] = None
     ending: Optional[str] = None
     relationship_changes: Optional[List[RelationshipChange]] = None
+    inventory_changes: Optional[List[InventoryChange]] = None
     ending_omen: Optional[str] = None
     route_hint: Optional[str] = None
+    objectives: Optional[List[Dict]] = None   # [{id, title, status}] for quest log
 
 
 class ChatRequestV2(BaseModel):

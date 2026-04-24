@@ -255,6 +255,23 @@
             color: var(--primary-container);
         }
 
+        .template-btn {
+            background: rgba(0,255,136,0.08);
+            border: 1px solid rgba(0,255,136,0.35);
+            color: #aaffcc;
+            padding: 5px 10px;
+            border-radius: 16px;
+            cursor: pointer;
+            font-size: 0.82rem;
+            transition: background 0.15s, border-color 0.15s;
+            white-space: nowrap;
+        }
+        .template-btn:hover {
+            background: rgba(0,255,136,0.18);
+            border-color: rgba(0,255,136,0.6);
+            color: #ffffff;
+        }
+
         .btn-expand {
             background: linear-gradient(135deg, var(--tertiary) 0%, var(--tertiary-container) 100%);
             border: none;
@@ -1980,6 +1997,22 @@
             box-shadow: 0 0 1px rgba(164, 255, 185, 0.1);
         }
 
+        .item-tag {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .item-tag:hover {
+            transform: scale(1.05);
+            filter: brightness(1.2);
+            background: var(--surface-container-highest);
+        }
+
+        .item-tag.equipped {
+            border: 2px solid #00ff88;
+            box-shadow: 0 0 6px rgba(0, 255, 136, 0.4);
+        }
+
         .check-modal {
             position: fixed;
             top: 0;
@@ -2205,6 +2238,12 @@
             color: #888;
             margin: 0;
             font-size: 0.85rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.5;
         }
 
         .save-slot-actions {
@@ -2236,6 +2275,18 @@
             background: rgba(255, 113, 108, 0.12);
             border: 1px solid var(--error);
             color: var(--error);
+        }
+
+        .save-slot-actions .btn-export {
+            background: rgba(255, 193, 93, 0.12);
+            border: 1px solid var(--tertiary);
+            color: var(--tertiary);
+        }
+
+        .save-slot-actions .btn-import {
+            background: rgba(164, 255, 185, 0.08);
+            border: 1px dashed rgba(164, 255, 185, 0.4);
+            color: var(--primary);
         }
 
         .undo-btn {
@@ -2272,3 +2323,4 @@
             font-size: 0.85rem;
             color: var(--primary-container);
         }
+

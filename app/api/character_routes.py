@@ -17,11 +17,8 @@ from app.config import (
 from app.container import container
 from app.errors import AppError
 from app.models.character import (
-    BatchUpdateRequest,
     CharacterCreate,
-    CharacterGenerationConfig,
     CharacterUpdate,
-    GenerateCharactersRequest,
     RelationCreate,
     RelationUpdate,
 )
@@ -44,47 +41,6 @@ async def get_character_graph(request: Request):
     ctx = container.context_resolver.resolve_optional(request)
     graph_data = container.character_service.get_character_graph(ctx)
     return JSONResponse(content=graph_data)
-
-
-@router.get("/api/characters/protagonist")
-async def get_protagonist(request: Request):
-    ctx = container.context_resolver.resolve_optional(request)
-    characters = container.character_repository.load_all(ctx)
-    protagonists = [char for char in characters if char.get("role_type") == "protagonist"]
-    return JSONResponse(content={"characters": protagonists})
-
-
-@router.get("/api/characters/antagonists")
-async def get_antagonists(request: Request):
-    ctx = container.context_resolver.resolve_optional(request)
-    characters = container.character_repository.load_all(ctx)
-    antagonists = [char for char in characters if char.get("role_type") == "antagonist"]
-    return JSONResponse(content={"characters": antagonists})
-
-
-@router.get("/api/characters/inject-context")
-async def inject_character_context(request: Request, character_ids: str = ""):
-    ctx = container.context_resolver.resolve_optional(request)
-    ids = [item.strip() for item in character_ids.split(",") if item.strip()]
-    context = container.character_service.get_character_context(ctx, ids)
-    return JSONResponse(content={"context": context})
-
-
-@router.get("/api/characters/by-role/{role_type}")
-async def get_characters_by_role(request: Request, role_type: str):
-    ctx = container.context_resolver.resolve_optional(request)
-    characters = container.character_repository.load_all(ctx)
-    filtered = [char for char in characters if char.get("role_type", "npc") == role_type]
-    return JSONResponse(content={"characters": filtered, "count": len(filtered)})
-
-
-@router.get("/api/characters/snapshot/{chapter}")
-async def get_character_snapshot(request: Request, chapter: int):
-    ctx = container.context_resolver.resolve_required(request)
-    snapshot = container.snapshot_repository.load(ctx, chapter)
-    if snapshot is None:
-        return JSONResponse(status_code=404, content={"error": "快照不存在"})
-    return JSONResponse(content={"snapshot": snapshot})
 
 
 @router.post("/api/characters/{char_id}/avatar")
@@ -187,46 +143,6 @@ async def del_character(request: Request, char_id: str):
     return JSONResponse(status_code=404, content={"error": "角色不存在"})
 
 
-@router.post("/api/characters/generate")
-async def api_generate_characters(request: Request, body: GenerateCharactersRequest):
-    ctx = container.context_resolver.resolve_required(request)
-    config = body.config or CharacterGenerationConfig(world_setting=body.world_setting)
-    try:
-        all_characters = await asyncio.wait_for(
-            container.character_service.generate_all_characters(ctx, config),
-            timeout=120.0,
-        )
-    except asyncio.TimeoutError:
-        return JSONResponse(status_code=504, content={"error": "角色生成超时，请稍后重试"})
-
-    if not all_characters:
-        return JSONResponse(status_code=500, content={"error": "未能生成任何角色"})
-
-    saved_count = container.character_repository.save_batch(ctx, all_characters)
-    try:
-        relations = await asyncio.wait_for(
-            container.character_service.generate_relations(
-                ctx, all_characters, config.world_setting
-            ),
-            timeout=120.0,
-        )
-        for relation in relations:
-            container.relation_repository.add(ctx, relation)
-    except asyncio.TimeoutError:
-        relations = []
-        logger.warning("关系生成超时，继续返回已生成的角色")
-
-    return JSONResponse(
-        content={
-            "success": True,
-            "characters_count": saved_count,
-            "relations_count": len(relations),
-            "characters": all_characters[:5],
-            "message": f"成功生成 {saved_count} 个角色和 {len(relations)} 个关系",
-        }
-    )
-
-
 @router.post("/api/npcs/generate")
 async def api_generate_npcs(request: Request):
     ctx = container.context_resolver.resolve_required(request)
@@ -274,20 +190,6 @@ async def api_generate_npcs(request: Request):
             "message": f"成功生成 {saved_count} 个NPC和 {len(relations)} 个关系",
         }
     )
-
-
-@router.post("/api/characters/batch-update")
-async def api_batch_update_characters(request: Request, body: BatchUpdateRequest):
-    ctx = container.context_resolver.resolve_required(request)
-    updated_count = container.character_service.batch_update(ctx, body.updates)
-    return JSONResponse(content={"success": True, "updated_count": updated_count})
-
-
-@router.post("/api/characters/snapshot/{chapter}")
-async def create_character_snapshot(request: Request, chapter: int):
-    ctx = container.context_resolver.resolve_required(request)
-    snapshot_path = container.character_service.create_snapshot(ctx, chapter)
-    return JSONResponse(content={"success": True, "snapshot_path": snapshot_path})
 
 
 @router.get("/api/relations")

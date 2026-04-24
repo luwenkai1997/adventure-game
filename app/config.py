@@ -10,8 +10,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MAX_SAVE_SLOTS = 5
-MAX_HISTORY_STEPS = 10
+MAX_SAVE_SLOTS = int(os.getenv("MAX_SAVE_SLOTS", "20"))
+MAX_HISTORY_STEPS = int(os.getenv("MAX_HISTORY_STEPS", "10"))
+MAX_MEMORY_CHARS = int(os.getenv("MAX_MEMORY_CHARS", "5000"))
+MAX_RECENT_MESSAGES = int(os.getenv("MAX_RECENT_MESSAGES", "30"))
+MAX_STORY_FLOW_ENTRIES = int(os.getenv("MAX_STORY_FLOW_ENTRIES", "20"))
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
 API_KEY = os.getenv("API_KEY", "")

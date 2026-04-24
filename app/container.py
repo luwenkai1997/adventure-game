@@ -18,6 +18,7 @@ from app.repositories import (
 from app.services.character_service import CharacterService
 from app.services.check_service import CheckService
 from app.services.game_service import GameService
+from app.services.item_service import ItemService
 from app.services.novel_service import NovelService
 from app.services.player_service import PlayerService
 from app.services.prompt_composer import PromptComposer
@@ -46,6 +47,7 @@ class AppContainer:
     save_service: SaveService
     check_service: CheckService
     novel_service: NovelService
+    item_service: ItemService
 
 
 def build_container() -> AppContainer:
@@ -80,6 +82,7 @@ def build_container() -> AppContainer:
         save_repository=save_repository,
         character_repository=character_repository,
         relation_repository=relation_repository,
+        player_repository=player_repository,
         llm_adapter=llm_adapter,
     )
     character_service = CharacterService(
@@ -89,7 +92,12 @@ def build_container() -> AppContainer:
         llm_adapter=llm_adapter,
     )
     save_service = SaveService(save_repository=save_repository)
-    check_service = CheckService(player_repository=player_repository, player_service=player_service)
+    item_service = ItemService(player_repository=player_repository)
+    check_service = CheckService(
+        player_repository=player_repository,
+        player_service=player_service,
+        item_service=item_service,
+    )
     novel_service = NovelService(
         memory_repository=memory_repository,
         save_repository=save_repository,
@@ -121,6 +129,7 @@ def build_container() -> AppContainer:
         save_service=save_service,
         check_service=check_service,
         novel_service=novel_service,
+        item_service=item_service,
     )
 
 

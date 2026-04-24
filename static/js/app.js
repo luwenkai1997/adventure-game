@@ -717,7 +717,11 @@
                                 const icon = itemTypeIcon[item.type] || '📦';
                                 const qty = item.qty > 1 ? ` ×${item.qty}` : '';
                                 const tip = item.description || (item.effects || []).join(', ') || item.name;
-                                return `<span class="player-skill-tag" title="${tip}">${icon} ${item.name}${qty}</span>`;
+                                const equipped = item.equipped ? ' ✅' : '';
+                                const eqClass = item.equipped ? ' equipped' : '';
+                                const clickable = (item.type === 'consumable' || item.type === 'weapon' || item.type === 'armor');
+                                const onclick = clickable ? `onclick="handleItemClick('${item.id || item.name}')"` : '';
+                                return `<span class="player-skill-tag item-tag${eqClass}" title="${tip}" ${onclick}>${icon} ${item.name}${qty}${equipped}</span>`;
                             }).join('')}
                         </div>
                     </div>
@@ -770,6 +774,8 @@
                 };
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
                 console.log('游戏状态已保存');
+
+                autoSaveToServer(gameState).catch(e => console.warn('自动存档到服务器失败:', e));
             } catch (e) {
                 console.error('保存游戏状态失败:', e);
                 if (e.name === 'QuotaExceededError') {
@@ -778,19 +784,47 @@
             }
         }
 
+        async function autoSaveToServer(gameState) {
+            const saveData = {
+                slot_id: 'auto',
+                save_name: '自动存档',
+                world_setting: worldSetting,
+                chapter: chapter,
+                messages: messages,
+                logs: logs,
+                current_scene: currentScene,
+                current_choices: currentChoices || [],
+                player: playerCharacter,
+                characters: window.charactersData || [],
+                relations: window.relationsData || [],
+                ending_triggered: endingTriggered,
+                ending_countdown: endingCountdown,
+                selected_ending_type: selectedEndingType,
+                custom_ending_description: customEndingDescription,
+                preview_scene: currentScene ? currentScene.substring(0, 100) : '',
+                route_scores: routeScores,
+                key_decisions: keyDecisions,
+                ending_omen_state: endingOmenState
+            };
+            await apiFetch('/api/save/auto', {
+                method: 'POST',
+                body: JSON.stringify(saveData)
+            });
+        }
+
         function loadGameState() {
             try {
                 const saved = localStorage.getItem(STORAGE_KEY);
                 if (saved) {
                     const gameState = JSON.parse(saved);
                     const hoursSinceSave = (Date.now() - gameState.timestamp) / (1000 * 60 * 60);
-                    
-                    if (hoursSinceSave > 24) {
-                        console.log('存档已超过24小时，清除旧存档');
+
+                    if (hoursSinceSave > 72) {
+                        console.log('存档已超过72小时，清除旧存档');
                         clearGameState();
                         return null;
                     }
-                    
+
                     return gameState;
                 }
             } catch (e) {
@@ -1194,90 +1228,28 @@
             }
         }
 
-        // ─── TTS (Web Speech API) ───────────────────────────────────────────
-        let ttsEnabled = false;
-        let ttsSpeaking = false;
-
-        function toggleTTS() {
-            ttsEnabled = !ttsEnabled;
-            const btn = document.getElementById('tts-btn');
-            if (btn) btn.textContent = ttsEnabled ? '🔇' : '🔊';
-            if (!ttsEnabled && window.speechSynthesis) {
-                window.speechSynthesis.cancel();
-                ttsSpeaking = false;
+        function showToast(message, duration = 2000) {
+            let toast = document.getElementById('toast-notification');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'toast-notification';
+                toast.style.cssText = `
+                    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+                    background: rgba(0,0,0,0.85); color: #00ff88; padding: 10px 24px;
+                    border-radius: 8px; font-size: 14px; z-index: 10000;
+                    pointer-events: none; transition: opacity 0.3s;
+                    border: 1px solid rgba(0,255,136,0.3);
+                `;
+                document.body.appendChild(toast);
             }
+            toast.textContent = message;
+            toast.style.opacity = '1';
+            clearTimeout(toast._timeout);
+            toast._timeout = setTimeout(() => { toast.style.opacity = '0'; }, duration);
         }
 
-        function speakScene(text) {
-            if (!ttsEnabled || !text || !window.speechSynthesis) return;
-            window.speechSynthesis.cancel();
-            const utt = new SpeechSynthesisUtterance(text);
-            utt.lang = 'zh-CN';
-            utt.rate = 1.0;
-            utt.onend = () => { ttsSpeaking = false; };
-            ttsSpeaking = true;
-            window.speechSynthesis.speak(utt);
-        }
-        // ────────────────────────────────────────────────────────────────────
 
-        // ─── Achievements ────────────────────────────────────────────────────
-        function showAchievementUnlocked(achievements) {
-            achievements.forEach((ach, i) => {
-                setTimeout(() => {
-                    const toast = document.createElement('div');
-                    toast.className = 'achievement-toast';
-                    toast.innerHTML = `<span class="ach-icon">${ach.icon || '🏅'}</span><div class="ach-text"><strong>成就解锁</strong><span>${ach.title}</span></div>`;
-                    document.body.appendChild(toast);
-                    requestAnimationFrame(() => toast.classList.add('show'));
-                    setTimeout(() => {
-                        toast.classList.remove('show');
-                        setTimeout(() => toast.remove(), 500);
-                    }, 3500);
-                }, i * 800);
-            });
-        }
 
-        async function loadAchievementsPanel() {
-            const panel = document.getElementById('achievements-panel');
-            if (!panel) return;
-            try {
-                const data = await apiFetch('/api/achievements');
-                const list = data.achievements || [];
-                const stats = data.stats || {};
-                const unlocked = list.filter(a => a.unlocked).length;
-                panel.innerHTML = `
-                    <div class="ach-panel-header">
-                        <h3>🏆 成就 <span class="ach-count">${unlocked}/${list.length}</span></h3>
-                        <button class="player-panel-close" onclick="toggleAchievementsPanel()">×</button>
-                    </div>
-                    <div class="ach-stats">
-                        <span>回合 ${stats.total_turns || 0}</span>
-                        <span>检定通过 ${stats.checks_passed || 0}</span>
-                        <span>目标完成 ${stats.objectives_completed || 0}</span>
-                    </div>
-                    <div class="ach-list">
-                        ${list.map(a => `
-                            <div class="ach-item ${a.unlocked ? 'unlocked' : 'locked'}">
-                                <span class="ach-icon">${a.secret && !a.unlocked ? '❓' : (a.icon || '🏅')}</span>
-                                <div class="ach-info">
-                                    <strong>${a.secret && !a.unlocked ? '???' : a.title}</strong>
-                                    <span>${a.secret && !a.unlocked ? '神秘成就' : a.description}</span>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>`;
-            } catch (e) {
-                panel.innerHTML = '<p style="color:rgba(255,100,100,0.8);padding:1rem;">加载失败</p>';
-            }
-        }
-
-        function toggleAchievementsPanel() {
-            const panel = document.getElementById('achievements-panel');
-            if (!panel) return;
-            const isOpen = panel.classList.toggle('open');
-            if (isOpen) loadAchievementsPanel();
-        }
-        // ────────────────────────────────────────────────────────────────────
 
         function setLoading(isLoading) {
             const loading = document.getElementById('loading');
@@ -1701,9 +1673,6 @@
                             if (!content) throw new Error('API返回内容为空');
                             messages.push({ role: 'assistant', content: JSON.stringify(content) });
                             renderScene(content);
-                            if (event.newly_unlocked && event.newly_unlocked.length > 0) {
-                                showAchievementUnlocked(event.newly_unlocked);
-                            }
                         } else if (event.type === 'error') {
                             throw new Error(event.error || 'SSE错误');
                         } else if (event.type === 'cancelled') {
@@ -1743,7 +1712,6 @@
 
             sceneText.textContent = data.scene;
             currentScene = data.scene;
-            speakScene(data.scene);
             currentChoices = data.choices || null;
 
             if (data.log) {
@@ -2494,20 +2462,68 @@
             }
         }
 
-        function continueGame() {
+        async function continueGame() {
+            const saveFromServer = await loadAutoSaveFromServer();
+            if (saveFromServer) {
+                restoreGameState(saveFromServer);
+                showScreen('game-screen');
+                return;
+            }
+
             const gameState = loadGameState();
             if (!gameState) {
                 showError('无法加载存档', '没有找到有效的游戏存档，请开始新游戏。');
                 return;
             }
-            
+
             restoreGameState(gameState);
             showScreen('game-screen');
         }
 
-        window.addEventListener('DOMContentLoaded', function() {
-            const gameState = loadGameState();
-            if (gameState) {
+        async function loadAutoSaveFromServer() {
+            try {
+                const resp = await apiFetch('/api/save/auto');
+                const data = await resp.json();
+                if (data.success && data.save) {
+                    const save = data.save;
+                    return {
+                        messages: save.messages || [],
+                        chapter: save.chapter || 1,
+                        logs: save.logs || [],
+                        currentScene: save.current_scene,
+                        currentChoices: save.current_choices || [],
+                        endingTriggered: save.ending_triggered || false,
+                        endingCountdown: save.ending_countdown || 0,
+                        worldSetting: save.world_setting || '',
+                        selectedEndingType: save.selected_ending_type || '',
+                        customEndingDescription: save.custom_ending_description || '',
+                        routeScores: save.route_scores || {},
+                        keyDecisions: save.key_decisions || [],
+                        endingOmenState: save.ending_omen_state || {},
+                        playerCharacter: save.player || null,
+                        timestamp: Date.now()
+                    };
+                }
+            } catch (e) {
+                console.warn('从服务器加载自动存档失败:', e);
+            }
+            return null;
+        }
+
+        async function checkAutoSaveExists() {
+            try {
+                const resp = await apiFetch('/api/save/auto');
+                const data = await resp.json();
+                return data.success && data.save && data.save.messages && data.save.messages.length > 0;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', async function() {
+            const hasLocal = !!loadGameState();
+            const hasServer = await checkAutoSaveExists();
+            if (hasLocal || hasServer) {
                 const continueBtn = document.getElementById('continue-btn');
                 if (continueBtn) {
                     continueBtn.style.display = 'inline-block';
@@ -3139,7 +3155,7 @@
                 if (slot.has_save) {
                     const date = new Date(slot.timestamp);
                     const dateStr = date.toLocaleString('zh-CN');
-                    
+
                     slotDiv.innerHTML = `
                         <div class="save-slot-info">
                             <h3>${slot.save_name}</h3>
@@ -3149,6 +3165,7 @@
                         <div class="save-slot-actions">
                             <button class="btn-load" onclick="loadSave('${slot.slot_id}')">加载</button>
                             <button class="btn-save" onclick="showSaveDialog('${slot.slot_id}')">覆盖</button>
+                            <button class="btn-export" onclick="exportSave('${slot.slot_id}')">导出</button>
                             <button class="btn-delete" onclick="deleteSave('${slot.slot_id}')">删除</button>
                         </div>
                     `;
@@ -3160,6 +3177,7 @@
                         </div>
                         <div class="save-slot-actions">
                             <button class="btn-save" onclick="showSaveDialog('${slot.slot_id}')">新建存档</button>
+                            <button class="btn-import" onclick="triggerSaveImport()">导入</button>
                         </div>
                     `;
                 }
@@ -3175,6 +3193,82 @@
 
         function closeSaveModal() {
             document.getElementById('save-modal').classList.remove('active');
+        }
+
+        function handleItemClick(itemId) {
+            if (!playerCharacter || !playerCharacter.inventory) return;
+            const item = playerCharacter.inventory.find(i => (i.id || i.name) === itemId);
+            if (!item) return;
+
+            if (item.type === 'consumable') {
+                if (confirm(`确定要使用 ${item.name} 吗？`)) {
+                    useItem(itemId);
+                }
+            } else if (item.type === 'weapon' || item.type === 'armor') {
+                toggleEquip(itemId);
+            }
+        }
+
+        async function useItem(itemId) {
+            try {
+                const resp = await apiFetch(`/api/item/use/${encodeURIComponent(itemId)}`, { method: 'POST' });
+                const data = await resp.json();
+                if (data.success) {
+                    await refreshPlayerInfo();
+                    if (data.result && data.result.healed > 0) {
+                        showToast(`恢复了 ${data.result.healed} HP！`);
+                    } else {
+                        showToast('物品已使用');
+                    }
+                } else {
+                    showToast(data.error || '使用失败');
+                }
+            } catch (error) {
+                console.error('使用物品失败:', error);
+            }
+        }
+
+        async function toggleEquip(itemId) {
+            try {
+                const resp = await apiFetch(`/api/item/equip/${encodeURIComponent(itemId)}`, { method: 'POST' });
+                const data = await resp.json();
+                if (data.success) {
+                    await refreshPlayerInfo();
+                    showToast(data.equipped ? '已装备' : '已卸下');
+                } else {
+                    showToast(data.error || '操作失败');
+                }
+            } catch (error) {
+                console.error('装备切换失败:', error);
+            }
+        }
+
+        async function refreshPlayerInfo() {
+            try {
+                const resp = await apiFetch('/api/player');
+                const data = await resp.json();
+                if (data.success) {
+                    playerCharacter = data.player;
+                    updatePlayerPanel();
+
+                    if (data.player.game_over) {
+                        const dyingIndex = messages.findIndex(m =>
+                            m.role === 'system' && m.content && typeof m.content === 'string' && m.content.includes('终局')
+                        );
+                        if (dyingIndex === -1) {
+                            endingTriggered = true;
+                            endingCountdown = 2;
+                            messages.push({
+                                role: 'system',
+                                content: '⚠️ 终局：角色死亡。世界将就此终结，无法继续行动。'
+                            });
+                            renderMessages();
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('刷新角色信息失败:', error);
+            }
         }
 
         async function showGamesListModal() {
@@ -3403,6 +3497,58 @@
                     console.error('删除失败:', error);
                     alert('删除失败');
                 }
+            }
+        }
+
+        async function exportSave(slotId) {
+            try {
+                const response = await apiFetch(`/api/save/${slotId}/export`);
+                const data = await response.json();
+                if (data.success && data.export_json) {
+                    const blob = new Blob([data.export_json], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `adventure_save_${slotId}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    console.log('存档已导出');
+                }
+            } catch (error) {
+                console.error('导出失败:', error);
+                alert('导出失败');
+            }
+        }
+
+        function triggerSaveImport() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = (e) => handleSaveImport(e.target.files[0]);
+            input.click();
+        }
+
+        async function handleSaveImport(file) {
+            if (!file) return;
+            try {
+                const text = await file.text();
+                const saveJson = JSON.parse(text);
+                const response = await apiFetch('/api/save/import', {
+                    method: 'POST',
+                    body: JSON.stringify({ save: saveJson })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    alert(`存档导入成功！槽位: ${data.slot_id}`);
+                    loadSaveSlots();
+                } else {
+                    alert('导入失败: ' + (data.error || '未知错误'));
+                }
+            } catch (error) {
+                console.error('导入失败:', error);
+                alert('导入失败: ' + error.message);
             }
         }
 

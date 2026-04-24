@@ -95,3 +95,63 @@ async def get_history_count(request: Request):
     ctx = container.context_resolver.resolve_required(request)
     count = container.save_service.get_history_count(ctx)
     return JSONResponse(content={"success": True, "count": count})
+
+
+@router.post("/api/save/auto")
+async def auto_save(request: Request, body: SaveCreateRequest):
+    ctx = container.context_resolver.resolve_required(request)
+    body.slot_id = "auto"
+    result = container.save_service.save_game(ctx, body)
+    return JSONResponse(content=result)
+
+
+@router.get("/api/save/auto")
+async def get_auto_save(request: Request):
+    ctx = container.context_resolver.resolve_required(request)
+    save = container.save_service.get_save(ctx, "auto")
+    if not save:
+        return JSONResponse(status_code=404, content={"error": "自动存档不存在"})
+    return JSONResponse(content={"success": True, "save": save})
+
+
+@router.get("/api/save/{slot_id}/export")
+async def export_save(request: Request, slot_id: str):
+    ctx = container.context_resolver.resolve_required(request)
+    save = container.save_service.get_save(ctx, slot_id)
+    if not save:
+        return JSONResponse(status_code=404, content={"error": "存档不存在"})
+
+    import json as _json
+    export_data = _json.dumps(save, ensure_ascii=False, indent=2)
+    return JSONResponse(
+        content={"success": True, "save": save, "export_json": export_data},
+        headers={
+            "Content-Disposition": f"attachment; filename=adventure_save_{slot_id}.json"
+        },
+    )
+
+
+@router.post("/api/save/import")
+async def import_save(request: Request):
+    ctx = container.context_resolver.resolve_required(request)
+    body = await request.json()
+
+    save_data = body.get("save") or body
+    if isinstance(save_data, str):
+        import json as _json
+        save_data = _json.loads(save_data)
+
+    original_slot = save_data.get("slot_id", "imported")
+    if original_slot == "auto":
+        original_slot = "imported"
+
+    existing = container.save_service.get_save(ctx, original_slot)
+    target_slot = original_slot
+    if existing:
+        import uuid as _uuid
+        target_slot = f"imported_{_uuid.uuid4().hex[:6]}"
+
+    save_data["slot_id"] = target_slot
+    container.save_repository.save_game_state(ctx, target_slot, save_data)
+
+    return JSONResponse({"success": True, "slot_id": target_slot})

@@ -11,7 +11,6 @@ from app.config import BASE_DIR, STORY_EXPANSION_PROMPT
 from app.container import container
 from app.errors import AppError
 from app.models.chat import ChatRequestV2, ChatResponseV2
-from app.services import achievement_service
 
 
 router = APIRouter()
@@ -74,41 +73,11 @@ async def chat(request: Request, body: ChatRequestV2):
             ctx, parsed_content.inventory_changes
         )
 
-    # Evaluate achievements
-    newly_unlocked: list = []
-    if ctx is not None:
-        turn_ctx = body.turn_context or {}
-        last_check = turn_ctx.get("last_check") or {}
-        check_passed = bool(last_check.get("success", False))
-        check_difficulty = int(last_check.get("difficulty", 0))
-        inv_added = sum(
-            1 for c in (parsed_content.inventory_changes or []) if c.op == "add"
-        )
-        objectives_done = sum(
-            1
-            for o in (parsed_content.objectives or [])
-            if isinstance(o, dict) and o.get("status") == "completed"
-        )
-        player = container.player_repository.load(ctx)
-        inv_size = len(player.get("inventory", [])) if player else 0
-        try:
-            newly_unlocked = achievement_service.evaluate_and_unlock(
-                container.paths,
-                ctx,
-                check_passed=check_passed,
-                check_difficulty=check_difficulty,
-                objectives_completed_delta=objectives_done,
-                inventory_added_delta=inv_added,
-                current_inventory_size=inv_size,
-            )
-        except Exception:
-            pass  # achievements are non-critical
-
     response = ChatResponseV2(
         success=True,
         content=parsed_content,
         raw_content=raw_content,
-        meta={"request_id": request_id, "repaired": repaired, "newly_unlocked": newly_unlocked},
+        meta={"request_id": request_id, "repaired": repaired},
     )
     return JSONResponse(content=response.model_dump())
 
@@ -245,13 +214,11 @@ async def chat_stream(request: Request, body: ChatRequestV2):
                     except Exception as e:
                         print(f"Failed to create snapshot: {e}")
 
-                # Apply side effects & evaluate achievements
-                newly_unlocked: list = []
+                # Apply side effects
                 if ctx is not None and event.payload:
                     payload = event.payload
                     rel_changes = payload.get("relationship_changes") or []
                     inv_changes_raw = payload.get("inventory_changes") or []
-                    objectives_raw = payload.get("objectives") or []
                     if rel_changes:
                         try:
                             from app.models.chat import RelationshipChange
@@ -266,26 +233,6 @@ async def chat_stream(request: Request, body: ChatRequestV2):
                             container.game_service.apply_inventory_changes(ctx, changes)
                         except Exception:
                             pass
-                    try:
-                        turn_ctx = body.turn_context or {}
-                        last_check = turn_ctx.get("last_check") or {}
-                        check_passed = bool(last_check.get("success", False))
-                        check_difficulty = int(last_check.get("difficulty", 0))
-                        inv_added = sum(1 for c in inv_changes_raw if isinstance(c, dict) and c.get("op") == "add")
-                        objectives_done = sum(1 for o in objectives_raw if isinstance(o, dict) and o.get("status") == "completed")
-                        player = container.player_repository.load(ctx)
-                        inv_size = len(player.get("inventory", [])) if player else 0
-                        newly_unlocked = achievement_service.evaluate_and_unlock(
-                            container.paths,
-                            ctx,
-                            check_passed=check_passed,
-                            check_difficulty=check_difficulty,
-                            objectives_completed_delta=objectives_done,
-                            inventory_added_delta=inv_added,
-                            current_inventory_size=inv_size,
-                        )
-                    except Exception:
-                        pass
 
                 yield (
                     "data: "
@@ -296,7 +243,6 @@ async def chat_stream(request: Request, body: ChatRequestV2):
                             "content": event.payload,
                             "request_id": request_id,
                             "repaired": event.repaired,
-                            "newly_unlocked": newly_unlocked,
                         },
                         ensure_ascii=False,
                     )

@@ -1,8 +1,9 @@
 import json
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from app.config import MEMORY_UPDATE_PROMPT
+from app.config import MAX_STORY_FLOW_ENTRIES, MEMORY_UPDATE_PROMPT
 from app.game_context import GameContext
 from app.models.chat import ChatTurnContent
 from app.services.prompt_composer import PromptComposer
@@ -33,6 +34,7 @@ class GameService:
         save_repository,
         character_repository,
         relation_repository,
+        player_repository,
         llm_adapter,
     ):
         self.composer = prompt_composer
@@ -40,7 +42,108 @@ class GameService:
         self.save_repository = save_repository
         self.character_repository = character_repository
         self.relation_repository = relation_repository
+        self.player_repository = player_repository
         self.llm_adapter = llm_adapter
+
+    def _compress_memory_if_needed(self, memory_content: str, current_round: int) -> str:
+        lines = memory_content.split("\n")
+        flow_start = -1
+        flow_end = -1
+        key_events_start = -1
+        key_events_end = -1
+
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith("## 故事流程"):
+                flow_start = i
+            elif flow_start >= 0 and flow_end < 0 and stripped.startswith("## "):
+                flow_end = i
+            if stripped.startswith("## 关键事件"):
+                key_events_start = i
+            elif key_events_start >= 0 and key_events_end < 0 and stripped.startswith("## "):
+                key_events_end = i
+
+        if flow_start < 0:
+            return memory_content
+
+        if flow_end < 0:
+            flow_end = len(lines)
+
+        flow_entries = [
+            l for l in lines[flow_start:flow_end]
+            if l.strip().startswith("第") or l.strip().startswith("-")
+        ]
+
+        if len(flow_entries) <= MAX_STORY_FLOW_ENTRIES:
+            return memory_content
+
+        to_compress = flow_entries[:5]
+        keep_entries = flow_entries[5:]
+
+        round_range = ""
+        round_nums = []
+        for entry in to_compress:
+            m = re.search(r'第(\d+)轮', entry)
+            if m:
+                round_nums.append(int(m.group(1)))
+        if round_nums:
+            if len(round_nums) == 1:
+                round_range = f"第{round_nums[0]}轮"
+            else:
+                round_range = f"第{min(round_nums)}-{max(round_nums)}轮"
+
+        summary_texts = []
+        for entry in to_compress:
+            clean = entry.strip().lstrip("-").strip()
+            m = re.search(r'玩家选择「([^」]*)」', clean)
+            choice_text = m.group(1) if m else ""
+            m2 = re.search(r'→\s*(.+)$', clean)
+            result_text = m2.group(1) if m2 else ""
+            summary_texts.append(f"{choice_text} → {result_text}")
+
+        combined = "；".join(summary_texts[:3])
+        key_event_line = f"- {round_range}：{combined}"
+
+        new_flow_lines = []
+        for l in lines[flow_start:flow_end]:
+            stripped = l.strip()
+            if stripped.startswith("## 故事流程"):
+                new_flow_lines.append(l)
+            elif stripped in [e.strip() for e in to_compress]:
+                continue
+            else:
+                new_flow_lines.append(l)
+
+        before_flow = lines[:flow_start]
+        after_flow = lines[flow_end:]
+
+        key_events_lines = []
+        if key_events_start >= 0:
+            for l in lines[key_events_start:key_events_end or len(lines)]:
+                key_events_lines.append(l)
+        new_key_events = key_events_lines + [key_event_line] if key_events_lines else [key_event_line]
+
+        result = []
+        result.extend(before_flow)
+        result.extend(new_flow_lines)
+        result.extend(after_flow)
+
+        result_text = "\n".join(result)
+        if key_events_start >= 0 and key_event_line not in result_text:
+            result_text = result_text.replace(
+                "\n".join(key_events_lines),
+                "\n".join(new_key_events),
+            )
+        elif key_events_start < 0:
+            insert_pos = result_text.find("## 世界状态")
+            if insert_pos >= 0:
+                result_text = (
+                    result_text[:insert_pos]
+                    + f"## 关键事件\n{key_event_line}\n\n"
+                    + result_text[insert_pos:]
+                )
+
+        return result_text
 
     async def update_memory(
         self,
@@ -80,6 +183,7 @@ class GameService:
         new_memory = ensure_story_flow_round_present(
             new_memory, current_round, scene, selected_choice, log_summary
         )
+        new_memory = self._compress_memory_if_needed(new_memory, current_round)
         self.memory_repository.save_text(ctx, new_memory)
         return new_memory
 
@@ -200,6 +304,8 @@ class GameService:
                         "qty": qty,
                         "effects": change.effects if hasattr(change, "effects") else change.get("effects") or [],
                         "description": change.description if hasattr(change, "description") else change.get("description", ""),
+                        "stats": change.stats if hasattr(change, "stats") else change.get("stats", {}),
+                        "equipped": False,
                     })
             elif op == "remove":
                 for item in items:
@@ -213,6 +319,8 @@ class GameService:
                             item["effects"] = change.effects
                         if hasattr(change, "description") and change.description:
                             item["description"] = change.description
+                        if hasattr(change, "stats") and change.stats is not None:
+                            item["stats"] = change.stats
 
         player_data["inventory"] = items
         self.player_repository.save(ctx, player_data)

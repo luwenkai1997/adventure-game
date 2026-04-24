@@ -6,13 +6,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import Response
 
-from app.api.achievement_routes import router as achievement_router
 from app.api.game_routes import router as game_router
 from app.api.character_routes import router as character_router
 from app.api.novel_routes import router as novel_router
 from app.api.player_routes import router as player_router
 from app.api.check_routes import router as check_router
 from app.api.save_routes import router as save_router
+from app.api.item_routes import router as item_router
 from app.middleware.session_middleware import SessionMiddleware
 from app.middleware.request_lifecycle_middleware import RequestLifecycleMiddleware
 from app.config import BASE_DIR
@@ -44,13 +44,13 @@ app.add_middleware(
 app.add_middleware(SessionMiddleware)
 app.add_middleware(RequestLifecycleMiddleware)
 
-app.include_router(achievement_router)
 app.include_router(game_router)
 app.include_router(character_router)
 app.include_router(novel_router)
 app.include_router(player_router)
 app.include_router(check_router)
 app.include_router(save_router)
+app.include_router(item_router)
 
 _static_dir = os.path.join(BASE_DIR, "static")
 if os.path.isdir(_static_dir):

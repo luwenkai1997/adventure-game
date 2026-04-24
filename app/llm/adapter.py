@@ -9,7 +9,7 @@ from typing import Any, AsyncIterator, Dict, List, Optional
 
 import httpx
 
-from app.config import API_BASE_URL, API_KEY, API_MODEL, API_TIMEOUT
+from app.config import API_BASE_URL, API_KEY, API_MODEL, API_MODEL_UTILITY, API_TIMEOUT
 from app.game_context import GameContext
 from app.http_client import get_http_client
 from app.llm.parser import ChatTurnParser, ParseError, StructuredOutputParser
@@ -206,11 +206,13 @@ class LLMAdapter:
         request_id: Optional[str] = None,
         max_retries: int = 2,
         messages: Optional[List[Dict[str, Any]]] = None,
+        use_utility_model: bool = False,
     ) -> str:
         message_list = self.transport.normalize_messages(messages, prompt, system_prompt)
         last_error: Optional[Exception] = None
+        model = API_MODEL_UTILITY if use_utility_model else API_MODEL
         payload: Dict[str, Any] = {
-            "model": API_MODEL,
+            "model": model,
             "messages": message_list,
             "temperature": 0.7,
             "stream": False,
@@ -229,13 +231,36 @@ class LLMAdapter:
                     ctx,
                     method_name,
                     message_list,
-                    {"model": API_MODEL, "stream": False, "max_tokens": payload.get("max_tokens")},
+                    {"model": model, "stream": False, "max_tokens": payload.get("max_tokens")},
                     content,
                     response_usage=usage,
                 )
                 if request_id:
                     self.transport.clean_cancellation(request_id)
                 return content
+            except httpx.HTTPStatusError as exc:
+                # 4xx errors other than 429 (rate-limit) are permanent failures — don't retry.
+                status = exc.response.status_code
+                if 400 <= status < 500 and status != 429:
+                    self._log_call(
+                        ctx,
+                        method_name,
+                        message_list,
+                        {"model": payload.get("model"), "stream": False},
+                        "",
+                        error=f"HTTP {status}: {exc}",
+                    )
+                    raise
+                last_error = exc
+                logger.warning(
+                    "LLM %s attempt %s/%s: HTTP %s",
+                    method_name,
+                    attempt + 1,
+                    max_retries,
+                    status,
+                )
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(min(30.0, (2**attempt) * (0.5 + random.random())))
             except Exception as exc:
                 last_error = exc
                 logger.warning(
@@ -247,13 +272,12 @@ class LLMAdapter:
                 )
                 if attempt < max_retries - 1:
                     await asyncio.sleep(min(30.0, (2**attempt) * (0.5 + random.random())))
-                    continue
 
         self._log_call(
             ctx,
             method_name,
             message_list,
-            {"model": API_MODEL, "stream": False, "max_tokens": payload.get("max_tokens")},
+            {"model": model, "stream": False, "max_tokens": payload.get("max_tokens")},
             "",
             error=str(last_error) if last_error else "unknown error",
         )
@@ -278,6 +302,7 @@ class LLMAdapter:
         request_id: Optional[str] = None,
         max_retries: int = 2,
         messages: Optional[List[Dict[str, Any]]] = None,
+        use_utility_model: bool = False,
     ) -> Any:
         content = await self.generate_text(
             ctx=ctx,
@@ -289,6 +314,7 @@ class LLMAdapter:
             request_id=request_id,
             max_retries=max_retries,
             messages=messages,
+            use_utility_model=use_utility_model,
         )
         parse_fn = parser or self.json_parser.parse_json
         return parse_fn(content)
@@ -317,6 +343,7 @@ class LLMAdapter:
                     prompt=repair_prompt,
                     method_name=repair_method_name,
                     request_id=request_id,
+                    use_utility_model=True,
                 )
         if last_error is not None:
             raise last_error

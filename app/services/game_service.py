@@ -75,6 +75,7 @@ class GameService:
             ctx=ctx,
             prompt=prompt,
             method_name="update_memory",
+            use_utility_model=True,
         )
         new_memory = ensure_story_flow_round_present(
             new_memory, current_round, scene, selected_choice, log_summary
@@ -160,3 +161,58 @@ class GameService:
                     )
 
         self.relation_repository.save_all(ctx, relations)
+
+    def apply_inventory_changes(
+        self, ctx: Optional[GameContext], inventory_changes
+    ) -> None:
+        """Apply add/remove/update operations to the player's inventory."""
+        if ctx is None or not inventory_changes:
+            return
+
+        player_data = self.player_repository.load(ctx)
+        if not player_data:
+            return
+
+        import uuid as _uuid
+
+        raw_inventory = player_data.get("inventory", [])
+        items: List[Dict] = []
+        for entry in raw_inventory:
+            if isinstance(entry, str):
+                items.append({"id": _uuid.uuid4().hex[:8], "name": entry, "type": "misc", "qty": 1, "effects": []})
+            elif isinstance(entry, dict):
+                items.append(entry)
+
+        for change in inventory_changes:
+            op = change.op if hasattr(change, "op") else change.get("op", "add")
+            name = change.item_name if hasattr(change, "item_name") else change.get("item_name", "")
+            qty = change.qty if hasattr(change, "qty") else change.get("qty", 1)
+
+            if op == "add":
+                existing = next((i for i in items if i["name"] == name), None)
+                if existing:
+                    existing["qty"] = existing.get("qty", 1) + qty
+                else:
+                    items.append({
+                        "id": _uuid.uuid4().hex[:8],
+                        "name": name,
+                        "type": change.item_type if hasattr(change, "item_type") else change.get("item_type", "misc"),
+                        "qty": qty,
+                        "effects": change.effects if hasattr(change, "effects") else change.get("effects") or [],
+                        "description": change.description if hasattr(change, "description") else change.get("description", ""),
+                    })
+            elif op == "remove":
+                for item in items:
+                    if item["name"] == name:
+                        item["qty"] = max(0, item.get("qty", 1) - qty)
+                items = [i for i in items if i.get("qty", 1) > 0]
+            elif op == "update":
+                for item in items:
+                    if item["name"] == name:
+                        if hasattr(change, "effects") and change.effects is not None:
+                            item["effects"] = change.effects
+                        if hasattr(change, "description") and change.description:
+                            item["description"] = change.description
+
+        player_data["inventory"] = items
+        self.player_repository.save(ctx, player_data)

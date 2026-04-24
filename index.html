@@ -231,6 +231,14 @@
             </div>
             <div class="input-section">
                 <label for="world-setting">设定你的世界观</label>
+                <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;" id="template-btns">
+                    <button class="template-btn" onclick="applyWorldTemplate('cyberpunk')">🌆 赛博朋克</button>
+                    <button class="template-btn" onclick="applyWorldTemplate('wuxia')">⚔️ 武侠江湖</button>
+                    <button class="template-btn" onclick="applyWorldTemplate('apocalypse')">☢️ 末日废土</button>
+                    <button class="template-btn" onclick="applyWorldTemplate('cultivation')">☯️ 东方修仙</button>
+                    <button class="template-btn" onclick="applyWorldTemplate('deepsea')">🌊 深海科研</button>
+                    <button class="template-btn" onclick="applyWorldTemplate('fantasy')">🏰 奇幻大陆</button>
+                </div>
                 <textarea id="world-setting" placeholder="例如：赛博朋克新加坡、古代江湖、深海科研站遭遇变异体、末日后的废土世界..."></textarea>
                 <button class="btn btn-expand" id="expand-btn" onclick="expandStorySetting()">
                     <span id="expand-btn-text">背景拓展</span>
@@ -289,6 +297,8 @@
                 <button class="characters-btn" onclick="toggleCharacterPanel()">👥 NPC</button>
                 <button class="player-panel-btn" onclick="showSaveModal()">💾 存档</button>
                 <button class="player-panel-btn btn-novel" id="novel-btn" onclick="showNovelModal()">📖 小说</button>
+                <button class="player-panel-btn" id="tts-btn" onclick="toggleTTS()" title="朗读场景文本">🔊</button>
+                <button class="player-panel-btn" onclick="toggleAchievementsPanel()" title="成就">🏆</button>
                 <button class="end-game-btn" id="end-game-btn" onclick="triggerEnding()">结束游戏</button>
             </div>
             <div id="player-panel" class="player-panel">
@@ -298,6 +308,7 @@
                 </div>
                 <div id="player-info" class="player-info"></div>
             </div>
+            <div id="achievements-panel" class="player-panel achievements-panel"></div>
             <div class="game-content">
                 <div class="game-main">
                     <div class="scene-box">
@@ -433,7 +444,9 @@
             <div class="character-detail-content" style="position: relative;">
                 <button onclick="closeCharacterDetail()" style="position:absolute; right:15px; top:15px; background:none; border:none; color:rgba(255,255,255,0.5); font-size:1.5rem; cursor:pointer; z-index:1;">&times;</button>
                 <div class="character-detail-header">
-                    <div class="character-detail-avatar" id="detail-avatar">👤</div>
+                    <div class="character-detail-avatar" id="detail-avatar" style="position:relative;overflow:hidden;">👤
+                        <button id="avatar-gen-btn" onclick="generateNpcAvatar()" title="AI 生成头像" style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.6);border:none;color:rgba(0,255,136,0.85);font-size:0.6rem;padding:2px 0;cursor:pointer;display:none;">🎨 生成</button>
+                    </div>
                     <div class="character-detail-info">
                         <h2 id="detail-name"></h2>
                         <p class="title" id="detail-title"></p>
@@ -459,6 +472,17 @@
                     <div class="character-section">
                         <h4>关系</h4>
                         <div id="detail-relations"></div>
+                    </div>
+                    <div class="character-section" id="npc-dialogue-section" style="display:none;">
+                        <h4>💬 与 <span id="npc-dialogue-name"></span> 对话</h4>
+                        <div id="npc-dialogue-history" style="max-height:200px; overflow-y:auto; margin-bottom:8px; font-size:0.9em; display:flex; flex-direction:column; gap:6px;"></div>
+                        <div style="display:flex; gap:8px; align-items:flex-end;">
+                            <textarea id="npc-dialogue-input" placeholder="输入你想说的话…" rows="2"
+                                style="flex:1; resize:none; padding:8px; background:rgba(0,0,0,0.4); border:1px solid rgba(0,255,136,0.3); border-radius:6px; color:#e0e0e0; font-size:0.9em;"
+                                onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendNpcDialogue();}"></textarea>
+                            <button class="btn" onclick="sendNpcDialogue()" id="npc-dialogue-send-btn" style="padding:8px 16px;">发送</button>
+                        </div>
+                        <div id="npc-dialogue-status" style="font-size:0.8em; color:rgba(0,255,136,0.6); margin-top:4px; min-height:1.2em;"></div>
                     </div>
                 </div>
                 <div class="character-detail-actions">

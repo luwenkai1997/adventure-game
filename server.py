@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import Response
 
+from app.api.achievement_routes import router as achievement_router
 from app.api.game_routes import router as game_router
 from app.api.character_routes import router as character_router
 from app.api.novel_routes import router as novel_router
@@ -43,6 +44,7 @@ app.add_middleware(
 app.add_middleware(SessionMiddleware)
 app.add_middleware(RequestLifecycleMiddleware)
 
+app.include_router(achievement_router)
 app.include_router(game_router)
 app.include_router(character_router)
 app.include_router(novel_router)
@@ -53,6 +55,10 @@ app.include_router(save_router)
 _static_dir = os.path.join(BASE_DIR, "static")
 if os.path.isdir(_static_dir):
     app.mount("/static", StaticFiles(directory=_static_dir), name="static")
+
+_games_dir = os.path.join(BASE_DIR, "games")
+os.makedirs(_games_dir, exist_ok=True)
+app.mount("/game-assets", StaticFiles(directory=_games_dir), name="game-assets")
 
 
 @app.get("/favicon.ico")

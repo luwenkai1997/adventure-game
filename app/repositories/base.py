@@ -85,6 +85,9 @@ class FileRepositoryPaths:
     def snapshot_path(self, ctx: Optional[GameContext], chapter: int) -> str:
         return os.path.join(self.snapshots_dir(ctx), f"chapter_{chapter:03d}.json")
 
+    def achievements_path(self, ctx: Optional[GameContext]) -> str:
+        return os.path.join(self.game_dir_from_ctx(ctx), "achievements.json")
+
     def novel_dir(self, ctx: Optional[GameContext]) -> str:
         return os.path.join(self.game_dir_from_ctx(ctx), "novel")
 

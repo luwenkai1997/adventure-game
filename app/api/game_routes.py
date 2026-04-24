@@ -11,6 +11,7 @@ from app.config import BASE_DIR, STORY_EXPANSION_PROMPT
 from app.container import container
 from app.errors import AppError
 from app.models.chat import ChatRequestV2, ChatResponseV2
+from app.services import achievement_service
 
 
 router = APIRouter()
@@ -54,176 +55,166 @@ async def index():
 
 @router.post("/api/chat")
 async def chat(request: Request, body: ChatRequestV2):
-    try:
-        ctx = container.context_resolver.resolve_optional(request)
-        request_id = str(uuid.uuid4())
-        parsed_content, raw_content, repaired = await container.game_service.chat(
-            ctx,
-            body.messages,
-            body.extraPrompt,
-            body.turn_context,
+    ctx = container.context_resolver.resolve_optional(request)
+    request_id = str(uuid.uuid4())
+    parsed_content, raw_content, repaired = await container.game_service.chat(
+        ctx,
+        body.messages,
+        body.extraPrompt,
+        body.turn_context,
+    )
+
+    if parsed_content.relationship_changes:
+        await container.game_service.apply_relationship_changes(
+            ctx, parsed_content.relationship_changes
         )
 
-        if parsed_content.relationship_changes:
-            await container.game_service.apply_relationship_changes(
-                ctx, parsed_content.relationship_changes
+    if parsed_content.inventory_changes:
+        container.game_service.apply_inventory_changes(
+            ctx, parsed_content.inventory_changes
+        )
+
+    # Evaluate achievements
+    newly_unlocked: list = []
+    if ctx is not None:
+        turn_ctx = body.turn_context or {}
+        last_check = turn_ctx.get("last_check") or {}
+        check_passed = bool(last_check.get("success", False))
+        check_difficulty = int(last_check.get("difficulty", 0))
+        inv_added = sum(
+            1 for c in (parsed_content.inventory_changes or []) if c.op == "add"
+        )
+        objectives_done = sum(
+            1
+            for o in (parsed_content.objectives or [])
+            if isinstance(o, dict) and o.get("status") == "completed"
+        )
+        player = container.player_repository.load(ctx)
+        inv_size = len(player.get("inventory", [])) if player else 0
+        try:
+            newly_unlocked = achievement_service.evaluate_and_unlock(
+                container.paths,
+                ctx,
+                check_passed=check_passed,
+                check_difficulty=check_difficulty,
+                objectives_completed_delta=objectives_done,
+                inventory_added_delta=inv_added,
+                current_inventory_size=inv_size,
             )
+        except Exception:
+            pass  # achievements are non-critical
 
-        response = ChatResponseV2(
-            success=True,
-            content=parsed_content,
-            raw_content=raw_content,
-            meta={"request_id": request_id, "repaired": repaired},
-        )
-        return JSONResponse(content=response.model_dump())
-    except AppError:
-        raise
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"success": False, "error": f"服务器错误: {str(e)}"})
+    response = ChatResponseV2(
+        success=True,
+        content=parsed_content,
+        raw_content=raw_content,
+        meta={"request_id": request_id, "repaired": repaired, "newly_unlocked": newly_unlocked},
+    )
+    return JSONResponse(content=response.model_dump())
 
 
 @router.post("/api/save-memory")
 async def api_save_memory(request: Request, body: MemoryRequest):
-    try:
-        ctx = container.context_resolver.resolve_required(request)
-        memory_path = container.memory_repository.save_initial(
-            ctx, body.worldSetting, body.storySummary
-        )
-        return JSONResponse(content={"success": True, "memory_path": memory_path})
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": f"保存失败: {str(e)}"})
+    ctx = container.context_resolver.resolve_required(request)
+    memory_path = container.memory_repository.save_initial(
+        ctx, body.worldSetting, body.storySummary
+    )
+    return JSONResponse(content={"success": True, "memory_path": memory_path})
 
 
 @router.post("/api/update-memory")
 async def api_update_memory(request: Request, body: UpdateMemoryRequest):
-    try:
-        ctx = container.context_resolver.resolve_required(request)
-        await container.game_service.update_memory(
-            ctx,
-            body.scene,
-            body.selectedChoice,
-            body.logSummary,
-            body.endingType,
-            check_result=body.checkResult,
-            relationship_changes=body.relationshipChanges,
-            route_scores=body.routeScores,
-            current_round=body.currentRound,
-        )
-        return JSONResponse(content={"success": True})
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": f"更新失败: {str(e)}"})
+    ctx = container.context_resolver.resolve_required(request)
+    await container.game_service.update_memory(
+        ctx,
+        body.scene,
+        body.selectedChoice,
+        body.logSummary,
+        body.endingType,
+        check_result=body.checkResult,
+        relationship_changes=body.relationshipChanges,
+        route_scores=body.routeScores,
+        current_round=body.currentRound,
+    )
+    return JSONResponse(content={"success": True})
 
 
 @router.post("/api/story/expand")
 async def api_expand_story(body: StoryExpansionRequest):
-    try:
-        if not body.user_input or not body.user_input.strip():
-            raise AppError(code="validation_error", message="请输入故事设定", status_code=400)
+    if not body.user_input or not body.user_input.strip():
+        raise AppError(code="validation_error", message="请输入故事设定", status_code=400)
 
-        expanded_story = await container.llm_adapter.generate_text(
-            ctx=None,
-            prompt=STORY_EXPANSION_PROMPT.format(user_input=body.user_input),
-            system_prompt="你是一个专业的游戏世界观设计师，擅长创造丰富、引人入胜的故事设定。",
-            timeout=120,
-            method_name="expand_story",
-        )
-        return JSONResponse(content={"success": True, "expanded_story": expanded_story})
-    except AppError:
-        raise
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": f"故事补全失败: {str(e)}"})
+    expanded_story = await container.llm_adapter.generate_text(
+        ctx=None,
+        prompt=STORY_EXPANSION_PROMPT.format(user_input=body.user_input),
+        system_prompt="你是一个专业的游戏世界观设计师，擅长创造丰富、引人入胜的故事设定。",
+        timeout=120,
+        method_name="expand_story",
+    )
+    return JSONResponse(content={"success": True, "expanded_story": expanded_story})
 
 
 @router.post("/api/games/create")
 async def api_create_game(request: Request, body: CreateGameRequest):
-    try:
-        paths = container.game_repository.create(body.world_setting)
-        game_id = os.path.basename(paths["game_dir"])
-        session_id = container.context_resolver.get_session_id_from_request(request)
-        container.session_repository.set_active_game(session_id, game_id)
-        return JSONResponse(
-            content={
-                "success": True,
-                "game_id": game_id,
-                "paths": {key: value for key, value in paths.items() if key != "game_info"},
-            }
-        )
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": f"创建游戏失败: {str(e)}"})
+    paths = container.game_repository.create(body.world_setting)
+    game_id = os.path.basename(paths["game_dir"])
+    session_id = container.context_resolver.get_session_id_from_request(request)
+    container.session_repository.set_active_game(session_id, game_id)
+    return JSONResponse(
+        content={
+            "success": True,
+            "game_id": game_id,
+            "paths": {key: value for key, value in paths.items() if key != "game_info"},
+        }
+    )
 
 
 @router.get("/api/games")
 async def api_list_games():
-    try:
-        games = container.game_repository.list_all()
-        return JSONResponse(content={"games": games, "count": len(games)})
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": f"获取游戏列表失败: {str(e)}"})
+    games = container.game_repository.list_all()
+    return JSONResponse(content={"games": games, "count": len(games)})
 
 
 @router.get("/api/games/current")
 async def api_get_current_game(request: Request):
-    try:
-        ctx = container.context_resolver.resolve_optional(request)
-        if ctx:
-            game_info = container.game_repository.get_game_info(ctx.game_id)
-            return JSONResponse(content={"current_game": ctx.game_id, "game_info": game_info})
-        return JSONResponse(content={"current_game": None, "game_info": None})
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": f"获取当前游戏失败: {str(e)}"})
+    ctx = container.context_resolver.resolve_optional(request)
+    if ctx:
+        game_info = container.game_repository.get_game_info(ctx.game_id)
+        return JSONResponse(content={"current_game": ctx.game_id, "game_info": game_info})
+    return JSONResponse(content={"current_game": None, "game_info": None})
 
 
 @router.post("/api/games/load/{game_id}")
 async def api_load_game(request: Request, game_id: str):
-    try:
-        if not container.game_repository.exists(game_id):
-            return JSONResponse(status_code=404, content={"error": f"游戏不存在: {game_id}"})
-        session_id = container.context_resolver.get_session_id_from_request(request)
-        container.session_repository.set_active_game(session_id, game_id)
-        game_info = container.game_repository.get_game_info(game_id)
-        return JSONResponse(content={"success": True, "game_id": game_id, "game_info": game_info})
-    except AppError:
-        raise
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": f"加载游戏失败: {str(e)}"})
+    if not container.game_repository.exists(game_id):
+        return JSONResponse(status_code=404, content={"error": f"游戏不存在: {game_id}"})
+    session_id = container.context_resolver.get_session_id_from_request(request)
+    container.session_repository.set_active_game(session_id, game_id)
+    game_info = container.game_repository.get_game_info(game_id)
+    return JSONResponse(content={"success": True, "game_id": game_id, "game_info": game_info})
 
 
 @router.get("/api/games/{game_id}")
 async def api_get_game(game_id: str):
-    try:
-        game_info = container.game_repository.get_game_info(game_id)
-        if game_info:
-            return JSONResponse(content={"game_info": game_info})
-        return JSONResponse(status_code=404, content={"error": "游戏不存在"})
-    except AppError:
-        raise
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": f"获取游戏信息失败: {str(e)}"})
+    game_info = container.game_repository.get_game_info(game_id)
+    if game_info:
+        return JSONResponse(content={"game_info": game_info})
+    return JSONResponse(status_code=404, content={"error": "游戏不存在"})
 
 
 @router.put("/api/games/{game_id}")
 async def api_update_game(game_id: str, body: UpdateGameRequest):
-    try:
-        updates = {key: value for key, value in body.model_dump().items() if value is not None}
-        game_info = container.game_repository.update_game_info(game_id, updates)
-        return JSONResponse(content={"success": True, "game_info": game_info})
-    except AppError:
-        raise
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": f"更新游戏失败: {str(e)}"})
+    updates = {key: value for key, value in body.model_dump().items() if value is not None}
+    game_info = container.game_repository.update_game_info(game_id, updates)
+    return JSONResponse(content={"success": True, "game_info": game_info})
 
 
 @router.delete("/api/games/{game_id}")
 async def api_delete_game(game_id: str):
-    try:
-        if container.game_repository.delete(game_id):
-            container.session_repository.remove_game_references(game_id)
-            return JSONResponse(content={"success": True})
-        return JSONResponse(status_code=404, content={"error": "游戏不存在"})
-    except AppError:
-        raise
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": f"删除游戏失败: {str(e)}"})
+    if container.game_repository.delete(game_id):
+        container.session_repository.remove_game_references(game_id)
+        return JSONResponse(content={"success": True})
+    return JSONResponse(status_code=404, content={"error": "游戏不存在"})
 
 
 @router.post("/api/chat/stream")
@@ -253,6 +244,49 @@ async def chat_stream(request: Request, body: ChatRequestV2):
                         container.character_service.create_snapshot(ctx, turn_num)
                     except Exception as e:
                         print(f"Failed to create snapshot: {e}")
+
+                # Apply side effects & evaluate achievements
+                newly_unlocked: list = []
+                if ctx is not None and event.payload:
+                    payload = event.payload
+                    rel_changes = payload.get("relationship_changes") or []
+                    inv_changes_raw = payload.get("inventory_changes") or []
+                    objectives_raw = payload.get("objectives") or []
+                    if rel_changes:
+                        try:
+                            from app.models.chat import RelationshipChange
+                            changes = [RelationshipChange(**c) if isinstance(c, dict) else c for c in rel_changes]
+                            await container.game_service.apply_relationship_changes(ctx, changes)
+                        except Exception:
+                            pass
+                    if inv_changes_raw:
+                        try:
+                            from app.models.chat import InventoryChange
+                            changes = [InventoryChange(**c) if isinstance(c, dict) else c for c in inv_changes_raw]
+                            container.game_service.apply_inventory_changes(ctx, changes)
+                        except Exception:
+                            pass
+                    try:
+                        turn_ctx = body.turn_context or {}
+                        last_check = turn_ctx.get("last_check") or {}
+                        check_passed = bool(last_check.get("success", False))
+                        check_difficulty = int(last_check.get("difficulty", 0))
+                        inv_added = sum(1 for c in inv_changes_raw if isinstance(c, dict) and c.get("op") == "add")
+                        objectives_done = sum(1 for o in objectives_raw if isinstance(o, dict) and o.get("status") == "completed")
+                        player = container.player_repository.load(ctx)
+                        inv_size = len(player.get("inventory", [])) if player else 0
+                        newly_unlocked = achievement_service.evaluate_and_unlock(
+                            container.paths,
+                            ctx,
+                            check_passed=check_passed,
+                            check_difficulty=check_difficulty,
+                            objectives_completed_delta=objectives_done,
+                            inventory_added_delta=inv_added,
+                            current_inventory_size=inv_size,
+                        )
+                    except Exception:
+                        pass
+
                 yield (
                     "data: "
                     + json.dumps(
@@ -262,6 +296,7 @@ async def chat_stream(request: Request, body: ChatRequestV2):
                             "content": event.payload,
                             "request_id": request_id,
                             "repaired": event.repaired,
+                            "newly_unlocked": newly_unlocked,
                         },
                         ensure_ascii=False,
                     )

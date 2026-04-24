@@ -75,6 +75,7 @@
         let routeScores = { redemption: 0, power: 0, sacrifice: 0, betrayal: 0, retreat: 0 };
         let keyDecisions = [];
         let endingOmenState = {};
+        let activeObjectives = [];   // [{id, title, status}] persisted across turns
 
         const tendencyToRouteMap = {
             "善良": "redemption",
@@ -703,6 +704,40 @@
                 `;
             }
             
+            if (playerCharacter.inventory && playerCharacter.inventory.length > 0) {
+                const itemTypeIcon = { weapon:'⚔️', armor:'🛡️', consumable:'🧪', key:'🗝️', misc:'📦' };
+                content += `
+                    <div class="player-skills" style="margin-top:12px;">
+                        <h4>🎒 物品栏</h4>
+                        <div class="player-skill-list" style="flex-wrap:wrap; gap:6px;">
+                            ${playerCharacter.inventory.map(item => {
+                                if (typeof item === 'string') {
+                                    return `<span class="player-skill-tag" title="${item}">${item}</span>`;
+                                }
+                                const icon = itemTypeIcon[item.type] || '📦';
+                                const qty = item.qty > 1 ? ` ×${item.qty}` : '';
+                                const tip = item.description || (item.effects || []).join(', ') || item.name;
+                                return `<span class="player-skill-tag" title="${tip}">${icon} ${item.name}${qty}</span>`;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (activeObjectives && activeObjectives.length > 0) {
+                const statusIcon = { active:'📌', done:'✅', failed:'❌' };
+                content += `
+                    <div style="margin-top:12px;">
+                        <h4 style="color:#00ff88; margin-bottom:6px;">🗺️ 任务目标</h4>
+                        ${activeObjectives.map(obj => {
+                            const icon = statusIcon[obj.status] || '📌';
+                            const color = obj.status === 'done' ? '#888' : obj.status === 'failed' ? '#ff6666' : '#aaffcc';
+                            return `<div style="font-size:0.85rem; color:${color}; margin-bottom:4px;">${icon} ${obj.title}</div>`;
+                        }).join('')}
+                    </div>
+                `;
+            }
+
             if (playerCharacter.background) {
                 content += `
                     <div style="margin-top: 15px;">
@@ -1159,6 +1194,91 @@
             }
         }
 
+        // ─── TTS (Web Speech API) ───────────────────────────────────────────
+        let ttsEnabled = false;
+        let ttsSpeaking = false;
+
+        function toggleTTS() {
+            ttsEnabled = !ttsEnabled;
+            const btn = document.getElementById('tts-btn');
+            if (btn) btn.textContent = ttsEnabled ? '🔇' : '🔊';
+            if (!ttsEnabled && window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+                ttsSpeaking = false;
+            }
+        }
+
+        function speakScene(text) {
+            if (!ttsEnabled || !text || !window.speechSynthesis) return;
+            window.speechSynthesis.cancel();
+            const utt = new SpeechSynthesisUtterance(text);
+            utt.lang = 'zh-CN';
+            utt.rate = 1.0;
+            utt.onend = () => { ttsSpeaking = false; };
+            ttsSpeaking = true;
+            window.speechSynthesis.speak(utt);
+        }
+        // ────────────────────────────────────────────────────────────────────
+
+        // ─── Achievements ────────────────────────────────────────────────────
+        function showAchievementUnlocked(achievements) {
+            achievements.forEach((ach, i) => {
+                setTimeout(() => {
+                    const toast = document.createElement('div');
+                    toast.className = 'achievement-toast';
+                    toast.innerHTML = `<span class="ach-icon">${ach.icon || '🏅'}</span><div class="ach-text"><strong>成就解锁</strong><span>${ach.title}</span></div>`;
+                    document.body.appendChild(toast);
+                    requestAnimationFrame(() => toast.classList.add('show'));
+                    setTimeout(() => {
+                        toast.classList.remove('show');
+                        setTimeout(() => toast.remove(), 500);
+                    }, 3500);
+                }, i * 800);
+            });
+        }
+
+        async function loadAchievementsPanel() {
+            const panel = document.getElementById('achievements-panel');
+            if (!panel) return;
+            try {
+                const data = await apiFetch('/api/achievements');
+                const list = data.achievements || [];
+                const stats = data.stats || {};
+                const unlocked = list.filter(a => a.unlocked).length;
+                panel.innerHTML = `
+                    <div class="ach-panel-header">
+                        <h3>🏆 成就 <span class="ach-count">${unlocked}/${list.length}</span></h3>
+                        <button class="player-panel-close" onclick="toggleAchievementsPanel()">×</button>
+                    </div>
+                    <div class="ach-stats">
+                        <span>回合 ${stats.total_turns || 0}</span>
+                        <span>检定通过 ${stats.checks_passed || 0}</span>
+                        <span>目标完成 ${stats.objectives_completed || 0}</span>
+                    </div>
+                    <div class="ach-list">
+                        ${list.map(a => `
+                            <div class="ach-item ${a.unlocked ? 'unlocked' : 'locked'}">
+                                <span class="ach-icon">${a.secret && !a.unlocked ? '❓' : (a.icon || '🏅')}</span>
+                                <div class="ach-info">
+                                    <strong>${a.secret && !a.unlocked ? '???' : a.title}</strong>
+                                    <span>${a.secret && !a.unlocked ? '神秘成就' : a.description}</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>`;
+            } catch (e) {
+                panel.innerHTML = '<p style="color:rgba(255,100,100,0.8);padding:1rem;">加载失败</p>';
+            }
+        }
+
+        function toggleAchievementsPanel() {
+            const panel = document.getElementById('achievements-panel');
+            if (!panel) return;
+            const isOpen = panel.classList.toggle('open');
+            if (isOpen) loadAchievementsPanel();
+        }
+        // ────────────────────────────────────────────────────────────────────
+
         function setLoading(isLoading) {
             const loading = document.getElementById('loading');
             const choices = document.querySelectorAll('.choice-btn');
@@ -1197,6 +1317,24 @@
             entry.textContent = log;
             container.appendChild(entry);
             container.scrollTop = container.scrollHeight;
+        }
+
+        const WORLD_TEMPLATES = {
+            cyberpunk: `赛博朋克新加坡，2089年。高耸的全息广告塔与拥挤的底层贫民区并存，跨国企业掌控着城市的一切——基因改造、脑机接口、私人雇佣军。主角是一名边缘人物，在这座不眠城市里谋生，一次意外让他/她卷入了一场足以颠覆整个城市权力格局的阴谋。`,
+            wuxia: `江湖乱世，庙堂与武林的暗流涌动。五大门派争雄，黑道白道界限模糊，一部传说中的武功秘籍引发了无数人的觊觎与厮杀。主角出身市井，因一场横祸被迫踏入江湖，一步步揭开隐藏在刀光剑影背后的惊天秘密，最终在乱世中找到自己的道义与归宿。`,
+            apocalypse: `核战后第十七年，文明的废墟上重新长出了危险的秩序。物资极度匮乏，变异生物横行，各路势力在废土上划定地盘。主角是一名在废土边缘挣扎求生的普通人，一个关于"净土"的传说将他/她推上了充满背叛与希望的漫长旅途。`,
+            cultivation: `玄幻大陆，灵气浓郁，修仙者以锻炼精气神为途，追求长生飞升。宗门林立，妖族蛰伏，上古禁地封印渐松。主角根骨平平，机缘巧合下得到一门逆天功法，在险象环生的修炼之路上，以有限的天赋挑战强者的极限，走出一条属于自己的长生道。`,
+            deepsea: `2071年，深海科研站"深蓝六号"驻扎于马里亚纳海沟边缘，研究未知的深海生态系统。某次例行潜水后，站内通讯中断，部分人员出现异常行为，压力舱里的生物样本开始失控繁殖。主角是站内工程师/科学家，必须在有限资源和不断升级的威胁中找到生还的出路，同时弄清楚这一切究竟是意外还是有人蓄意为之。`,
+            fantasy: `千年前大魔王被封印，人族、精灵、矮人结成的同盟日渐瓦解，各方势力暗中重新布局。古老的神器散落天涯，预言中的英雄迟迟未现。主角是一个平凡小镇上的年轻人，一个不可思议的夜晚将他/她拉入了这场决定大陆命运的棋局，过去与未来的秘密将在旅途中一一浮现。`,
+        };
+
+        function applyWorldTemplate(key) {
+            const text = WORLD_TEMPLATES[key];
+            if (!text) return;
+            const ta = document.getElementById('world-setting');
+            ta.value = text;
+            ta.focus();
+            ta.scrollTop = 0;
         }
 
         async function expandStorySetting() {
@@ -1474,6 +1612,17 @@
             await sendMessage();
         }
 
+        /** Extract a partial or complete scene string from an accumulating JSON buffer. */
+        function extractPartialScene(buf) {
+            // Complete: "scene": "value"
+            const full = buf.match(/"scene"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+            if (full) return full[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t');
+            // Partial: "scene": "value (still streaming)
+            const partial = buf.match(/"scene"\s*:\s*"((?:[^"\\]|\\.)*)/);
+            if (partial) return partial[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t');
+            return null;
+        }
+
         async function sendMessage() {
             setLoading(true);
             document.getElementById('scene-text').innerHTML = '';
@@ -1483,7 +1632,6 @@
             if (endingTriggered && endingCountdown > 0) {
                 endingCountdown--;
                 if (endingCountdown === 0) {
-                    // Include custom ending description in the system prompt if provided
                     let customDescPart = '';
                     if (customEndingDescription) {
                         customDescPart = `，结局内容需要围绕以下方向展开：${customEndingDescription}`;
@@ -1495,8 +1643,13 @@
             }
 
             try {
-                const response = await apiFetch('/api/chat', {
+                const sessionId = getSessionId();
+                const response = await fetch('/api/chat/stream', {
                     method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Adventure-Session-ID': sessionId
+                    },
                     body: JSON.stringify({
                         messages: messages,
                         extraPrompt: extraPrompt,
@@ -1508,23 +1661,56 @@
                     })
                 });
 
-                const data = await response.json();
-
-                if (!data.success) {
-                    throw new Error(data.error || '服务器返回错误');
+                if (!response.ok) {
+                    let errMsg = `HTTP ${response.status}`;
+                    try { const e = await response.json(); errMsg = e.error?.message || e.error || errMsg; } catch {}
+                    throw new Error(errMsg);
                 }
 
-                const content = data.content;
-                if (!content) {
-                    throw new Error('API返回内容为空');
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                const sceneEl = document.getElementById('scene-text');
+                let sseBuffer = '';
+                let jsonBuffer = '';
+                let streamingDone = false;
+
+                while (!streamingDone) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    sseBuffer += decoder.decode(value, { stream: true });
+                    const lines = sseBuffer.split('\n');
+                    sseBuffer = lines.pop(); // keep incomplete line
+
+                    for (const line of lines) {
+                        if (!line.startsWith('data: ')) continue;
+                        const raw = line.slice(6).trim();
+                        if (!raw || raw === '[DONE]') continue;
+                        let event;
+                        try { event = JSON.parse(raw); } catch { continue; }
+
+                        if (event.type === 'chunk') {
+                            jsonBuffer += event.content || '';
+                            const partial = extractPartialScene(jsonBuffer);
+                            if (partial !== null) {
+                                sceneEl.textContent = partial + '▌';
+                            }
+                        } else if (event.type === 'done') {
+                            streamingDone = true;
+                            const content = event.content;
+                            if (!content) throw new Error('API返回内容为空');
+                            messages.push({ role: 'assistant', content: JSON.stringify(content) });
+                            renderScene(content);
+                            if (event.newly_unlocked && event.newly_unlocked.length > 0) {
+                                showAchievementUnlocked(event.newly_unlocked);
+                            }
+                        } else if (event.type === 'error') {
+                            throw new Error(event.error || 'SSE错误');
+                        } else if (event.type === 'cancelled') {
+                            throw new Error('请求已取消');
+                        }
+                    }
                 }
-
-                messages.push({
-                    role: 'assistant',
-                    content: JSON.stringify(content)
-                });
-
-                renderScene(content);
 
             } catch (error) {
                 let errorMessage = error.message;
@@ -1557,6 +1743,7 @@
 
             sceneText.textContent = data.scene;
             currentScene = data.scene;
+            speakScene(data.scene);
             currentChoices = data.choices || null;
 
             if (data.log) {
@@ -1617,6 +1804,52 @@
                     container.appendChild(entry);
                 });
                 container.scrollTop = container.scrollHeight;
+            }
+
+            if (data.inventory_changes && data.inventory_changes.length > 0) {
+                const container = document.getElementById('log-container');
+                data.inventory_changes.forEach(ic => {
+                    const entry = document.createElement('div');
+                    entry.className = 'log-entry log-entry--relation';
+                    const opText = ic.op === 'add' ? '获得' : ic.op === 'remove' ? '失去' : '更新';
+                    const qty = ic.qty > 1 ? ` ×${ic.qty}` : '';
+                    entry.textContent = `🎒 ${opText}物品：${ic.item_name}${qty}`;
+                    container.appendChild(entry);
+                });
+                container.scrollTop = container.scrollHeight;
+                if (playerCharacter) {
+                    apiFetch('/api/player').then(r => r.json()).then(d => {
+                        if (d.player) {
+                            playerCharacter = d.player;
+                            if (document.getElementById('player-panel').classList.contains('open')) {
+                                updatePlayerPanel();
+                            }
+                        }
+                    }).catch(() => {});
+                }
+            }
+
+            if (data.objectives && data.objectives.length > 0) {
+                data.objectives.forEach(obj => {
+                    const idx = activeObjectives.findIndex(o => o.id === obj.id);
+                    if (idx >= 0) {
+                        activeObjectives[idx] = obj;
+                    } else {
+                        activeObjectives.push(obj);
+                    }
+                });
+                const container = document.getElementById('log-container');
+                data.objectives.forEach(obj => {
+                    const entry = document.createElement('div');
+                    entry.className = 'log-entry';
+                    const icon = obj.status === 'done' ? '✅' : obj.status === 'failed' ? '❌' : '📌';
+                    entry.textContent = `${icon} 任务${obj.status === 'done' ? '完成' : obj.status === 'failed' ? '失败' : ''}：${obj.title}`;
+                    container.appendChild(entry);
+                });
+                container.scrollTop = container.scrollHeight;
+                if (document.getElementById('player-panel').classList.contains('open')) {
+                    updatePlayerPanel();
+                }
             }
 
             saveGameState();
@@ -2369,7 +2602,15 @@
             const char = charactersData.find(c => c.id === charId);
             if (!char) return;
             
-            document.getElementById('detail-avatar').textContent = char.avatar ? '' : '👤';
+            const avatarEl = document.getElementById('detail-avatar');
+            const avatarGenBtn = document.getElementById('avatar-gen-btn');
+            if (char.avatar_url) {
+                avatarEl.innerHTML = `<img src="${char.avatar_url}?t=${Date.now()}" alt="${char.name}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+                if (avatarGenBtn) avatarGenBtn.style.display = 'block';
+            } else {
+                avatarEl.innerHTML = '👤';
+                if (avatarGenBtn) avatarGenBtn.style.display = 'block';
+            }
             document.getElementById('detail-name').textContent = char.name;
             document.getElementById('detail-title').textContent = char.title || '无称号';
             document.getElementById('detail-description').textContent = char.description || '暂无描述';
@@ -2455,12 +2696,117 @@
                 }).join('');
             }
             
+            initNpcDialoguePanel(char);
             document.getElementById('character-detail-modal').classList.add('open');
+        }
+
+        async function generateNpcAvatar() {
+            if (!currentCharacterId) return;
+            const btn = document.getElementById('avatar-gen-btn');
+            if (btn) { btn.textContent = '⏳ 生成中…'; btn.disabled = true; }
+            try {
+                const data = await apiFetch(`/api/characters/${currentCharacterId}/avatar`, { method: 'POST' });
+                if (data.avatar_url) {
+                    const avatarEl = document.getElementById('detail-avatar');
+                    const img = avatarEl.querySelector('img') || document.createElement('img');
+                    img.src = `${data.avatar_url}?t=${Date.now()}`;
+                    img.alt = 'avatar';
+                    img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;';
+                    if (!avatarEl.querySelector('img')) avatarEl.prepend(img);
+                    // Update local cache
+                    const char = charactersData.find(c => c.id === currentCharacterId);
+                    if (char) char.avatar_url = data.avatar_url;
+                    if (btn) { btn.textContent = '🎨 重生成'; }
+                }
+            } catch (e) {
+                const msg = e.message || '生成失败';
+                if (btn) btn.textContent = '🎨 生成';
+                addLog(`头像生成失败: ${msg}`, 'error');
+            } finally {
+                if (btn) btn.disabled = false;
+            }
         }
 
         function closeCharacterDetail() {
             document.getElementById('character-detail-modal').classList.remove('open');
             currentCharacterId = null;
+            npcDialogueHistory = [];
+        }
+
+        let npcDialogueHistory = [];
+
+        function initNpcDialoguePanel(char) {
+            const section = document.getElementById('npc-dialogue-section');
+            const isNpc = char.role_type !== 'protagonist';
+            if (!isNpc) { section.style.display = 'none'; return; }
+            section.style.display = '';
+            document.getElementById('npc-dialogue-name').textContent = char.name || 'NPC';
+            document.getElementById('npc-dialogue-history').innerHTML = '';
+            document.getElementById('npc-dialogue-input').value = '';
+            document.getElementById('npc-dialogue-status').textContent = '';
+            npcDialogueHistory = [];
+        }
+
+        function appendDialogueBubble(speaker, text, mood) {
+            const hist = document.getElementById('npc-dialogue-history');
+            const isPlayer = speaker === '你';
+            const moodIcons = { '开心':'😊','平静':'😐','忧虑':'😟','愤怒':'😡','悲伤':'😢','警惕':'😤','好奇':'🤔','讥讽':'😏' };
+            const moodIcon = moodIcons[mood] || '';
+            const bubble = document.createElement('div');
+            bubble.style.cssText = isPlayer
+                ? 'align-self:flex-end; background:rgba(0,255,136,0.12); border:1px solid rgba(0,255,136,0.3); border-radius:10px 10px 2px 10px; padding:6px 10px; max-width:85%;'
+                : 'align-self:flex-start; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); border-radius:10px 10px 10px 2px; padding:6px 10px; max-width:85%;';
+            bubble.innerHTML = `<span style="font-size:0.78em; color:rgba(255,255,255,0.45); display:block; margin-bottom:2px;">${speaker}${moodIcon ? ' ' + moodIcon : ''}</span>${text}`;
+            hist.appendChild(bubble);
+            hist.scrollTop = hist.scrollHeight;
+        }
+
+        async function sendNpcDialogue() {
+            const input = document.getElementById('npc-dialogue-input');
+            const status = document.getElementById('npc-dialogue-status');
+            const sendBtn = document.getElementById('npc-dialogue-send-btn');
+            const message = input.value.trim();
+            if (!message || !currentCharacterId) return;
+
+            input.value = '';
+            sendBtn.disabled = true;
+            status.textContent = '思考中…';
+            appendDialogueBubble('你', message, '');
+
+            try {
+                const resp = await apiFetch(`/api/characters/${currentCharacterId}/dialogue`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        message,
+                        context: currentScene ? currentScene.slice(0, 300) : ''
+                    })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    const char = charactersData.find(c => c.id === currentCharacterId);
+                    appendDialogueBubble(char ? char.name : 'NPC', data.dialogue, data.mood);
+                    if (data.relationship_hint) {
+                        status.textContent = `💫 ${data.relationship_hint}`;
+                        setTimeout(() => { status.textContent = ''; }, 3000);
+                    } else {
+                        status.textContent = '';
+                    }
+                    npcDialogueHistory.push({ player: message, npc: data.dialogue, mood: data.mood });
+                    if (data.dialogue_end) {
+                        status.textContent = '【对话结束】';
+                        input.disabled = true;
+                        sendBtn.disabled = true;
+                        return;
+                    }
+                } else {
+                    status.textContent = '对话失败，请重试';
+                }
+            } catch (e) {
+                status.textContent = '发送失败: ' + e.message;
+            } finally {
+                sendBtn.disabled = false;
+                input.focus();
+            }
         }
 
         function showCharacterForm(charId = null) {

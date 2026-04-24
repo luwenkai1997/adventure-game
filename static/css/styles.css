@@ -255,6 +255,23 @@
             color: var(--primary-container);
         }
 
+        .template-btn {
+            background: rgba(0,255,136,0.08);
+            border: 1px solid rgba(0,255,136,0.35);
+            color: #aaffcc;
+            padding: 5px 10px;
+            border-radius: 16px;
+            cursor: pointer;
+            font-size: 0.82rem;
+            transition: background 0.15s, border-color 0.15s;
+            white-space: nowrap;
+        }
+        .template-btn:hover {
+            background: rgba(0,255,136,0.18);
+            border-color: rgba(0,255,136,0.6);
+            color: #ffffff;
+        }
+
         .btn-expand {
             background: linear-gradient(135deg, var(--tertiary) 0%, var(--tertiary-container) 100%);
             border: none;
@@ -2272,3 +2289,49 @@
             font-size: 0.85rem;
             color: var(--primary-container);
         }
+
+        /* ── Achievement toast ──────────────────────────────────────────── */
+        .achievement-toast {
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            background: rgba(10, 20, 15, 0.95);
+            border: 1px solid rgba(0, 255, 136, 0.5);
+            border-radius: 12px;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 9999;
+            transform: translateX(120%);
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 4px 24px rgba(0, 255, 136, 0.2);
+            min-width: 220px;
+        }
+        .achievement-toast.show { transform: translateX(0); }
+        .achievement-toast .ach-icon { font-size: 1.8rem; }
+        .achievement-toast .ach-text { display: flex; flex-direction: column; gap: 2px; }
+        .achievement-toast .ach-text strong { color: rgba(0,255,136,0.9); font-size: 0.7rem; letter-spacing: 1px; text-transform: uppercase; }
+        .achievement-toast .ach-text span { color: #fff; font-size: 0.95rem; }
+
+        /* ── Achievements panel ─────────────────────────────────────────── */
+        .achievements-panel {
+            top: 60px;
+            right: 0;
+            width: 300px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        .ach-panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .ach-panel-header h3 { margin: 0; color: var(--primary); font-size: 1rem; }
+        .ach-count { background: rgba(0,255,136,0.15); padding: 2px 8px; border-radius: 99px; font-size: 0.8rem; }
+        .ach-stats { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+        .ach-stats span { background: rgba(255,255,255,0.05); border-radius: 6px; padding: 3px 8px; font-size: 0.75rem; color: rgba(255,255,255,0.6); }
+        .ach-list { display: flex; flex-direction: column; gap: 8px; }
+        .ach-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
+        .ach-item.unlocked { background: rgba(0,255,136,0.06); border-color: rgba(0,255,136,0.2); }
+        .ach-item.locked { opacity: 0.55; }
+        .ach-item .ach-icon { font-size: 1.4rem; flex-shrink: 0; }
+        .ach-item .ach-info { display: flex; flex-direction: column; gap: 2px; }
+        .ach-item .ach-info strong { font-size: 0.88rem; color: rgba(255,255,255,0.9); }
+        .ach-item .ach-info span { font-size: 0.75rem; color: rgba(255,255,255,0.5); }

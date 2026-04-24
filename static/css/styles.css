@@ -2149,6 +2149,67 @@
             color: #ff6666;
         }
 
+        .check-cheat-area {
+            margin-top: 12px;
+            text-align: center;
+        }
+
+        .check-cheat-btn {
+            background: transparent;
+            border: 1px dashed rgba(255, 255, 255, 0.15);
+            color: rgba(255, 255, 255, 0.35);
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            letter-spacing: 0.5px;
+        }
+
+        .check-cheat-btn:hover {
+            border-color: rgba(255, 170, 0, 0.5);
+            color: rgba(255, 170, 0, 0.8);
+            background: rgba(255, 170, 0, 0.06);
+            box-shadow: 0 0 20px rgba(255, 170, 0, 0.1);
+            text-shadow: 0 0 8px rgba(255, 170, 0, 0.3);
+        }
+
+        .check-cheat-btn.force-fail {
+            border-color: rgba(255, 68, 68, 0.2);
+        }
+
+        .check-cheat-btn.force-fail:hover {
+            border-color: rgba(255, 68, 68, 0.5);
+            color: rgba(255, 68, 68, 0.85);
+            background: rgba(255, 68, 68, 0.06);
+            box-shadow: 0 0 20px rgba(255, 68, 68, 0.1);
+            text-shadow: 0 0 8px rgba(255, 68, 68, 0.3);
+        }
+
+        .check-cheat-btn.force-success {
+            border-color: rgba(0, 253, 135, 0.2);
+        }
+
+        .check-cheat-btn.force-success:hover {
+            border-color: rgba(0, 253, 135, 0.5);
+            color: rgba(0, 253, 135, 0.85);
+            background: rgba(0, 253, 135, 0.06);
+            box-shadow: 0 0 20px rgba(0, 253, 135, 0.1);
+            text-shadow: 0 0 8px rgba(0, 253, 135, 0.3);
+        }
+
+        .check-result.overridden {
+            animation: cheatShake 0.4s ease;
+        }
+
+        @keyframes cheatShake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-6px); }
+            40% { transform: translateX(6px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
+        }
+
         .choice-btn.has-check .choice-btn-label::after {
             content: ' 🎲';
             font-size: 0.9em;

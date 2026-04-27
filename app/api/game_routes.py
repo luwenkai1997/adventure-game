@@ -2,7 +2,7 @@ import json
 import os
 import uuid
 
-from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from typing import Any, Optional
@@ -10,7 +10,7 @@ from typing import Any, Optional
 from app.config import BASE_DIR, STORY_EXPANSION_PROMPT
 from app.container import container
 from app.errors import AppError
-from app.models.chat import ChatRequestV2, ChatResponseV2
+from app.models.chat import ChatRequestV2
 
 
 router = APIRouter()
@@ -52,34 +52,6 @@ async def index():
         return f.read()
 
 
-@router.post("/api/chat")
-async def chat(request: Request, body: ChatRequestV2):
-    ctx = container.context_resolver.resolve_optional(request)
-    request_id = str(uuid.uuid4())
-    parsed_content, raw_content, repaired = await container.game_service.chat(
-        ctx,
-        body.messages,
-        body.extraPrompt,
-        body.turn_context,
-    )
-
-    if parsed_content.relationship_changes:
-        await container.game_service.apply_relationship_changes(
-            ctx, parsed_content.relationship_changes
-        )
-
-    if parsed_content.inventory_changes:
-        container.game_service.apply_inventory_changes(
-            ctx, parsed_content.inventory_changes
-        )
-
-    response = ChatResponseV2(
-        success=True,
-        content=parsed_content,
-        raw_content=raw_content,
-        meta={"request_id": request_id, "repaired": repaired},
-    )
-    return JSONResponse(content=response.model_dump())
 
 
 @router.post("/api/save-memory")
@@ -270,67 +242,6 @@ async def chat_stream(request: Request, body: ChatRequestV2):
     )
 
 
-@router.websocket("/ws/chat/stream")
-async def ws_chat_stream(websocket: WebSocket):
-    ctx = container.context_resolver.resolve_optional_websocket(websocket)
-    await websocket.accept()
-    try:
-        data = await websocket.receive_json()
-        body = ChatRequestV2.model_validate(data)
-    except Exception as e:
-        await websocket.send_json({"type": "error", "success": False, "error": f"无效请求: {e}"})
-        await websocket.close()
-        return
-
-    request_id = str(uuid.uuid4())
-    full_messages = container.prompt_composer.compose(
-        ctx=ctx,
-        messages=body.messages,
-        extra_prompt=body.extraPrompt,
-        turn_context=body.turn_context,
-        tendency_data=body.turn_context.get("tendency") if body.turn_context else None,
-    )
-
-    try:
-        async for event in container.llm_adapter.stream_chat_turn(
-            ctx, full_messages, request_id=request_id
-        ):
-            if event.type == "chunk":
-                await websocket.send_json({"type": "chunk", "content": event.content})
-            elif event.type == "cancelled":
-                await websocket.send_json({"type": "cancelled", "request_id": request_id})
-                return
-            elif event.type == "done":
-                if ctx and ctx.game_id:
-                    try:
-                        turn_num = len(body.messages) // 2 + 1
-                        container.character_service.create_snapshot(ctx, turn_num)
-                    except Exception as e:
-                        print(f"Failed to create snapshot: {e}")
-                await websocket.send_json(
-                    {
-                        "type": "done",
-                        "success": True,
-                        "content": event.payload,
-                        "request_id": request_id,
-                        "repaired": event.repaired,
-                    }
-                )
-            elif event.type == "error":
-                await websocket.send_json(
-                    {
-                        "type": "error",
-                        "success": False,
-                        "error": event.error,
-                        "request_id": request_id,
-                    }
-                )
-    except WebSocketDisconnect:
-        container.llm_adapter.cancel_request(request_id)
-    except Exception as e:
-        await websocket.send_json(
-            {"type": "error", "success": False, "error": str(e), "request_id": request_id}
-        )
 
 
 @router.post("/api/chat/cancel/{request_id}")

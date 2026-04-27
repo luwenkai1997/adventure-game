@@ -40,14 +40,6 @@ async def delete_save(request: Request, slot_id: str):
     return JSONResponse(status_code=404, content={"error": "存档不存在"})
 
 
-@router.get("/api/save/load/{slot_id}")
-async def load_save_get(request: Request, slot_id: str):
-    ctx = container.context_resolver.resolve_required(request)
-    save = container.save_service.load_save(ctx, slot_id)
-    if not save:
-        return JSONResponse(status_code=404, content={"error": "存档不存在"})
-    container.save_service.restore_history(ctx, save.get("history") or [])
-    return JSONResponse(content={"success": True, "save": save})
 
 
 @router.post("/api/save/load/{slot_id}")

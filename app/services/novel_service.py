@@ -3,14 +3,12 @@ import logging
 import os
 import re
 import shutil
-import warnings
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from app.config import (
     NOVEL_CHAPTER_PROMPT,
     NOVEL_ENDING_PROMPT,
-    NOVEL_GENERATION_PROMPT,
     NOVEL_INCREMENTAL_PLAN_PROMPT,
     NOVEL_TITLE_PROMPT,
 )
@@ -732,79 +730,6 @@ class NovelService:
         if not isinstance(plan_data["chapters"], list) or len(plan_data["chapters"]) == 0:
             raise Exception("LLM返回数据chapters为空")
 
-    async def generate_full_novel(self, ctx: GameContext) -> dict:
-        warnings.warn(
-            "NovelService.generate_full_novel is deprecated; use generate_incremental instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        logger.warning("generate_full_novel is deprecated; use generate_incremental.")
-        memory_content = self.memory_repository.load_text(ctx)
-        if not memory_content:
-            raise Exception("memory.md不存在，请先开始游戏")
-
-        novel_content = await self.llm_adapter.generate_text(
-            ctx=ctx,
-            prompt=NOVEL_GENERATION_PROMPT.format(
-                memory_content=memory_content,
-                min_chapters=3,
-                max_chapters=15,
-            ),
-            system_prompt="你是一个专业的小说作家。",
-            timeout=600,
-            method_name="generate_full_novel",
-        )
-
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        novel_folder = f"novel-{timestamp}"
-        novel_path = self.novel_repository.save_legacy_merged_novel(
-            ctx, novel_folder, novel_content
-        )
-        return {
-            "novel_folder": novel_folder,
-            "novel_path": novel_path,
-            "novel_content": novel_content,
-        }
-
-    async def plan_novel(self, ctx: GameContext) -> dict:
-        memory_content = self.memory_repository.load_text(ctx)
-        if not memory_content:
-            raise Exception("memory.md不存在，请先开始游戏")
-
-        min_chapters, max_chapters, game_rounds = self.calculate_chapter_range(
-            self.save_repository.get_round_count(ctx)
-        )
-        event_ledger_overview = self._build_event_ledger(ctx, compact=True) or "（暂无历史台账）"
-        plan_data = await self.llm_adapter.generate_json(
-            ctx=ctx,
-            prompt=NOVEL_TITLE_PROMPT.format(
-                memory_content=memory_content,
-                event_ledger_overview=event_ledger_overview,
-                min_chapters=min_chapters,
-                max_chapters=max_chapters,
-            ),
-            system_prompt="你是一个专业的小说策划师。",
-            timeout=600,
-            method_name="plan_legacy_novel",
-        )
-        self._validate_plan(plan_data)
-
-        plan_data["game_rounds"] = game_rounds
-        plan_data["chapter_range"] = {"min": min_chapters, "max": max_chapters}
-        plan_data["total_chapters"] = plan_data.get("total_chapters") or len(
-            plan_data["chapters"]
-        )
-
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        novel_folder = f"novel-{timestamp}"
-        self.novel_repository.save_legacy_plan(ctx, novel_folder, plan_data)
-
-        return {
-            "novel_folder": novel_folder,
-            "plan": plan_data,
-            "game_rounds": game_rounds,
-            "chapter_range": {"min": min_chapters, "max": max_chapters},
-        }
 
     async def generate_chapter(
         self,
@@ -896,42 +821,4 @@ class NovelService:
             "chapter_num": chapter_num,
             "chapter_path": chapter_path,
             "chapter_content": chapter_content,
-        }
-
-    def merge_novel(self, ctx: GameContext, novel_folder: str) -> dict:
-        plan_data = self.novel_repository.load_legacy_plan(ctx, novel_folder)
-        novel_title = plan_data.get("title", "未命名小说")
-        chapter_files = self.novel_repository.list_legacy_chapter_files(ctx, novel_folder)
-        if not chapter_files:
-            raise Exception(f"没有找到章节文件: {novel_folder}")
-
-        merged_content = f"# {novel_title}\n\n"
-        chapters_dir = self.novel_repository.legacy_chapters_dir(ctx, novel_folder)
-        for chapter_file in chapter_files:
-            chapter_path = os.path.join(chapters_dir, chapter_file)
-            merged_content += self.novel_repository.load_text(chapter_path) + "\n\n"
-
-        novel_path = self.novel_repository.save_legacy_merged_novel(
-            ctx, novel_folder, merged_content
-        )
-        return {
-            "success": True,
-            "novel_path": novel_path,
-            "novel_content": merged_content,
-            "total_chapters": len(chapter_files),
-        }
-
-    def get_novel_status(self, ctx: GameContext, novel_folder: str) -> dict:
-        plan_data = self.novel_repository.load_legacy_plan(ctx, novel_folder)
-        generated_chapters = len(
-            self.novel_repository.list_legacy_chapter_files(ctx, novel_folder)
-        )
-        total_chapters = plan_data.get("total_chapters", 0)
-        return {
-            "novel_folder": novel_folder,
-            "title": plan_data.get("title", ""),
-            "total_chapters": total_chapters,
-            "generated_chapters": generated_chapters,
-            "progress": generated_chapters / total_chapters if total_chapters > 0 else 0,
-            "is_complete": generated_chapters >= total_chapters,
         }

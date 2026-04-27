@@ -8,7 +8,6 @@ from fastapi.responses import JSONResponse
 from app.container import container
 from app.models.player import (
     ATTRIBUTE_NAMES_CN,
-    ATTRIBUTE_NAMES_EN,
     PRESET_SKILLS,
     PlayerCreateRequest,
     PlayerRandomRequest,
@@ -24,13 +23,6 @@ router = APIRouter()
 async def get_preset_skills():
     return JSONResponse(
         content={"skills": PRESET_SKILLS, "attribute_names": ATTRIBUTE_NAMES_CN}
-    )
-
-
-@router.get("/api/player/attributes")
-async def get_attribute_names():
-    return JSONResponse(
-        content={"en_to_cn": ATTRIBUTE_NAMES_CN, "cn_to_en": ATTRIBUTE_NAMES_EN}
     )
 
 
@@ -96,45 +88,3 @@ async def update_player(request: Request, body: PlayerUpdateRequest):
     if not player:
         return JSONResponse(status_code=404, content={"error": "玩家角色不存在"})
     return JSONResponse(content={"success": True, "player": player.model_dump()})
-
-
-@router.get("/api/player/summary")
-async def get_player_summary(request: Request):
-    ctx = container.context_resolver.resolve_optional(request)
-    summary = container.player_service.get_player_summary(ctx)
-    return JSONResponse(content={"summary": summary})
-
-
-@router.post("/api/player/skill/{skill_name}")
-async def add_skill(request: Request, skill_name: str):
-    ctx = container.context_resolver.resolve_required(request)
-    player = container.player_service.add_skill(ctx, skill_name)
-    if not player:
-        return JSONResponse(status_code=404, content={"error": "角色或技能不存在"})
-    return JSONResponse(content={"success": True, "player": player.model_dump()})
-
-
-@router.delete("/api/player/skill/{skill_name}")
-async def remove_skill(request: Request, skill_name: str):
-    ctx = container.context_resolver.resolve_required(request)
-    player = container.player_service.remove_skill(ctx, skill_name)
-    if not player:
-        return JSONResponse(status_code=404, content={"error": "角色不存在"})
-    return JSONResponse(content={"success": True, "player": player.model_dump()})
-
-
-@router.post("/api/player/hp")
-async def update_hp(request: Request, delta: int):
-    ctx = container.context_resolver.resolve_required(request)
-    player = container.player_service.update_hp(ctx, delta)
-    if not player:
-        return JSONResponse(status_code=404, content={"error": "角色不存在"})
-    return JSONResponse(content={"success": True, "player": player.model_dump()})
-
-
-@router.delete("/api/player")
-async def delete_player(request: Request):
-    ctx = container.context_resolver.resolve_required(request)
-    if container.player_repository.delete(ctx):
-        return JSONResponse(content={"success": True})
-    return JSONResponse(status_code=404, content={"error": "玩家角色不存在"})

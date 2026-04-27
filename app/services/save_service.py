@@ -15,9 +15,36 @@ class SaveService:
 
         slot_map = {s.get("slot_id"): s for s in saves if s.get("slot_id")}
 
+        # Separate auto save from manual saves
+        auto_save = slot_map.get("auto")
+        manual_slots = {k: v for k, v in slot_map.items() if k != "auto"}
+
+        # Sort manual saves by timestamp ascending (oldest first)
+        sorted_manual = sorted(
+            manual_slots.values(),
+            key=lambda s: s.get("timestamp", "") or ""
+        )
+
         save_list = []
-        for slot_id_key in sorted(slot_map.keys()):
-            save_data = slot_map[slot_id_key]
+
+        # 1) Auto save pinned at top
+        if auto_save:
+            save_list.append(
+                {
+                    "slot_id": "auto",
+                    "save_name": auto_save.get("save_name", "自动存档"),
+                    "timestamp": auto_save.get("timestamp", ""),
+                    "world_setting": auto_save.get("world_setting", ""),
+                    "chapter": auto_save.get("chapter", 0),
+                    "preview_scene": auto_save.get("preview_scene", ""),
+                    "has_save": True,
+                    "is_auto": True,
+                }
+            )
+
+        # 2) Manual saves sorted by creation time
+        for save_data in sorted_manual:
+            slot_id_key = save_data.get("slot_id", "")
             save_list.append(
                 {
                     "slot_id": slot_id_key,
@@ -30,10 +57,12 @@ class SaveService:
                 }
             )
 
-        used_count = len(save_list)
-        if used_count < MAX_SAVE_SLOTS:
+        # 3) Empty new-slot placeholder (if under limit)
+        manual_count = len(sorted_manual)
+        total_used = len(slot_map)  # includes auto
+        if total_used < MAX_SAVE_SLOTS:
             numeric_ids = set()
-            for s in slot_map.keys():
+            for s in manual_slots.keys():
                 try:
                     numeric_ids.add(int(s))
                 except (ValueError, TypeError):
@@ -41,10 +70,11 @@ class SaveService:
             next_numeric = 1
             while next_numeric in numeric_ids:
                 next_numeric += 1
+            new_slot_name = f"存档{manual_count + 1}"
             save_list.append(
                 {
                     "slot_id": str(next_numeric),
-                    "save_name": "+ 新建存档",
+                    "save_name": new_slot_name,
                     "timestamp": "",
                     "world_setting": "",
                     "chapter": 0,

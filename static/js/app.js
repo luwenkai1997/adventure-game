@@ -1060,6 +1060,8 @@
                 
                 const closeBtn = document.getElementById('check-continue-btn');
                 if (closeBtn) closeBtn.style.display = 'none';
+                const cheatArea = document.getElementById('check-cheat-area');
+                if (cheatArea) cheatArea.style.display = 'none';
                 
                 currentCheckCallback = resolve;
                 
@@ -1123,18 +1125,42 @@
                                 resultText.textContent = result.narrative;
                                 resultText.className = 'check-result ' + (result.success ? 'success' : 'failure');
                                 
+                                // ─── Cheat / Override Button ─────────────────────
+                                const cheatArea = document.getElementById('check-cheat-area');
+                                const cheatBtn = document.getElementById('check-cheat-btn');
+                                cheatArea.style.display = 'block';
+                                
+                                if (result.success) {
+                                    cheatBtn.textContent = '🎭 赖皮！强行失败';
+                                    cheatBtn.className = 'check-cheat-btn force-fail';
+                                } else {
+                                    cheatBtn.textContent = '🎭 赖皮！强行成功';
+                                    cheatBtn.className = 'check-cheat-btn force-success';
+                                }
+                                
+                                cheatBtn.onclick = () => {
+                                    result.success = !result.success;
+                                    resultText.className = 'check-result overridden ' + (result.success ? 'success' : 'failure');
+                                    resultText.textContent = result.success
+                                        ? '🎭 你耍了赖，强行通过了检定！'
+                                        : '🎭 你耍了赖，强行搞砸了检定！';
+                                    cheatArea.style.display = 'none';
+                                };
+
                                 const closeBtn = document.getElementById('check-continue-btn');
                                 if (closeBtn) {
                                     closeBtn.style.display = 'block';
                                     closeBtn.onclick = () => {
                                         modal.classList.remove('active');
                                         closeBtn.style.display = 'none';
+                                        cheatArea.style.display = 'none';
                                         resolve(result);
                                         currentCheckCallback = null;
                                     };
                                 } else {
                                     setTimeout(() => {
                                         modal.classList.remove('active');
+                                        cheatArea.style.display = 'none';
                                         resolve(result);
                                     }, 2000);
                                 }
@@ -3369,18 +3395,17 @@
         }
 
         function showSaveDialog(slotId) {
-            // Find existing save name, or default
-            const savesContainer = document.getElementById('save-slots');
-            const slotElement = Array.from(savesContainer.querySelectorAll('.save-slot')).find(el => {
-                const btn = el.querySelector('.btn-save');
-                return btn && btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(`'${slotId}'`);
-            });
-            let defaultName = `存档 ${slotId}`;
-            if (slotElement) {
-                const nameStr = slotElement.querySelector('h3').textContent;
-                if (nameStr && nameStr !== '空存档') {
-                    defaultName = nameStr;
-                }
+            // Look up the slot in saveSlots to get the server-assigned name
+            const slotData = saveSlots.find(s => s.slot_id === slotId);
+            let defaultName;
+            if (slotData && slotData.has_save) {
+                // Overwriting existing save: use its current name
+                defaultName = slotData.save_name || `存档 ${slotId}`;
+            } else if (slotData && slotData.save_name) {
+                // New slot: server already computed "存档N"
+                defaultName = slotData.save_name;
+            } else {
+                defaultName = `存档 ${slotId}`;
             }
 
             const saveName = prompt('请输入存档名称:', defaultName);

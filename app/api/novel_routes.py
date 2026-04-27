@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -57,20 +57,6 @@ async def get_novel_content(request: Request):
     return JSONResponse(content=result)
 
 
-@router.post("/api/generate-novel")
-async def generate_novel(request: Request):
-    ctx = container.context_resolver.resolve_required(request)
-    result = await container.novel_service.generate_full_novel(ctx)
-    return JSONResponse(content=result)
-
-
-@router.post("/api/novel/plan")
-async def plan_novel(request: Request):
-    ctx = container.context_resolver.resolve_required(request)
-    result = await container.novel_service.plan_novel(ctx)
-    return JSONResponse(content=result)
-
-
 @router.post("/api/novel/chapter")
 async def generate_chapter(request: Request, body: ChapterRequest):
     ctx = container.context_resolver.resolve_required(request)
@@ -82,18 +68,4 @@ async def generate_chapter(request: Request, body: ChapterRequest):
         body.chapter_summary,
         body.ending_type,
     )
-    return JSONResponse(content=result)
-
-
-@router.post("/api/novel/merge")
-async def merge_novel(request: Request, novel_folder: str = Query(...)):
-    ctx = container.context_resolver.resolve_required(request)
-    result = container.novel_service.merge_novel(ctx, novel_folder)
-    return JSONResponse(content=result)
-
-
-@router.get("/api/novel/status/{novel_folder}")
-async def get_novel_status(request: Request, novel_folder: str):
-    ctx = container.context_resolver.resolve_required(request)
-    result = container.novel_service.get_novel_status(ctx, novel_folder)
     return JSONResponse(content=result)

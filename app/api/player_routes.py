@@ -8,11 +8,12 @@ from fastapi.responses import JSONResponse
 from app.container import container
 from app.models.player import (
     ATTRIBUTE_NAMES_CN,
-    PRESET_SKILLS,
     PlayerCreateRequest,
     PlayerRandomRequest,
     PlayerUpdateRequest,
+    get_preset_skills_for_scenario,
 )
+from app.scenarios import DEFAULT_SCENARIO_TYPE, normalize_scenario_type
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +21,14 @@ router = APIRouter()
 
 
 @router.get("/api/player/skills")
-async def get_preset_skills():
+async def get_preset_skills(scenario_type: str = DEFAULT_SCENARIO_TYPE):
+    normalized = normalize_scenario_type(scenario_type)
     return JSONResponse(
-        content={"skills": PRESET_SKILLS, "attribute_names": ATTRIBUTE_NAMES_CN}
+        content={
+            "skills": get_preset_skills_for_scenario(normalized),
+            "attribute_names": ATTRIBUTE_NAMES_CN,
+            "scenario_type": normalized,
+        }
     )
 
 
@@ -44,9 +50,12 @@ async def random_player(request: Request, body: Optional[PlayerRandomRequest] = 
 async def generate_player(request: Request, body: Optional[PlayerRandomRequest] = None):
     ctx = container.context_resolver.resolve_required(request)
     world_setting = body.world_setting if body else ""
+    scenario_type = normalize_scenario_type(body.scenario_type if body else None)
     try:
         player = await asyncio.wait_for(
-            container.player_service.generate_player_with_llm(ctx, world_setting),
+            container.player_service.generate_player_with_llm(
+                ctx, world_setting, scenario_type=scenario_type
+            ),
             timeout=120.0,
         )
         if player:

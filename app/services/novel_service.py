@@ -6,13 +6,14 @@ import shutil
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from app.config import (
-    NOVEL_CHAPTER_PROMPT,
-    NOVEL_ENDING_PROMPT,
-    NOVEL_INCREMENTAL_PLAN_PROMPT,
-    NOVEL_TITLE_PROMPT,
-)
 from app.game_context import GameContext
+from app.prompts.scenario_prompts import (
+    build_novel_chapter_prompt,
+    build_novel_ending_prompt,
+    build_novel_incremental_plan_prompt,
+    build_novel_title_prompt,
+)
+from app.scenarios import DEFAULT_SCENARIO_TYPE
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ class NovelService:
         llm_adapter,
         player_repository,
         character_repository,
+        game_repository,
     ):
         self.memory_repository = memory_repository
         self.save_repository = save_repository
@@ -41,6 +43,13 @@ class NovelService:
         self.llm_adapter = llm_adapter
         self.player_repository = player_repository
         self.character_repository = character_repository
+        self.game_repository = game_repository
+
+    def _scenario_type(self, ctx: Optional[GameContext]) -> str:
+        if not ctx:
+            return DEFAULT_SCENARIO_TYPE
+        game_info = self.game_repository.get_game_info(ctx.game_id) or {}
+        return game_info.get("scenario_type", DEFAULT_SCENARIO_TYPE)
 
     def _load_state(self, ctx: Optional[GameContext]) -> Optional[Dict[str, Any]]:
         return self.novel_repository.load_current_state(ctx)
@@ -50,8 +59,11 @@ class NovelService:
         self.novel_repository.save_current_state(ctx, state)
 
     def _init_state(self, ctx: GameContext, title: str) -> Dict[str, Any]:
+        game_info = self.game_repository.get_game_info(ctx.game_id) or {}
         state = {
             "title": title,
+            "scenario_type": game_info.get("scenario_type", DEFAULT_SCENARIO_TYPE),
+            "campaign_brief": game_info.get("campaign_brief", ""),
             "status": "in_progress",
             "created_at": datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat(),
@@ -449,9 +461,11 @@ class NovelService:
     ) -> Dict[str, Any]:
         min_chapters, max_chapters, _ = self.calculate_chapter_range(current_round)
         event_ledger_overview = self._build_event_ledger(ctx, compact=True) or "（暂无历史台账）"
+        scenario_type = self._scenario_type(ctx)
         plan_data = await self.llm_adapter.generate_json(
             ctx=ctx,
-            prompt=NOVEL_TITLE_PROMPT.format(
+            prompt=build_novel_title_prompt(
+                scenario_type,
                 memory_content=memory_content,
                 event_ledger_overview=event_ledger_overview,
                 min_chapters=min_chapters,
@@ -513,10 +527,12 @@ class NovelService:
             )
             or "（暂无新轮次台账）"
         )
+        scenario_type = self._scenario_type(ctx)
 
         plan_data = await self.llm_adapter.generate_json(
             ctx=ctx,
-            prompt=NOVEL_INCREMENTAL_PLAN_PROMPT.format(
+            prompt=build_novel_incremental_plan_prompt(
+                scenario_type,
                 novel_title=title,
                 existing_chapters_count=len(state["chapters"]),
                 last_covered_round=last_covered,
@@ -577,6 +593,7 @@ class NovelService:
             max(1, (to_round - from_round + 1) / total_plan) if total_plan > 0 else 1
         )
         characters_digest = self._build_characters_digest(ctx)
+        scenario_type = self._scenario_type(ctx)
 
         for index, chapter in enumerate(plan_chapters):
             chapter_num = chapter.get("chapter_num", len(state["chapters"]) + 1)
@@ -595,7 +612,8 @@ class NovelService:
                 ctx, memory_content, round_start, round_end
             )
 
-            prompt = NOVEL_CHAPTER_PROMPT.format(
+            prompt = build_novel_chapter_prompt(
+                scenario_type,
                 novel_title=title,
                 characters_digest=characters_digest,
                 memory_content=memory_content,
@@ -652,14 +670,15 @@ class NovelService:
         unresolved_threads = self._extract_unresolved_threads(memory_content)
         route_info = self._extract_route_scores(ctx)
         final_rounds_ledger = self._build_event_ledger(ctx, compact=False) or "（暂无台账）"
-        prompt = NOVEL_ENDING_PROMPT.format(
+        prompt = build_novel_ending_prompt(
+            self._scenario_type(ctx),
             novel_title=title,
             characters_digest=characters_digest,
             memory_content=memory_content,
             previous_context=previous_context,
             unresolved_threads=unresolved_threads,
             ending_type=ending_type,
-            custom_description=custom_description or "无",
+            custom_description=custom_description,
             route_leader=route_info["leader"] or "未明确",
             route_scores=json.dumps(route_info["scores"], ensure_ascii=False),
             final_rounds_ledger=final_rounds_ledger,
@@ -763,7 +782,8 @@ class NovelService:
             unresolved_threads = self._extract_unresolved_threads(memory_content)
             route_info = self._extract_route_scores(ctx)
             final_rounds_ledger = self._build_event_ledger(ctx, compact=False) or "（暂无台账）"
-            prompt = NOVEL_ENDING_PROMPT.format(
+            prompt = build_novel_ending_prompt(
+                self._scenario_type(ctx),
                 novel_title=novel_title,
                 characters_digest=characters_digest,
                 memory_content=memory_content,
@@ -786,7 +806,8 @@ class NovelService:
             chapter_event_ledger = self._extract_chapter_events(
                 ctx, memory_content, chapter_num, chapter_num
             )
-            prompt = NOVEL_CHAPTER_PROMPT.format(
+            prompt = build_novel_chapter_prompt(
+                self._scenario_type(ctx),
                 novel_title=novel_title,
                 characters_digest=characters_digest,
                 memory_content=memory_content,

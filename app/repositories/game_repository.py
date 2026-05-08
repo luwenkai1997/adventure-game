@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from app.game_context import GameContext
 from app.repositories.base import FileRepositoryPaths
+from app.scenarios import DEFAULT_SCENARIO_TYPE, infer_legacy_scenario_type, normalize_scenario_type
 from app.utils.atomic_io import atomic_write_json, atomic_write_text
 from app.utils.path_security import validate_game_id
 
@@ -25,7 +26,13 @@ class GameRepository:
             return False
         return os.path.exists(path)
 
-    def create(self, world_setting: str = "", game_id: Optional[str] = None) -> Dict[str, str]:
+    def create(
+        self,
+        world_setting: str = "",
+        game_id: Optional[str] = None,
+        scenario_type: str = DEFAULT_SCENARIO_TYPE,
+        campaign_brief: str = "",
+    ) -> Dict[str, str]:
         new_game_id = validate_game_id(game_id) if game_id else self.generate_game_id()
         game_dir = self.paths.game_dir(new_game_id)
         subdirs = ["memory", "novel", "character", "player", "saves", "snapshots"]
@@ -41,6 +48,8 @@ class GameRepository:
             "game_id": new_game_id,
             "created_at": datetime.now().isoformat(),
             "world_setting": world_setting,
+            "scenario_type": normalize_scenario_type(scenario_type),
+            "campaign_brief": campaign_brief,
             "status": "active",
         }
         game_info_path = self.paths.game_info_path(new_game_id)
@@ -62,6 +71,8 @@ class GameRepository:
                             "game_id": game_name,
                             "created_at": "unknown",
                             "world_setting": "",
+                            "scenario_type": DEFAULT_SCENARIO_TYPE,
+                            "campaign_brief": "",
                             "status": "unknown",
                         }
                     )
@@ -77,7 +88,11 @@ class GameRepository:
         game_info_path = self.paths.game_info_path(game_id)
         if os.path.exists(game_info_path):
             with open(game_info_path, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+            if "scenario_type" not in data:
+                data["scenario_type"] = infer_legacy_scenario_type(data.get("world_setting", ""))
+            data.setdefault("campaign_brief", "")
+            return data
         return None
 
     def update_game_info(self, game_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
@@ -100,18 +115,39 @@ class MemoryRepository:
         self.paths = paths
 
     def save_initial(
-        self, ctx: GameContext, world_setting: str, story_summary: str = ""
+        self,
+        ctx: GameContext,
+        world_setting: str,
+        story_summary: str = "",
+        scenario_type: str = DEFAULT_SCENARIO_TYPE,
+        campaign_brief: str = "",
+        extra_sections: Optional[List[str]] = None,
     ) -> str:
+        scenario_label = "古代东方江湖" if normalize_scenario_type(scenario_type) == "jianghu" else "低魔西方奇幻"
+        extra_section_text = ""
+        for section in extra_sections or []:
+            extra_section_text += f"\n## {section}\n（待补充）\n"
         content = f"""# 游戏记忆文档
+
+## 场景类型
+{scenario_label}
 
 ## 世界观设定
 {world_setting}
 
+## Campaign Brief
+{campaign_brief or "（待补充）"}
+
 ## 故事概要
 {story_summary}
 
+## 关键事件
+（待补充）
+
 ## 主要角色
 （待补充）
+
+{extra_section_text}
 
 ## 故事流程
 （待补充）

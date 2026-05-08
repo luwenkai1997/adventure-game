@@ -7,6 +7,8 @@ class GameSave(BaseModel):
     save_name: str
     timestamp: str
     world_setting: str
+    scenario_type: str = "jianghu"
+    campaign_brief: str = ""
     chapter: int
     messages: List[Dict[str, Any]] = []
     logs: List[Any] = []
@@ -50,6 +52,8 @@ class SaveCreateRequest(BaseModel):
     slot_id: str
     save_name: str
     world_setting: str
+    scenario_type: str = "jianghu"
+    campaign_brief: str = ""
     chapter: int
     messages: List[Dict[str, Any]]
     logs: List[Any]

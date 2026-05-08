@@ -3,9 +3,11 @@ import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from app.config import MAX_STORY_FLOW_ENTRIES, MEMORY_UPDATE_PROMPT
+from app.config import MAX_STORY_FLOW_ENTRIES
 from app.game_context import GameContext
 from app.models.chat import ChatTurnContent
+from app.prompts.scenario_prompts import build_memory_update_prompt
+from app.scenarios import DEFAULT_SCENARIO_TYPE, get_scenario_profile
 from app.services.prompt_composer import PromptComposer
 from app.utils.memory_utils import ensure_story_flow_round_present
 
@@ -35,6 +37,7 @@ class GameService:
         character_repository,
         relation_repository,
         player_repository,
+        game_repository,
         llm_adapter,
     ):
         self.composer = prompt_composer
@@ -43,6 +46,7 @@ class GameService:
         self.character_repository = character_repository
         self.relation_repository = relation_repository
         self.player_repository = player_repository
+        self.game_repository = game_repository
         self.llm_adapter = llm_adapter
 
     def _compress_memory_if_needed(self, memory_content: str, current_round: int) -> str:
@@ -162,7 +166,10 @@ class GameService:
         if current_round is None or current_round <= 0:
             current_round = max(1, self.save_repository.get_round_count(ctx))
 
-        prompt = MEMORY_UPDATE_PROMPT.format(
+        game_info = self.game_repository.get_game_info(ctx.game_id) or {}
+        scenario_type = game_info.get("scenario_type", DEFAULT_SCENARIO_TYPE)
+        prompt = build_memory_update_prompt(
+            scenario_type,
             memory_content=memory_content,
             scene=scene,
             selected_choice=selected_choice,

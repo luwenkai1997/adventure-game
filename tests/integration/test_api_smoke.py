@@ -30,9 +30,14 @@ def test_current_game():
 
 def test_player_skills():
     with TestClient(app) as client:
-        response = client.get("/api/player/skills")
+        response = client.get("/api/player/skills?scenario_type=grim_fantasy")
     assert response.status_code == 200
-    assert "skills" in response.json()
+    body = response.json()
+    assert "skills" in body
+    assert body["scenario_type"] == "grim_fantasy"
+    grim_skill_names = {skill["name"] for skills in body["skills"].values() for skill in skills}
+    assert "纹章学" in grim_skill_names
+    assert "剑术" not in grim_skill_names
 
 
 def test_relation_types():
@@ -98,7 +103,11 @@ def test_create_game_updates_session_mapping():
     with TestClient(app) as client:
         create_response = client.post(
             "/api/games/create",
-            json={"world_setting": "单元测试世界"},
+            json={
+                "scenario_type": "grim_fantasy",
+                "world_setting": "单元测试世界",
+                "campaign_brief": "# Campaign Brief\n\n## 当前紧张局势\n测试",
+            },
             headers=_session_headers(session_id),
         )
         assert create_response.status_code == 200
@@ -110,6 +119,8 @@ def test_create_game_updates_session_mapping():
         assert current_response.status_code == 200
         current_body = current_response.json()
         assert current_body["current_game"] == game_id
+        assert current_body["game_info"]["scenario_type"] == "grim_fantasy"
+        assert "Campaign Brief" in current_body["game_info"]["campaign_brief"]
 
 
 def test_player_create_and_get_use_explicit_context():
@@ -117,7 +128,7 @@ def test_player_create_and_get_use_explicit_context():
     with TestClient(app) as client:
         create_game = client.post(
             "/api/games/create",
-            json={"world_setting": "玩家测试世界"},
+            json={"scenario_type": "jianghu", "world_setting": "玩家测试世界"},
             headers=_session_headers(session_id),
         )
         assert create_game.status_code == 200
@@ -127,6 +138,7 @@ def test_player_create_and_get_use_explicit_context():
             headers=_session_headers(session_id),
             json={
                 "name": "测试角色",
+                "scenario_type": "jianghu",
                 "strength": 12,
                 "dexterity": 11,
                 "constitution": 13,
@@ -144,6 +156,7 @@ def test_player_create_and_get_use_explicit_context():
         body = get_player.json()
         assert body["exists"] is True
         assert body["player"]["name"] == "测试角色"
+        assert body["player"]["scenario_type"] == "jianghu"
 
 
 def test_chat_happy_path_mock_llm(monkeypatch):

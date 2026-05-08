@@ -44,15 +44,15 @@
                                     <option value="其他">其他</option>
                                 </select>
                             </div>
-                            <div class="form-group">
-                                <label>种族</label>
+                        <div class="form-group">
+                            <label>种族</label>
                                 <select id="player-race">
-                                    <option value="">选择种族</option>
+                                    <option value="">选择出身/血统</option>
                                     <option value="人类">人类</option>
-                                    <option value="精灵">精灵</option>
-                                    <option value="矮人">矮人</option>
-                                    <option value="兽人">兽人</option>
-                                    <option value="其他">其他</option>
+                                    <option value="边地异族">边地异族</option>
+                                    <option value="塞外后裔">塞外后裔</option>
+                                    <option value="边境混血">边境混血</option>
+                                    <option value="古血后裔">古血后裔</option>
                                 </select>
                             </div>
                         </div>
@@ -230,22 +230,23 @@
                 <p class="subtitle">选择你的命运，书写你的传奇</p>
             </div>
             <div class="input-section">
-                <label for="world-setting">设定你的世界观</label>
+                <label for="scenario-type">选择场景类型</label>
+                <select id="scenario-type" onchange="onScenarioTypeChange()">
+                    <option value="jianghu">古代东方江湖</option>
+                    <option value="grim_fantasy">低魔西方奇幻</option>
+                </select>
+                <label for="world-setting">补充你的本局设定</label>
                 <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;" id="template-btns">
-                    <button class="template-btn" onclick="applyWorldTemplate('cyberpunk')">🌆 赛博朋克</button>
-                    <button class="template-btn" onclick="applyWorldTemplate('wuxia')">⚔️ 武侠江湖</button>
-                    <button class="template-btn" onclick="applyWorldTemplate('apocalypse')">☢️ 末日废土</button>
-                    <button class="template-btn" onclick="applyWorldTemplate('cultivation')">☯️ 东方修仙</button>
-                    <button class="template-btn" onclick="applyWorldTemplate('deepsea')">🌊 深海科研</button>
-                    <button class="template-btn" onclick="applyWorldTemplate('fantasy')">🏰 奇幻大陆</button>
+                    <button class="template-btn" onclick="applyWorldTemplate('jianghu')">⚔️ 江湖开局</button>
+                    <button class="template-btn" onclick="applyWorldTemplate('grim_fantasy')">🛡️ 低魔西幻开局</button>
                 </div>
-                <textarea id="world-setting" placeholder="例如：赛博朋克新加坡、古代江湖、深海科研站遭遇变异体、末日后的废土世界..."></textarea>
+                <textarea id="world-setting" placeholder="例如：没落门派牵扯旧案、边境家族在寒冬前夕争夺堡垒继承权..."></textarea>
                 <button class="btn btn-expand" id="expand-btn" onclick="expandStorySetting()">
-                    <span id="expand-btn-text">背景拓展</span>
+                    <span id="expand-btn-text">生成 Campaign Brief</span>
                     <span id="expand-loading" style="display: none;">拓展中...</span>
                 </button>
-                <label for="expanded-setting" style="margin-top: 15px;">详细故事设定（可编辑）</label>
-                <textarea id="expanded-setting" placeholder="点击「背景拓展」按钮，AI将根据你的简短设定生成完整的故事背景..."></textarea>
+                <label for="expanded-setting" style="margin-top: 15px;">Campaign Brief（可编辑）</label>
+                <textarea id="expanded-setting" placeholder="点击上方按钮，AI 会根据所选场景类型生成本局势力、起点、NPC 原型与主线钩子。"></textarea>
                 
                 <div class="director-settings" style="margin-top: 15px; margin-bottom: 20px; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 6px; border: 1px solid rgba(0,255,136,0.3);">
                     <div style="font-size: 0.95rem; color: #ccffdd; margin-bottom: 10px;">🎬 导演杆设定 (Director Mode)</div>

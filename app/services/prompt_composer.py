@@ -1,8 +1,10 @@
 import re
 from typing import Dict, List, Optional, Tuple
 
-from app.config import MAX_MEMORY_CHARS, MAX_RECENT_MESSAGES, ROUTE_TENDENCY_MAPPING, SYSTEM_PROMPT
+from app.config import MAX_MEMORY_CHARS, MAX_RECENT_MESSAGES
 from app.game_context import GameContext
+from app.prompts.scenario_prompts import build_route_tendency_mapping, build_story_system_prompt
+from app.scenarios import DEFAULT_SCENARIO_TYPE, get_scenario_profile
 
 
 MAX_CHARACTERS = 8
@@ -10,10 +12,11 @@ MAX_CHARS_PER_CHARACTER = 300
 
 
 class PromptComposer:
-    def __init__(self, memory_repository, player_repository, character_repository):
+    def __init__(self, memory_repository, player_repository, character_repository, game_repository):
         self.memory_repository = memory_repository
         self.player_repository = player_repository
         self.character_repository = character_repository
+        self.game_repository = game_repository
 
     def truncate_text(self, text: str, max_chars: int) -> str:
         if len(text) <= max_chars:
@@ -106,6 +109,23 @@ class PromptComposer:
 
         result = "\n".join(lines)
         return self.truncate_text(result, MAX_CHARS_PER_CHARACTER * 2)
+
+    def get_game_meta_section(self, ctx: Optional[GameContext]) -> str:
+        if ctx is None:
+            return ""
+        game_info = self.game_repository.get_game_info(ctx.game_id) or {}
+        if not game_info:
+            return ""
+        profile = get_scenario_profile(game_info.get("scenario_type", DEFAULT_SCENARIO_TYPE))
+        lines = ["## 本局场景与规则\n"]
+        lines.append(f"**场景类型**: {profile.label}")
+        if game_info.get("campaign_brief"):
+            lines.append("\n**Campaign Brief**:")
+            lines.append(self.truncate_text(game_info["campaign_brief"], 1200))
+        lines.append("\n**题材约束**:")
+        lines.append(f"- {profile.world_tone}")
+        lines.append(f"- {profile.story_focus}")
+        return "\n".join(lines)
 
     def get_characters_section(self, ctx: Optional[GameContext]) -> str:
         characters = self.character_repository.load_all(ctx)
@@ -259,13 +279,22 @@ class PromptComposer:
         tendency_data: Optional[Dict] = None,
     ) -> List[Dict]:
         memory_section = self.get_memory_section(ctx)
+        meta_section = self.get_game_meta_section(ctx)
         player_section = self.get_player_section(ctx)
         characters_section = self.get_characters_section(ctx)
         check_section = self.get_last_check_context(turn_context)
         tendency_section = self.get_tendency_section(tendency_data)
         route_section = self.get_route_section(turn_context)
 
+        scenario_type = DEFAULT_SCENARIO_TYPE
+        if ctx is not None:
+            scenario_type = (
+                self.game_repository.get_game_info(ctx.game_id) or {}
+            ).get("scenario_type", DEFAULT_SCENARIO_TYPE)
+
         context_parts = []
+        if meta_section:
+            context_parts.append(meta_section)
         if memory_section:
             context_parts.append(memory_section)
         if player_section:
@@ -287,8 +316,8 @@ class PromptComposer:
         recent_messages, summary = self._summarize_old_messages(messages, MAX_RECENT_MESSAGES)
 
         full_messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "system", "content": ROUTE_TENDENCY_MAPPING},
+            {"role": "system", "content": build_story_system_prompt(scenario_type)},
+            {"role": "system", "content": build_route_tendency_mapping(get_scenario_profile(scenario_type))},
             {"role": "user", "content": context_text},
         ]
 

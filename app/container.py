@@ -74,8 +74,13 @@ def build_container() -> AppContainer:
         memory_repository=memory_repository,
         player_repository=player_repository,
         character_repository=character_repository,
+        game_repository=game_repository,
     )
-    player_service = PlayerService(player_repository=player_repository, llm_adapter=llm_adapter)
+    player_service = PlayerService(
+        player_repository=player_repository,
+        llm_adapter=llm_adapter,
+        game_repository=game_repository,
+    )
     game_service = GameService(
         prompt_composer=prompt_composer,
         memory_repository=memory_repository,
@@ -83,6 +88,7 @@ def build_container() -> AppContainer:
         character_repository=character_repository,
         relation_repository=relation_repository,
         player_repository=player_repository,
+        game_repository=game_repository,
         llm_adapter=llm_adapter,
     )
     character_service = CharacterService(
@@ -105,6 +111,7 @@ def build_container() -> AppContainer:
         llm_adapter=llm_adapter,
         player_repository=player_repository,
         character_repository=character_repository,
+        game_repository=game_repository,
     )
     context_resolver = GameContextResolver(session_repository, game_repository)
 

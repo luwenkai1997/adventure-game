@@ -1,6 +1,8 @@
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
 
+from app.scenarios import DEFAULT_SCENARIO_TYPE
+
 
 class SkillModel(BaseModel):
     id: str = ""
@@ -33,6 +35,8 @@ class BackgroundModel(BaseModel):
     motivations: str = ""
     secrets: str = ""
     goals: str = ""
+    faction: str = ""
+    social_status: str = ""
 
 
 class PersonalityModel(BaseModel):
@@ -44,16 +48,21 @@ class PersonalityModel(BaseModel):
     likes: List[str] = []
     dislikes: List[str] = []
     dialogue_style: str = ""
+    taboos: List[str] = []
+    public_reputation: str = ""
 
 
 class AttributesModel(BaseModel):
     health: int = 100
     max_health: int = 100
-    mana: int = 100
-    max_mana: int = 100
+    mana: int = 0
+    max_mana: int = 0
     strength: int = 10
+    dexterity: int = 10
     agility: int = 10
+    constitution: int = 10
     intelligence: int = 10
+    wisdom: int = 10
     charisma: int = 10
     luck: int = 10
     reputation: int = 50
@@ -76,6 +85,7 @@ class CharacterCard(BaseModel):
     age: Optional[int] = None
     gender: Optional[str] = None
     race: Optional[str] = None
+    scenario_type: str = DEFAULT_SCENARIO_TYPE
     role_type: str = "npc"
     importance: int = 1
     first_appearance: int = 0
@@ -99,6 +109,7 @@ class CharacterCreate(BaseModel):
     age: Optional[int] = None
     gender: Optional[str] = None
     race: Optional[str] = None
+    scenario_type: str = DEFAULT_SCENARIO_TYPE
     role_type: str = "npc"
     importance: int = 1
     title: str = ""
@@ -117,6 +128,7 @@ class CharacterUpdate(BaseModel):
     age: Optional[int] = None
     gender: Optional[str] = None
     race: Optional[str] = None
+    scenario_type: Optional[str] = None
     role_type: Optional[str] = None
     importance: Optional[int] = None
     title: Optional[str] = None
@@ -173,14 +185,15 @@ class RelationUpdate(BaseModel):
 
 class CharacterGenerationConfig(BaseModel):
     world_setting: str
-    genre: str = "fantasy"
+    scenario_type: str = DEFAULT_SCENARIO_TYPE
+    genre: str = "specialized"
     tone: str = "serious"
     total_characters: int = 3
     protagonist_count: int = 1
     antagonist_count: int = 1
     supporting_count: int = 1
     npc_count: int = 0
-    power_level: str = "medium"
+    power_level: str = "grounded"
     complexity: str = "medium"
     include_romance: bool = True
     include_faction: bool = True
@@ -188,6 +201,7 @@ class CharacterGenerationConfig(BaseModel):
 
 class GenerateCharactersRequest(BaseModel):
     world_setting: str
+    scenario_type: str = DEFAULT_SCENARIO_TYPE
     config: Optional[CharacterGenerationConfig] = None
 
 

@@ -11,7 +11,6 @@ from app.config import (
     API_IMAGE_ENABLED,
     API_IMAGE_MODEL,
     API_KEY,
-    NPC_DIALOGUE_PROMPT,
     RELATION_TYPES,
 )
 from app.container import container
@@ -23,6 +22,9 @@ from app.models.character import (
     RelationUpdate,
 )
 from app.models.chat import NPCDialogueRequest
+from app.prompts.scenario_prompts import build_npc_dialogue_prompt
+from app.scenarios import DEFAULT_SCENARIO_TYPE, normalize_scenario_type
+from app.utils.path_security import validate_char_id
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +104,7 @@ async def generate_character_avatar(request: Request, char_id: str):
 
 @router.get("/api/characters/{char_id}")
 async def get_character(request: Request, char_id: str):
+    validate_char_id(char_id)
     ctx = container.context_resolver.resolve_optional(request)
     character = container.character_repository.load(ctx, char_id)
     if not character:
@@ -119,6 +122,7 @@ async def create_character(request: Request, body: CharacterCreate):
 
 @router.put("/api/characters/{char_id}")
 async def update_character(request: Request, char_id: str, body: CharacterUpdate):
+    validate_char_id(char_id)
     ctx = container.context_resolver.resolve_required(request)
     character = container.character_repository.load(ctx, char_id)
     if not character:
@@ -130,6 +134,7 @@ async def update_character(request: Request, char_id: str, body: CharacterUpdate
 
 @router.delete("/api/characters/{char_id}")
 async def del_character(request: Request, char_id: str):
+    validate_char_id(char_id)
     ctx = container.context_resolver.resolve_required(request)
     if container.character_repository.delete(ctx, char_id):
         relations = container.relation_repository.load_all(ctx)
@@ -150,6 +155,10 @@ async def api_generate_npcs(request: Request):
     world_setting = data.get("world_setting", "")
     protagonist_info = data.get("protagonist_info", {})
     npc_count = data.get("npc_count", 10)
+    scenario_type = normalize_scenario_type(data.get("scenario_type"))
+    if not data.get("scenario_type"):
+        game_info = container.game_repository.get_game_info(ctx.game_id) or {}
+        scenario_type = normalize_scenario_type(game_info.get("scenario_type", DEFAULT_SCENARIO_TYPE))
 
     if not world_setting:
         return JSONResponse(status_code=400, content={"error": "缺少故事设定"})
@@ -159,7 +168,7 @@ async def api_generate_npcs(request: Request):
     try:
         npcs = await asyncio.wait_for(
             container.character_service.generate_npcs_with_llm(
-                ctx, world_setting, protagonist_info, npc_count
+                ctx, world_setting, protagonist_info, npc_count, scenario_type
             ),
             timeout=120.0,
         )
@@ -237,6 +246,7 @@ async def get_relation_types():
 
 @router.post("/api/characters/{char_id}/dialogue")
 async def npc_dialogue(request: Request, char_id: str, body: NPCDialogueRequest):
+    validate_char_id(char_id)
     ctx = container.context_resolver.resolve_required(request)
     npc = container.character_repository.load(ctx, char_id)
     if not npc:
@@ -250,7 +260,9 @@ async def npc_dialogue(request: Request, char_id: str, body: NPCDialogueRequest)
         if relation.get("source_id") == char_id or relation.get("target_id") == char_id
     ]
 
-    prompt = NPC_DIALOGUE_PROMPT.format(
+    game_info = container.game_repository.get_game_info(ctx.game_id) or {}
+    scenario_type = game_info.get("scenario_type", DEFAULT_SCENARIO_TYPE)
+    prompt = build_npc_dialogue_prompt(scenario_type).format(
         npc_name=npc.get("name", "未知NPC"),
         npc_title=npc.get("title", ""),
         npc_personality=npc.get("personality", {}).get("traits", [])

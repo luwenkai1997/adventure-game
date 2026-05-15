@@ -58,6 +58,8 @@
         let endingTriggered = false;
         let endingCountdown = 0;
         let worldSetting = "";
+        let currentScenarioType = "jianghu";
+        let currentCampaignBrief = "";
         let selectedEndingType = "";
         let customEndingDescription = "";
         let playerCharacter = null;
@@ -145,7 +147,7 @@
 
         async function loadPresetSkills() {
             try {
-                const response = await apiFetch('/api/player/skills');
+                const response = await apiFetch(`/api/player/skills?scenario_type=${encodeURIComponent(currentScenarioType)}`);
                 const data = await response.json();
                 presetSkills = data.skills;
                 renderSkillsGrid();
@@ -283,7 +285,7 @@
             try {
                 const response = await apiFetch('/api/player/random', {
                     method: 'POST',
-                    body: JSON.stringify({ world_setting: '' })
+                    body: JSON.stringify({ world_setting: '', scenario_type: currentScenarioType })
                 });
 
                 const data = await response.json();
@@ -354,6 +356,7 @@
                         age: parseInt(document.getElementById('player-age')?.value) || null,
                         gender: document.getElementById('player-gender')?.value || null,
                         race: document.getElementById('player-race')?.value || null,
+                        scenario_type: currentScenarioType,
                         background: document.getElementById('player-background')?.value || '',
                         appearance: document.getElementById('player-appearance')?.value || '',
                         strength: playerAttributes.strength,
@@ -1318,17 +1321,28 @@
         }
 
         const WORLD_TEMPLATES = {
-            cyberpunk: `赛博朋克新加坡，2089年。高耸的全息广告塔与拥挤的底层贫民区并存，跨国企业掌控着城市的一切——基因改造、脑机接口、私人雇佣军。主角是一名边缘人物，在这座不眠城市里谋生，一次意外让他/她卷入了一场足以颠覆整个城市权力格局的阴谋。`,
-            wuxia: `江湖乱世，庙堂与武林的暗流涌动。五大门派争雄，黑道白道界限模糊，一部传说中的武功秘籍引发了无数人的觊觎与厮杀。主角出身市井，因一场横祸被迫踏入江湖，一步步揭开隐藏在刀光剑影背后的惊天秘密，最终在乱世中找到自己的道义与归宿。`,
-            apocalypse: `核战后第十七年，文明的废墟上重新长出了危险的秩序。物资极度匮乏，变异生物横行，各路势力在废土上划定地盘。主角是一名在废土边缘挣扎求生的普通人，一个关于"净土"的传说将他/她推上了充满背叛与希望的漫长旅途。`,
-            cultivation: `玄幻大陆，灵气浓郁，修仙者以锻炼精气神为途，追求长生飞升。宗门林立，妖族蛰伏，上古禁地封印渐松。主角根骨平平，机缘巧合下得到一门逆天功法，在险象环生的修炼之路上，以有限的天赋挑战强者的极限，走出一条属于自己的长生道。`,
-            deepsea: `2071年，深海科研站"深蓝六号"驻扎于马里亚纳海沟边缘，研究未知的深海生态系统。某次例行潜水后，站内通讯中断，部分人员出现异常行为，压力舱里的生物样本开始失控繁殖。主角是站内工程师/科学家，必须在有限资源和不断升级的威胁中找到生还的出路，同时弄清楚这一切究竟是意外还是有人蓄意为之。`,
-            fantasy: `千年前大魔王被封印，人族、精灵、矮人结成的同盟日渐瓦解，各方势力暗中重新布局。古老的神器散落天涯，预言中的英雄迟迟未现。主角是一个平凡小镇上的年轻人，一个不可思议的夜晚将他/她拉入了这场决定大陆命运的棋局，过去与未来的秘密将在旅途中一一浮现。`,
+            jianghu: `江南一带风雨欲来，一桩二十年前的旧案重新浮出水面。几大门派、地方豪强与朝廷密探都在追索同一件失落信物，江湖上的旧恩新仇也因此重新牵动。主角原本只想自保，却被迫卷入这场会改变名声与生死的风波。`,
+            grim_fantasy: `北境寒冬将至，一座边境堡垒的继承权争夺让几个家族和教会势力同时下场。停战不过数年，粮仓空虚、誓言脆弱、旧战场上的秘密又开始被人翻出来。主角身处权力边缘，却握有能让局势失衡的一条线索。`,
         };
+
+        function onScenarioTypeChange() {
+            currentScenarioType = document.getElementById('scenario-type')?.value || 'jianghu';
+            loadPresetSkills();
+            if (currentScenarioType === 'jianghu') {
+                const raceSelect = document.getElementById('player-race');
+                if (raceSelect && !raceSelect.value) raceSelect.value = '人类';
+            }
+        }
 
         function applyWorldTemplate(key) {
             const text = WORLD_TEMPLATES[key];
             if (!text) return;
+            if (key === 'jianghu' || key === 'grim_fantasy') {
+                currentScenarioType = key;
+                const scenarioSelect = document.getElementById('scenario-type');
+                if (scenarioSelect) scenarioSelect.value = key;
+                loadPresetSkills();
+            }
             const ta = document.getElementById('world-setting');
             ta.value = text;
             ta.focus();
@@ -1350,35 +1364,59 @@
             expandBtn.disabled = true;
             expandBtnText.style.display = 'none';
             expandLoading.style.display = 'inline';
+            expandedSetting.value = '';
 
             try {
-                const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), 120000);
+                currentScenarioType = document.getElementById('scenario-type')?.value || 'jianghu';
 
                 const response = await apiFetch('/api/story/expand', {
                     method: 'POST',
-                    body: JSON.stringify({ user_input: userInput }),
-                    signal: controller.signal
+                    body: JSON.stringify({ user_input: userInput, scenario_type: currentScenarioType }),
                 });
-                clearTimeout(timeout);
 
-                const data = await response.json();
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let sseBuffer = '';
+                let fullContent = '';
+                let streamingDone = false;
 
-                if (data.success) {
-                    expandedSetting.value = data.expanded_story;
-                    expandedSetting.style.borderColor = '#00ff88';
-                    setTimeout(() => {
-                        expandedSetting.style.borderColor = '';
-                    }, 2000);
-                } else {
-                    showError('拓展失败', data.error || '未知错误，请重试');
+                while (!streamingDone) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    sseBuffer += decoder.decode(value, { stream: true });
+                    const lines = sseBuffer.split('\n');
+                    sseBuffer = lines.pop();
+
+                    for (const line of lines) {
+                        if (!line.startsWith('data: ')) continue;
+                        const raw = line.slice(6).trim();
+                        if (!raw || raw === '[DONE]') continue;
+                        let event;
+                        try { event = JSON.parse(raw); } catch { continue; }
+
+                        if (event.type === 'chunk') {
+                            fullContent += event.content || '';
+                            expandedSetting.value = fullContent;
+                        } else if (event.type === 'done') {
+                            streamingDone = true;
+                            currentCampaignBrief = fullContent;
+                            expandedSetting.style.borderColor = '#00ff88';
+                            setTimeout(() => {
+                                expandedSetting.style.borderColor = '';
+                            }, 2000);
+                        } else if (event.type === 'error') {
+                            showError('拓展失败', event.error || '未知错误，请重试');
+                            streamingDone = true;
+                        }
+                    }
+                }
+
+                if (!fullContent) {
+                    showError('拓展失败', '未收到响应，请重试');
                 }
             } catch (error) {
-                if (error.name === 'AbortError') {
-                    showError('请求超时', 'AI拓展请求超时，请检查网络后重试');
-                } else {
-                    showError('拓展失败', '网络错误，请检查连接后重试');
-                }
+                showError('拓展失败', '网络错误，请检查连接后重试');
             } finally {
                 expandBtn.disabled = false;
                 expandBtnText.style.display = 'inline';
@@ -1389,15 +1427,15 @@
         async function startGame() {
             const expandedSettingEl = document.getElementById('expanded-setting');
             const simpleSetting = document.getElementById('world-setting').value.trim();
+            currentScenarioType = document.getElementById('scenario-type')?.value || 'jianghu';
             
-            if (expandedSettingEl.value.trim()) {
-                worldSetting = expandedSettingEl.value.trim();
-            } else if (simpleSetting) {
+            if (simpleSetting) {
                 worldSetting = simpleSetting;
             } else {
-                showError('请输入故事设定', '请在文本框中输入你想要探索的故事设定，或点击「背景拓展」生成详细设定。');
+                showError('请输入故事设定', '请在文本框中输入本局补充设定，或点击「生成 Campaign Brief」。');
                 return;
             }
+            currentCampaignBrief = expandedSettingEl.value.trim();
 
             // Capture Director Mode Configuration
             const dirPace = document.getElementById('director-pace').value;
@@ -1406,6 +1444,9 @@
             const directorConfigText = `\n\n【导演杆设定】\n- 剧情节奏: ${dirPace}\n- 风格侧重: ${dirFocus}\n- 世界残酷度: ${dirCruelty}`;
             
             worldSetting += directorConfigText;
+            if (currentCampaignBrief) {
+                currentCampaignBrief += directorConfigText;
+            }
 
             document.getElementById('loading-overlay')?.remove();
             const overlay = document.createElement('div');
@@ -1425,7 +1466,11 @@
                 document.getElementById('loading-detail').textContent = '正在创建新游戏...';
                 const createGameResponse = await apiFetch('/api/games/create', {
                     method: 'POST',
-                    body: JSON.stringify({ world_setting: worldSetting })
+                    body: JSON.stringify({
+                        scenario_type: currentScenarioType,
+                        world_setting: worldSetting,
+                        campaign_brief: currentCampaignBrief
+                    })
                 });
                 const createGameData = await createGameResponse.json();
                 console.log('新游戏已创建:', createGameData.game_id);
@@ -1449,7 +1494,7 @@
 
                     const playerGenResponse = await apiFetch('/api/player/generate', {
                         method: 'POST',
-                        body: JSON.stringify({ world_setting: worldSetting }),
+                        body: JSON.stringify({ world_setting: worldSetting, scenario_type: currentScenarioType }),
                         signal: playerController.signal
                     });
                     clearTimeout(playerTimeout);
@@ -1481,6 +1526,7 @@
                         age: 20,
                         gender: '其他',
                         race: '人类',
+                        scenario_type: currentScenarioType,
                         title: '',
                         background: '一位神秘的冒险者',
                         appearance: '看起来充满决心',
@@ -2547,6 +2593,8 @@
         }
 
         window.addEventListener('DOMContentLoaded', async function() {
+            currentScenarioType = document.getElementById('scenario-type')?.value || 'jianghu';
+            loadPresetSkills();
             const hasLocal = !!loadGameState();
             const hasServer = await checkAutoSaveExists();
             if (hasLocal || hasServer) {
@@ -3358,7 +3406,15 @@
                 if (data.success) {
                     closeGamesListModal();
                     worldSetting = data.game_info?.world_setting || '';
+                    currentScenarioType = data.game_info?.scenario_type || 'jianghu';
+                    currentCampaignBrief = data.game_info?.campaign_brief || '';
                     document.getElementById('world-setting').value = worldSetting;
+                    if (document.getElementById('scenario-type')) {
+                        document.getElementById('scenario-type').value = currentScenarioType;
+                    }
+                    if (document.getElementById('expanded-setting')) {
+                        document.getElementById('expanded-setting').value = currentCampaignBrief;
+                    }
                     
                     const playerResponse = await apiFetch('/api/player');
                     const playerData = await playerResponse.json();
@@ -3420,6 +3476,8 @@
                     slot_id: slotId,
                     save_name: saveName,
                     world_setting: worldSetting,
+                    scenario_type: currentScenarioType,
+                    campaign_brief: currentCampaignBrief,
                     chapter: chapter,
                     messages: messages,
                     logs: logs,
@@ -3468,6 +3526,8 @@
                     currentScene = save.current_scene;
                     currentChoices = save.current_choices || [];
                     worldSetting = save.world_setting || '';
+                    currentScenarioType = save.scenario_type || 'jianghu';
+                    currentCampaignBrief = save.campaign_brief || '';
                     endingTriggered = save.ending_triggered || false;
                     endingCountdown = save.ending_countdown || 0;
                     selectedEndingType = save.selected_ending_type || '';

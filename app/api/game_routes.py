@@ -7,22 +7,28 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from typing import Any, Optional
 
-from app.config import BASE_DIR, STORY_EXPANSION_PROMPT
+from app.config import BASE_DIR
 from app.container import container
 from app.errors import AppError
 from app.models.chat import ChatRequestV2
+from app.prompts.scenario_prompts import build_story_expansion_prompt
+from app.scenarios import DEFAULT_SCENARIO_TYPE, get_scenario_profile, normalize_scenario_type
 
 
 router = APIRouter()
 
 
 class CreateGameRequest(BaseModel):
+    scenario_type: str = DEFAULT_SCENARIO_TYPE
     world_setting: str = ""
+    campaign_brief: str = ""
 
 
 class UpdateGameRequest(BaseModel):
     status: Optional[str] = None
     world_setting: Optional[str] = None
+    scenario_type: Optional[str] = None
+    campaign_brief: Optional[str] = None
 
 
 class MemoryRequest(BaseModel):
@@ -42,6 +48,7 @@ class UpdateMemoryRequest(BaseModel):
 
 
 class StoryExpansionRequest(BaseModel):
+    scenario_type: str = DEFAULT_SCENARIO_TYPE
     user_input: str
 
 
@@ -57,8 +64,16 @@ async def index():
 @router.post("/api/save-memory")
 async def api_save_memory(request: Request, body: MemoryRequest):
     ctx = container.context_resolver.resolve_required(request)
+    game_info = container.game_repository.get_game_info(ctx.game_id) or {}
+    scenario_type = game_info.get("scenario_type", DEFAULT_SCENARIO_TYPE)
+    profile = get_scenario_profile(scenario_type)
     memory_path = container.memory_repository.save_initial(
-        ctx, body.worldSetting, body.storySummary
+        ctx,
+        body.worldSetting,
+        body.storySummary,
+        scenario_type=scenario_type,
+        campaign_brief=game_info.get("campaign_brief", ""),
+        extra_sections=profile.memory_sections,
     )
     return JSONResponse(content={"success": True, "memory_path": memory_path})
 
@@ -84,20 +99,38 @@ async def api_update_memory(request: Request, body: UpdateMemoryRequest):
 async def api_expand_story(body: StoryExpansionRequest):
     if not body.user_input or not body.user_input.strip():
         raise AppError(code="validation_error", message="请输入故事设定", status_code=400)
+    scenario_type = normalize_scenario_type(body.scenario_type)
+    request_id = str(uuid.uuid4())
 
-    expanded_story = await container.llm_adapter.generate_text(
-        ctx=None,
-        prompt=STORY_EXPANSION_PROMPT.format(user_input=body.user_input),
-        system_prompt="你是一个专业的游戏世界观设计师，擅长创造丰富、引人入胜的故事设定。",
-        timeout=120,
-        method_name="expand_story",
+    async def event_generator():
+        try:
+            async for chunk in container.llm_adapter.stream_text(
+                ctx=None,
+                request_id=request_id,
+                prompt=build_story_expansion_prompt(scenario_type, body.user_input),
+                system_prompt=f"你是一个专业的游戏世界观设计师，专门构建{get_scenario_profile(scenario_type).label}。",
+                max_tokens=2048,
+            ):
+                yield f"data: {json.dumps({'type': 'chunk', 'content': chunk}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'done', 'scenario_type': scenario_type}, ensure_ascii=False)}\n\n"
+        except Exception as exc:
+            yield f"data: {json.dumps({'type': 'error', 'error': str(exc)}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
     )
-    return JSONResponse(content={"success": True, "expanded_story": expanded_story})
 
 
 @router.post("/api/games/create")
 async def api_create_game(request: Request, body: CreateGameRequest):
-    paths = container.game_repository.create(body.world_setting)
+    scenario_type = normalize_scenario_type(body.scenario_type)
+    paths = container.game_repository.create(
+        body.world_setting,
+        scenario_type=scenario_type,
+        campaign_brief=body.campaign_brief,
+    )
     game_id = os.path.basename(paths["game_dir"])
     session_id = container.context_resolver.get_session_id_from_request(request)
     container.session_repository.set_active_game(session_id, game_id)
@@ -146,6 +179,8 @@ async def api_get_game(game_id: str):
 @router.put("/api/games/{game_id}")
 async def api_update_game(game_id: str, body: UpdateGameRequest):
     updates = {key: value for key, value in body.model_dump().items() if value is not None}
+    if "scenario_type" in updates:
+        updates["scenario_type"] = normalize_scenario_type(updates["scenario_type"])
     game_info = container.game_repository.update_game_info(game_id, updates)
     return JSONResponse(content={"success": True, "game_info": game_info})
 
@@ -156,6 +191,25 @@ async def api_delete_game(game_id: str):
         container.session_repository.remove_game_references(game_id)
         return JSONResponse(content={"success": True})
     return JSONResponse(status_code=404, content={"error": "游戏不存在"})
+
+
+@router.post("/api/chat")
+async def chat(request: Request, body: ChatRequestV2):
+    ctx = container.context_resolver.resolve_optional(request)
+    content, raw_content, repaired = await container.game_service.chat(
+        ctx=ctx,
+        messages=body.messages,
+        extra_prompt=body.extraPrompt,
+        turn_context=body.turn_context,
+    )
+    return JSONResponse(
+        content={
+            "success": True,
+            "content": content.model_dump(),
+            "raw_content": raw_content,
+            "meta": {"repaired": repaired},
+        }
+    )
 
 
 @router.post("/api/chat/stream")

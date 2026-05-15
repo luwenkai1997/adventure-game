@@ -6,8 +6,6 @@ from typing import Optional, List, Dict
 from datetime import datetime
 import asyncio
 from app.config import (
-    CHARACTER_LIST_GENERATION_PROMPT,
-    CHARACTER_DETAIL_GENERATION_PROMPT,
     RELATION_GENERATION_PROMPT,
     ROLE_DESCRIPTIONS,
     ROLE_TYPE_CN,
@@ -23,6 +21,8 @@ from app.models.character import (
     CharacterGenerationConfig,
 )
 from app.game_context import GameContext
+from app.prompts.scenario_prompts import build_npc_detail_prompt, build_npc_list_prompt
+from app.scenarios import DEFAULT_SCENARIO_TYPE, normalize_scenario_type
 
 
 logger = logging.getLogger(__name__)
@@ -69,12 +69,12 @@ class CharacterService:
     async def generate_npcs_with_llm(
         self,
         ctx: Optional[GameContext],
-        world_setting: str, 
+        world_setting: str,
         protagonist_info: dict,
-        count: int = 10
+        count: int = 10,
+        scenario_type: str = DEFAULT_SCENARIO_TYPE,
     ) -> List[dict]:
-        from app.config import NPC_LIST_GENERATION_PROMPT, NPC_DETAIL_GENERATION_PROMPT
-
+        scenario_type = normalize_scenario_type(scenario_type)
         protagonist_summary = f"""
 姓名: {protagonist_info.get('name', '未知')}
 种族: {protagonist_info.get('race', '未知')}
@@ -83,10 +83,8 @@ class CharacterService:
 性格: {protagonist_info.get('personality', '未知')}
 """.strip()
         
-        list_prompt = NPC_LIST_GENERATION_PROMPT.format(
-            count=count,
-            world_setting=world_setting,
-            protagonist_info=protagonist_summary
+        list_prompt = build_npc_list_prompt(
+            scenario_type, world_setting, protagonist_summary, count
         )
         
         system_prompt_list = "你是一个专业的角色设计师，擅长角色设计。请严格按照JSON数组格式返回简练的名录。"
@@ -115,14 +113,15 @@ class CharacterService:
         
         async def fetch_npc_detail(npc_basic):
             async with semaphore:
-                detail_prompt = NPC_DETAIL_GENERATION_PROMPT.format(
+                detail_prompt = build_npc_detail_prompt(
+                    scenario_type,
                     world_setting=world_setting,
                     protagonist_info=protagonist_summary,
                     npc_name=npc_basic.get('name', '未知'),
                     npc_title=npc_basic.get('title', ''),
                     role_type=npc_basic.get('role_type', 'npc'),
                     relation_to_protagonist=npc_basic.get('relation_to_protagonist', ''),
-                    story_role=npc_basic.get('story_role', '')
+                    story_role=npc_basic.get('story_role', ''),
                 )
                 system_prompt_detail = "你是一个专业的角色设计师。请严格按照JSON格式返回角色详细设定。"
                 try:
@@ -155,6 +154,7 @@ class CharacterService:
                 'age': detail_data.get('age', 25),
                 'gender': detail_data.get('gender', '其他'),
                 'race': detail_data.get('race', '人类'),
+                'scenario_type': scenario_type,
                 'role_type': detail_data.get('role_type', 'npc'),
                 'importance': 3 if detail_data.get('role_type') == 'antagonist' else (2 if detail_data.get('role_type') == 'supporting' else 1),
                 'title': detail_data.get('title', ''),
@@ -164,17 +164,32 @@ class CharacterService:
                 },
                 'background': {
                     'backstory': detail_data.get('background', ''),
-                    'occupation': detail_data.get('title', '')
+                    'occupation': detail_data.get('title', ''),
+                    'faction': detail_data.get('faction', ''),
+                    'social_status': detail_data.get('social_status', ''),
                 },
                 'personality': {
-                    'traits': detail_data.get('personality', '').split('、') if detail_data.get('personality') else []
+                    'traits': detail_data.get('personality', '').replace('，', '、').split('、') if detail_data.get('personality') else [],
+                    'taboos': detail_data.get('taboos', []),
+                    'public_reputation': detail_data.get('public_reputation', ''),
                 },
                 'attributes': {
                     'health': 100,
-                    'mana': 100,
+                    'mana': 0,
                     'strength': attributes.get('strength', 10) if isinstance(attributes, dict) else 10,
-                    'agility': attributes.get('agility', 10) if isinstance(attributes, dict) else 10,
+                    'dexterity': (
+                        attributes.get('dexterity', attributes.get('agility', 10))
+                        if isinstance(attributes, dict)
+                        else 10
+                    ),
+                    'agility': (
+                        attributes.get('dexterity', attributes.get('agility', 10))
+                        if isinstance(attributes, dict)
+                        else 10
+                    ),
+                    'constitution': attributes.get('constitution', 10) if isinstance(attributes, dict) else 10,
                     'intelligence': attributes.get('intelligence', 10) if isinstance(attributes, dict) else 10,
+                    'wisdom': attributes.get('wisdom', 10) if isinstance(attributes, dict) else 10,
                     'charisma': attributes.get('charisma', 10) if isinstance(attributes, dict) else 10,
                     'luck': 10
                 },

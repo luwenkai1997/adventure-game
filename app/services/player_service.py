@@ -1,16 +1,24 @@
+import logging
 import random
 import uuid
-import logging
-from typing import List, Optional
 from datetime import datetime
+from typing import List, Optional
+
 from app.game_context import GameContext
 from app.models.player import (
+    ATTRIBUTE_NAMES_EN,
+    LEGACY_SKILL_INDEX,
     PlayerCharacter,
-    PlayerSkill,
     PlayerCreateRequest,
     PlayerRandomRequest,
-    PRESET_SKILLS,
-    ATTRIBUTE_NAMES_EN,
+    PlayerSkill,
+    get_preset_skills_for_scenario,
+)
+from app.prompts.scenario_prompts import build_player_generation_prompt
+from app.scenarios import (
+    DEFAULT_SCENARIO_TYPE,
+    get_scenario_profile,
+    normalize_scenario_type,
 )
 
 
@@ -18,9 +26,10 @@ logger = logging.getLogger(__name__)
 
 
 class PlayerService:
-    def __init__(self, player_repository, llm_adapter):
+    def __init__(self, player_repository, llm_adapter, game_repository):
         self.player_repository = player_repository
         self.llm_adapter = llm_adapter
+        self.game_repository = game_repository
 
     def calculate_modifier(self, attribute: int) -> int:
         return (attribute - 10) // 2
@@ -29,23 +38,61 @@ class PlayerService:
         modifier = self.calculate_modifier(constitution)
         return 10 + modifier * 2
 
+    def _resolve_scenario_type(
+        self, ctx: Optional[GameContext], requested: Optional[str] = None
+    ) -> str:
+        if requested:
+            return normalize_scenario_type(requested)
+        if ctx is not None:
+            game_info = self.game_repository.get_game_info(ctx.game_id) or {}
+            return normalize_scenario_type(game_info.get("scenario_type"))
+        return DEFAULT_SCENARIO_TYPE
+
+    def _build_skill(self, name: str, scenario_type: str) -> Optional[PlayerSkill]:
+        skills_map = get_preset_skills_for_scenario(scenario_type)
+        for category, skills in skills_map.items():
+            for skill_data in skills:
+                if skill_data["name"] == name:
+                    return PlayerSkill(
+                        id=f"skill_{uuid.uuid4().hex[:6]}",
+                        name=skill_data["name"],
+                        category=category,
+                        level=1,
+                        description=skill_data["description"],
+                        related_attribute=skill_data["related_attribute"],
+                    )
+        skill_info = LEGACY_SKILL_INDEX.get(name)
+        if skill_info:
+            return PlayerSkill(
+                id=f"skill_{uuid.uuid4().hex[:6]}",
+                name=name,
+                category=skill_info["category"],
+                level=1,
+                description=skill_info["description"],
+                related_attribute=skill_info["related_attribute"],
+            )
+        return None
+
     def create_player(self, ctx: GameContext, request: PlayerCreateRequest) -> PlayerCharacter:
+        scenario_type = self._resolve_scenario_type(ctx, request.scenario_type)
         skills = []
         for skill_name in request.skills:
-            skill = self._find_skill_by_name(skill_name)
+            skill = self._build_skill(skill_name, scenario_type)
             if skill:
                 skills.append(skill)
 
         max_hp = self.calculate_max_hp(request.constitution)
-
         player = PlayerCharacter(
             id="player",
             name=request.name,
             age=request.age,
             gender=request.gender,
             race=request.race,
+            title=request.title,
             background=request.background,
             appearance=request.appearance,
+            personality=request.personality,
+            scenario_type=scenario_type,
             strength=request.strength,
             dexterity=request.dexterity,
             constitution=request.constitution,
@@ -58,22 +105,18 @@ class PlayerService:
             created_at=datetime.now().isoformat(),
             updated_at=datetime.now().isoformat(),
         )
-
         self.player_repository.save(ctx, player.model_dump())
         return player
 
     def random_player(
         self, ctx: GameContext, request: Optional[PlayerRandomRequest] = None
     ) -> PlayerCharacter:
-        gender_options = ["男", "女", "其他"]
-        race_options = ["人类", "精灵", "矮人", "兽人", "其他"]
+        scenario_type = self._resolve_scenario_type(ctx, request.scenario_type if request else None)
+        profile = get_scenario_profile(scenario_type)
 
-        gender = (
-            request.gender
-            if request and request.gender
-            else random.choice(gender_options)
-        )
-        race = random.choice(race_options)
+        gender_options = ["男", "女", "其他"]
+        gender = request.gender if request and request.gender else random.choice(gender_options)
+        race = random.choice(profile.player_races)
 
         attributes = {
             "strength": random.randint(8, 15),
@@ -83,26 +126,20 @@ class PlayerService:
             "wisdom": random.randint(8, 15),
             "charisma": random.randint(8, 15),
         }
-
         used_points = sum(attributes.values())
         points_pool = 90 - used_points
-
         while points_pool > 0 and used_points < 95:
             attr_to_boost = random.choice(list(attributes.keys()))
             if attributes[attr_to_boost] < 18:
                 attributes[attr_to_boost] += 1
                 points_pool -= 1
 
-        skill_categories = list(PRESET_SKILLS.keys())
-        num_skills = random.randint(2, 3)
-        selected_categories = random.sample(
-            skill_categories, min(num_skills, len(skill_categories))
-        )
-
-        skills = []
+        skills_map = get_preset_skills_for_scenario(scenario_type)
+        num_categories = random.randint(2, min(3, len(skills_map)))
+        selected_categories = random.sample(list(skills_map.keys()), num_categories)
+        skills: List[PlayerSkill] = []
         for category in selected_categories:
-            category_skills = PRESET_SKILLS[category]
-            selected_skill = random.choice(category_skills)
+            selected_skill = random.choice(skills_map[category])
             skills.append(
                 PlayerSkill(
                     id=f"skill_{uuid.uuid4().hex[:6]}",
@@ -114,33 +151,12 @@ class PlayerService:
                 )
             )
 
-        name_templates = {
-            "男": ["李云", "张风", "王剑", "刘影", "陈墨", "周游", "吴寒", "郑锋"],
-            "女": ["林婉", "苏雪", "周晴", "吴月", "郑岚", "陈烟", "刘露", "李梅"],
-            "其他": ["无名", "行者", "孤影", "夜羽", "霜寒", "云烟", "风啸", "雷鸣"],
-        }
-        name = random.choice(name_templates.get(gender, name_templates["男"]))
+        name = random.choice(profile.random_names.get(gender, profile.random_names["男"]))
         age = random.randint(18, 40)
-
-        background_templates = [
-            "曾是一名游历四方的侠客，见惯了世间百态",
-            "出身于没落的武林世家，自幼习武",
-            "原本是山野间的猎人，机缘巧合踏入江湖",
-            "曾是某个门派的弟子，因故离开师门",
-            "江湖郎中，精通医术和草药知识",
-            "落魄书生，偶得武功秘籍自学成才",
-        ]
-        background = random.choice(background_templates)
-
-        appearance_templates = {
-            "人类": "普通人类外貌，但眼神中透着江湖历练",
-            "精灵": "尖耳长发，气质出尘，行动间轻盈如风",
-            "矮人": "身材矮小但敦实有力，胡须浓密",
-            "兽人": "带有兽类特征，犬齿微露，目光锐利",
-            "其他": "气质独特，让人难以看出来历",
-        }
-        appearance = appearance_templates.get(race, appearance_templates["其他"])
-
+        background = random.choice(profile.random_backgrounds)
+        appearance = profile.random_appearances.get(race, next(iter(profile.random_appearances.values())))
+        title = "江湖行者" if scenario_type == "jianghu" else "流亡者"
+        personality = "谨慎、顽强、能在压力中做选择"
         max_hp = self.calculate_max_hp(attributes["constitution"])
 
         player = PlayerCharacter(
@@ -149,8 +165,11 @@ class PlayerService:
             age=age,
             gender=gender,
             race=race,
+            title=title,
             background=background,
             appearance=appearance,
+            personality=personality,
+            scenario_type=scenario_type,
             strength=attributes["strength"],
             dexterity=attributes["dexterity"],
             constitution=attributes["constitution"],
@@ -163,7 +182,6 @@ class PlayerService:
             created_at=datetime.now().isoformat(),
             updated_at=datetime.now().isoformat(),
         )
-
         self.player_repository.save(ctx, player.model_dump())
         return player
 
@@ -178,42 +196,23 @@ class PlayerService:
         if not player_data:
             return None
 
-        if "skills" in updates and isinstance(updates["skills"], list):
-            from app.models.player import PRESET_SKILLS
-            from uuid import uuid4
+        scenario_type = self._resolve_scenario_type(ctx, updates.get("scenario_type") or player_data.get("scenario_type"))
+        updates["scenario_type"] = scenario_type
 
+        if "skills" in updates and isinstance(updates["skills"], list):
             processed_skills = []
+            existing_skills = player_data.get("skills", [])
             for skill_update in updates["skills"]:
                 if isinstance(skill_update, dict):
-                    skill_name = skill_update.get("name", "")
-                    skill_level = skill_update.get("level", 1)
-
-                    skill_info = self._find_skill_info(skill_name)
-                    if skill_info:
-                        processed_skill = {
-                            "id": skill_update.get("id", f"skill_{uuid4().hex[:6]}"),
-                            "name": skill_name,
-                            "category": skill_info["category"],
-                            "level": skill_level,
-                            "description": skill_info["description"],
-                            "related_attribute": skill_info["related_attribute"],
-                        }
-                        processed_skills.append(processed_skill)
-                    else:
-                        processed_skill = {
-                            "id": skill_update.get("id", f"skill_{uuid4().hex[:6]}"),
-                            "name": skill_name,
-                            "category": skill_update.get("category", "general"),
-                            "level": skill_level,
-                            "description": skill_update.get("description", ""),
-                            "related_attribute": skill_update.get(
-                                "related_attribute", "strength"
-                            ),
-                        }
-                        processed_skills.append(processed_skill)
+                    processed_skills.append(
+                        self._normalize_skill_payload(
+                            skill_update,
+                            scenario_type,
+                            existing_skills=existing_skills,
+                        )
+                    )
                 else:
                     processed_skills.append(skill_update)
-
             updates["skills"] = processed_skills
 
         player_data.update(updates)
@@ -231,15 +230,12 @@ class PlayerService:
         player = self.get_player(ctx)
         if not player:
             return None
-
-        skill = self._find_skill_by_name(skill_name)
+        skill = self._build_skill(skill_name, player.scenario_type)
         if not skill:
             return None
-
         for existing_skill in player.skills:
             if existing_skill.name == skill_name:
                 return player
-
         player.skills.append(skill)
         return self.update_player(ctx, {"skills": [s.model_dump() for s in player.skills]})
 
@@ -247,7 +243,6 @@ class PlayerService:
         player = self.get_player(ctx)
         if not player:
             return None
-
         player.skills = [s for s in player.skills if s.name != skill_name]
         return self.update_player(ctx, {"skills": [s.model_dump() for s in player.skills]})
 
@@ -255,10 +250,7 @@ class PlayerService:
         player = self.get_player(ctx)
         if not player:
             return None
-
-        new_hp = player.current_hp + delta
-        new_hp = max(0, min(new_hp, player.max_hp))
-
+        new_hp = max(0, min(player.current_hp + delta, player.max_hp))
         return self.update_player(ctx, {"current_hp": new_hp})
 
     def apply_check_growth(
@@ -275,7 +267,6 @@ class PlayerService:
         if not player:
             return {}
 
-        exp_gain = 0
         if critical:
             exp_gain = 20
         elif success:
@@ -283,26 +274,22 @@ class PlayerService:
         elif fumble:
             exp_gain = 0
         else:
-            exp_gain = 5 # Learn from failure
+            exp_gain = 5
 
         if exp_gain == 0:
             return {"skill": skill_name, "exp_gained": 0, "leveled_up": False}
 
         current_exp = player.skill_exp.get(skill_name, 0)
         new_exp = current_exp + exp_gain
-        
-        # update exp
         player.skill_exp[skill_name] = new_exp
 
-        # check level up
         new_level = self.recalculate_skill_level(skill_name, new_exp)
-        
         skill_index = -1
         old_level = 0
-        for i, s in enumerate(player.skills):
-            if s.name == skill_name:
+        for i, skill in enumerate(player.skills):
+            if skill.name == skill_name:
                 skill_index = i
-                old_level = s.level
+                old_level = skill.level
                 break
 
         leveled_up = False
@@ -310,26 +297,26 @@ class PlayerService:
             player.skills[skill_index].level = new_level
             leveled_up = True
             msg = f"技能【{skill_name}】升级到了Lv.{new_level}！"
-            if player.growth_log is None:
-                player.growth_log = []
-            player.growth_log.append(msg)
         else:
             msg = f"技能【{skill_name}】经验 +{exp_gain}"
-            if player.growth_log is None:
-                player.growth_log = []
-            player.growth_log.append(msg)
 
-        self.update_player(ctx, {
-            "skill_exp": player.skill_exp,
-            "skills": [s.model_dump() for s in player.skills],
-            "growth_log": player.growth_log
-        })
+        if player.growth_log is None:
+            player.growth_log = []
+        player.growth_log.append(msg)
 
+        self.update_player(
+            ctx,
+            {
+                "skill_exp": player.skill_exp,
+                "skills": [s.model_dump() for s in player.skills],
+                "growth_log": player.growth_log,
+            },
+        )
         return {
             "skill": skill_name,
             "exp_gained": exp_gain,
             "leveled_up": leveled_up,
-            "new_level": new_level if leveled_up else old_level
+            "new_level": new_level if leveled_up else old_level,
         }
 
     def apply_hp_effect_from_check(
@@ -374,22 +361,9 @@ class PlayerService:
         if player and player.growth_log:
             self.update_player(ctx, {"growth_log": []})
 
-    def _find_skill_by_name(self, name: str) -> Optional[PlayerSkill]:
-        for category, skills in PRESET_SKILLS.items():
-            for skill_data in skills:
-                if skill_data["name"] == name:
-                    return PlayerSkill(
-                        id=f"skill_{uuid.uuid4().hex[:6]}",
-                        name=skill_data["name"],
-                        category=category,
-                        level=1,
-                        description=skill_data["description"],
-                        related_attribute=skill_data["related_attribute"],
-                    )
-        return None
-
-    def _find_skill_info(self, name: str) -> Optional[dict]:
-        for category, skills in PRESET_SKILLS.items():
+    def _find_skill_info(self, name: str, scenario_type: str) -> Optional[dict]:
+        skills_map = get_preset_skills_for_scenario(scenario_type)
+        for category, skills in skills_map.items():
             for skill_data in skills:
                 if skill_data["name"] == name:
                     return {
@@ -397,13 +371,61 @@ class PlayerService:
                         "description": skill_data["description"],
                         "related_attribute": skill_data["related_attribute"],
                     }
-        return None
+        return LEGACY_SKILL_INDEX.get(name)
+
+    def _normalize_skill_payload(
+        self,
+        skill_update: dict,
+        scenario_type: str,
+        existing_skills: Optional[List[dict]] = None,
+    ) -> dict:
+        skill_name = skill_update.get("name", "")
+        skill_level = skill_update.get("level", 1)
+        skill_info = self._find_skill_info(skill_name, scenario_type)
+
+        if skill_info:
+            return {
+                "id": skill_update.get("id", f"skill_{uuid.uuid4().hex[:6]}"),
+                "name": skill_name,
+                "category": skill_update.get("category", skill_info["category"]),
+                "level": skill_level,
+                "description": skill_update.get("description", skill_info["description"]),
+                "related_attribute": skill_update.get(
+                    "related_attribute", skill_info["related_attribute"]
+                ),
+            }
+
+        existing_match = None
+        for existing in existing_skills or []:
+            if isinstance(existing, dict) and existing.get("name") == skill_name:
+                existing_match = existing
+                break
+
+        return {
+            "id": skill_update.get(
+                "id",
+                (existing_match or {}).get("id", f"skill_{uuid.uuid4().hex[:6]}"),
+            ),
+            "name": skill_name or "未命名技能",
+            "category": skill_update.get(
+                "category",
+                (existing_match or {}).get("category", "custom"),
+            ),
+            "level": skill_level,
+            "description": skill_update.get(
+                "description",
+                (existing_match or {}).get("description", "LLM 生成的场景专属技能"),
+            ),
+            "related_attribute": skill_update.get(
+                "related_attribute",
+                (existing_match or {}).get("related_attribute", "wisdom"),
+            ),
+        }
 
     def get_skill_modifier(self, ctx: Optional[GameContext], skill_name: str) -> int:
         player = self.get_player(ctx)
         if not player:
             return 0
-
         for skill in player.skills:
             if skill.name == skill_name:
                 return skill.level
@@ -413,117 +435,106 @@ class PlayerService:
         player = self.get_player(ctx)
         if not player:
             return ""
-
         summary_parts = [
             f"【{player.name}】",
-            f"种族: {player.race or '未知'}",
+            f"称号: {player.title or '未知'}",
+            f"出身/血统: {player.race or '未知'}",
             f"年龄: {player.age or '未知'}",
             f"背景: {player.background or '未知'}",
         ]
-
         summary_parts.append("属性:")
-        summary_parts.append(
-            f"  力量 {player.strength} ({(player.strength - 10) // 2:+d})"
-        )
-        summary_parts.append(
-            f"  敏捷 {player.dexterity} ({(player.dexterity - 10) // 2:+d})"
-        )
-        summary_parts.append(
-            f"  体质 {player.constitution} ({(player.constitution - 10) // 2:+d})"
-        )
-        summary_parts.append(
-            f"  智力 {player.intelligence} ({(player.intelligence - 10) // 2:+d})"
-        )
+        summary_parts.append(f"  力量 {player.strength} ({(player.strength - 10) // 2:+d})")
+        summary_parts.append(f"  敏捷 {player.dexterity} ({(player.dexterity - 10) // 2:+d})")
+        summary_parts.append(f"  体质 {player.constitution} ({(player.constitution - 10) // 2:+d})")
+        summary_parts.append(f"  智力 {player.intelligence} ({(player.intelligence - 10) // 2:+d})")
         summary_parts.append(f"  感知 {player.wisdom} ({(player.wisdom - 10) // 2:+d})")
-        summary_parts.append(
-            f"  魅力 {player.charisma} ({(player.charisma - 10) // 2:+d})"
-        )
-
+        summary_parts.append(f"  魅力 {player.charisma} ({(player.charisma - 10) // 2:+d})")
         summary_parts.append(f"HP: {player.current_hp}/{player.max_hp}")
-
         if player.skills:
             summary_parts.append("技能:")
             for skill in player.skills:
                 summary_parts.append(f"  - {skill.name} (Lv.{skill.level})")
-
         return "\n".join(summary_parts)
 
     async def generate_player_with_llm(
-        self, ctx: GameContext, world_setting: str = ""
+        self, ctx: GameContext, world_setting: str = "", scenario_type: Optional[str] = None
     ) -> Optional[PlayerCharacter]:
-        """使用LLM根据故事设定生成主角"""
-        from app.config import PLAYER_GENERATION_PROMPT
-        from uuid import uuid4
-        
+        scenario_type = self._resolve_scenario_type(ctx, scenario_type)
+        game_info = self.game_repository.get_game_info(ctx.game_id) or {}
+        campaign_brief = game_info.get("campaign_brief", "")
+
         try:
-            prompt = PLAYER_GENERATION_PROMPT.format(world_setting=world_setting or "一个神秘的冒险世界")
-            
+            prompt = build_player_generation_prompt(
+                scenario_type, world_setting or game_info.get("world_setting", ""), campaign_brief
+            )
             player_data = await self.llm_adapter.generate_json(
                 ctx=ctx,
                 prompt=prompt,
-                system_prompt="你是一个专业的角色设计师，擅长创造符合故事设定的有趣角色。请严格按照JSON格式返回。",
+                system_prompt=f"你是一个专业的角色设计师，专精{get_scenario_profile(scenario_type).label}。",
                 timeout=120,
-                max_tokens=2500
+                max_tokens=2500,
             )
 
             if not player_data or not isinstance(player_data, dict):
                 logger.warning("LLM返回格式错误，无法解析角色数据")
                 return None
-            
-            required_fields = ['name', 'age', 'gender', 'race']
-            for field in required_fields:
+
+            for field in ["name", "age", "gender", "race"]:
                 if field not in player_data:
                     logger.warning("LLM返回数据缺少必要字段: %s", field)
                     return None
-            
-            skills = []
-            if 'skills' in player_data and isinstance(player_data['skills'], list):
-                for skill_data in player_data['skills']:
+
+            skills: List[PlayerSkill] = []
+            if isinstance(player_data.get("skills"), list):
+                for skill_data in player_data["skills"]:
                     if isinstance(skill_data, dict):
-                        skills.append(PlayerSkill(
-                            id=f"skill_{uuid4().hex[:6]}",
-                            name=skill_data.get('name', '未知技能'),
-                            category=skill_data.get('category', 'general'),
-                            level=skill_data.get('level', 1),
-                            description=skill_data.get('description', ''),
-                            related_attribute=skill_data.get('related_attribute', 'strength')
-                        ))
-            
-            constitution = player_data.get('constitution', 10)
+                        base_info = self._find_skill_info(skill_data.get("name", ""), scenario_type) or {}
+                        skills.append(
+                            PlayerSkill(
+                                id=f"skill_{uuid.uuid4().hex[:6]}",
+                                name=skill_data.get("name", "未知技能"),
+                                category=skill_data.get("category", base_info.get("category", "general")),
+                                level=skill_data.get("level", 1),
+                                description=skill_data.get("description", base_info.get("description", "")),
+                                related_attribute=skill_data.get(
+                                    "related_attribute", base_info.get("related_attribute", "strength")
+                                ),
+                            )
+                        )
+
+            constitution = player_data.get("constitution", 10)
             max_hp = self.calculate_max_hp(constitution)
-            
-            background = player_data.get('background', '一位神秘的冒险者')
-            motivation = player_data.get('motivation', '')
+            background = player_data.get("background", "一位神秘的冒险者")
+            motivation = player_data.get("motivation", "")
             if motivation:
                 background = f"{background}\n\n核心动机：{motivation}"
-            
+
             player = PlayerCharacter(
                 id="player",
-                name=player_data.get('name', '冒险者'),
-                age=player_data.get('age', 20),
-                gender=player_data.get('gender', '其他'),
-                race=player_data.get('race', '人类'),
-                title=player_data.get('title', ''),
+                name=player_data.get("name", "冒险者"),
+                age=player_data.get("age", 20),
+                gender=player_data.get("gender", "其他"),
+                race=player_data.get("race", get_scenario_profile(scenario_type).player_races[0]),
+                title=player_data.get("title", ""),
                 background=background,
-                appearance=player_data.get('appearance', '看起来充满决心'),
-                personality=player_data.get('personality', ''),
-                strength=player_data.get('strength', 10),
-                dexterity=player_data.get('dexterity', 10),
+                appearance=player_data.get("appearance", "看起来充满决心"),
+                personality=player_data.get("personality", ""),
+                scenario_type=scenario_type,
+                strength=player_data.get("strength", 10),
+                dexterity=player_data.get("dexterity", 10),
                 constitution=constitution,
-                intelligence=player_data.get('intelligence', 10),
-                wisdom=player_data.get('wisdom', 10),
-                charisma=player_data.get('charisma', 10),
+                intelligence=player_data.get("intelligence", 10),
+                wisdom=player_data.get("wisdom", 10),
+                charisma=player_data.get("charisma", 10),
                 max_hp=max_hp,
                 current_hp=max_hp,
                 skills=skills,
                 created_at=datetime.now().isoformat(),
-                updated_at=datetime.now().isoformat()
+                updated_at=datetime.now().isoformat(),
             )
-            
             self.player_repository.save(ctx, player.model_dump())
             logger.info("主角生成成功: %s", player.name)
             return player
-            
-        except Exception as e:
-            logger.exception("LLM生成角色失败: %s", str(e))
+        except Exception as exc:
+            logger.exception("LLM生成角色失败: %s", str(exc))
             return None

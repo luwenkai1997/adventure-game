@@ -123,7 +123,9 @@ class TransportClient:
                 if "choices" in data and data["choices"]:
                     delta = data["choices"][0].get("delta", {})
                     if "content" in delta:
-                        yield delta["content"]
+                        piece = delta.get("content")
+                        if piece is not None:
+                            yield piece
 
 
 class LLMAdapter:
